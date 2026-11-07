@@ -127,6 +127,12 @@ const MockData = (() => {
     // 与真实数据层保持相同的异步接口
     async refreshQuotes() { tick(); },
     async loadBars() { },
+    detail(sym) {
+      const d = daily(sym), l = d[d.length - 1], y = d.slice(-252), q = this.quote(sym), avg = (l.h + l.l + l.c) / 3;
+      return { wk52h: Math.max(...y.map(b => b.h)), wk52l: Math.min(...y.map(b => b.l)), ath: Math.max(...d.map(b => b.h)), atl: Math.min(...d.map(b => b.l)),
+        amp: (q.high - q.low) / q.prev * 100, avg, turnover: avg * l.v, volume: l.v };
+    },
+    async loadDetail() { },
     async loadNews(sym) { return this.news(sym); },
     async loadEarnings(d) { return this.earnings(Math.round((d - new Date()) / 864e5)); },
     async validate(sym) { return !!info[sym]; }

@@ -1,6 +1,6 @@
 // 真实数据层:通过本站的 /api 后台取数据(Key 只在后台,网页里没有任何密钥)
 const LiveData = (() => {
-  const M = MockData, qc = {}, bc = {};
+  const M = MockData, qc = {}, bc = {}, dc = {};
   const api = async p => { const r = await fetch(p); if (!r.ok) throw new Error('API ' + r.status); return r.json(); };
   const blank = sym => ({ sym, name: (M.info[sym] || {}).name || sym, price: NaN, prev: NaN, change: 0, pct: 0, high: NaN, low: NaN, open: NaN, volume: 0 });
   const WHEN = ['盘前', '盘中', '盘后'];
@@ -13,6 +13,8 @@ const LiveData = (() => {
     },
     bars: (sym, period) => bc[sym + '|' + period],
     async loadBars(sym, period) { bc[sym + '|' + period] = await api(`/api/bars?symbol=${encodeURIComponent(sym)}&period=${period}`); },
+    detail: sym => dc[sym],
+    async loadDetail(sym) { dc[sym] = await api('/api/detail?symbol=' + encodeURIComponent(sym)); },
     async loadNews(sym) {
       const r = await api('/api/news?symbol=' + encodeURIComponent(sym || ''));
       if (r.error === 'no_key') return { error: '未设置 Finnhub Key,新闻暂不可用' };

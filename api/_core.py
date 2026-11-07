@@ -118,6 +118,57 @@ def bars(sym, period):
     return {"bars": _bars(_chart(sym, rng, interval, ttl), period)}
 
 
+def detail(sym):
+    """个股详细数据(仿 Moomoo 数据面板)。Yahoo 提供行情类,Finnhub 提供市值/股本/股息等(没有 Key 时这些为空)。"""
+    out = {}
+    try:
+        r = _chart(sym, "1d", "5m", 15)
+        m = r["meta"]
+        out["wk52h"], out["wk52l"] = m.get("fiftyTwoWeekHigh"), m.get("fiftyTwoWeekLow")
+        prev = m.get("chartPreviousClose") or m.get("previousClose")
+        hi, lo = m.get("regularMarketDayHigh"), m.get("regularMarketDayLow")
+        if prev and hi and lo:
+            out["amp"] = (hi - lo) / prev * 100
+        tv = vol = 0
+        q = r["indicators"]["quote"][0]
+        for i in range(len(r.get("timestamp") or [])):
+            h_, l_, c_, v_ = q["high"][i], q["low"][i], q["close"][i], q["volume"][i]
+            if None in (h_, l_, c_) or not v_:
+                continue
+            tv += (h_ + l_ + c_) / 3 * v_; vol += v_
+        if vol:
+            out["avg"], out["turnover"] = tv / vol, tv     # 平均价(成交量加权)、成交额(估算)
+        out["volume"] = m.get("regularMarketVolume") or vol
+    except Exception:
+        pass
+    try:
+        mb = bars(sym, "M")["bars"]
+        if mb:
+            out["ath"], out["atl"] = max(b["h"] for b in mb), min(b["l"] for b in mb)
+    except Exception:
+        pass
+    try:
+        met = (_fh("stock/metric", {"symbol": sym, "metric": "all"}, 3600) or {}).get("metric", {})
+        pro = _fh("stock/profile2", {"symbol": sym}, 3600) or {}
+        sh = pro.get("shareOutstanding")                      # 单位:百万股
+        if pro.get("marketCapitalization"):
+            out["mcap"] = pro["marketCapitalization"] * 1e6   # 单位:百万美元 -> 美元
+        if sh:
+            out["shares"] = sh * 1e6
+            if out.get("volume"):
+                out["turnoverRate"] = out["volume"] / (sh * 1e6) * 100
+        avgv = met.get("10DayAverageTradingVolume")           # 单位:百万股
+        if avgv and out.get("volume"):
+            out["volRatio"] = out["volume"] / (avgv * 1e6)
+        if met.get("dividendYieldIndicatedAnnual") is not None:
+            out["divYield"] = met["dividendYieldIndicatedAnnual"]
+        if met.get("peTTM") is not None:
+            out["pe"] = met["peTTM"]
+    except Exception:
+        pass
+    return out
+
+
 def _fh(path, params, ttl):
     key = os.environ.get("FINNHUB_KEY")
     if not key:
@@ -164,6 +215,8 @@ def route(name, q):
         if name == "earnings":
             datetime.date.fromisoformat(q["date"])      # 校验日期格式
             return 200, earnings(q["date"]), 600
+        if name == "detail":
+            return 200, detail(q["symbol"].upper()), 15
         if name == "status":
             return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY"))}, 0
         return 404, {"error": "not found"}, 0

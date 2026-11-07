@@ -111,14 +111,22 @@ function selectStock(s) { state.sel = s; state.hover = -1; switchTab('watch'); r
 
 
 // ===== 个股详情 =====
+const cn = (n, u = '') => !Number.isFinite(n) ? '--' : n >= 1e8 ? fmt(n / 1e8) + '亿' + u : n >= 1e4 ? fmt(n / 1e4) + '万' + u : fmt(n, 0) + u;
 function headHTML(s) {
-  const q = Data.quote(s);
-  return `<div class="dh"><div><h2>${s} <span class="muted" style="font-size:14px;font-weight:400">${esc(q.name)}</span></h2></div>
-    <div style="text-align:right"><span class="big ${cls(q.change)}">${fmt(q.price)}</span> <span class="${cls(q.change)}">${sgn(q.change)} (${sgn(q.pct)}%)</span></div></div>
-  <div class="stats">
-    <div class="stat"><div class="l">今开</div>${fmt(q.open)}</div><div class="stat"><div class="l">最高</div>${fmt(q.high)}</div>
-    <div class="stat"><div class="l">最低</div>${fmt(q.low)}</div><div class="stat"><div class="l">昨收</div>${fmt(q.prev)}</div>
-    <div class="stat"><div class="l">成交量</div>${Number.isFinite(q.price) ? big(q.volume) : '--'}</div></div>`;
+  const q = Data.quote(s), d = (Data.detail && Data.detail(s)) || {}, dec = Number.isFinite(q.price) ? decOf(q.price) : 2, P = v => Number.isFinite(v) ? fmt(v, dec) : '--';
+  const pct = v => Number.isFinite(v) ? fmt(v) + '%' : '--', num = v => Number.isFinite(v) ? fmt(v) : '--';
+  const vs = v => !Number.isFinite(v) || !Number.isFinite(q.prev) ? '' : v >= q.prev ? 'up' : 'down';
+  const rows = [   // 三列,排列参照 Moomoo
+    [['成交额', cn(d.turnover)], ['成交量', cn(q.volume, '股')], ['换手率', pct(d.turnoverRate)], ['52周最高', P(d.wk52h)], ['52周最低', P(d.wk52l)], ['股息率', pct(d.divYield)]],
+    [['最高', P(q.high), vs(q.high)], ['最低', P(q.low), vs(q.low)], ['市值', cn(d.mcap)], ['总股本', cn(d.shares)], ['振幅', pct(d.amp)], ['市盈率(TTM)', num(d.pe)]],
+    [['今开', P(q.open), vs(q.open)], ['昨收', P(q.prev)], ['平均价', P(d.avg)], ['量比(估算)', num(d.volRatio)], ['历史最高', P(d.ath)], ['历史最低', P(d.atl)]]
+  ];
+  const arrow = q.change >= 0 ? '↑' : '↓', open = store.get('statsOpen', true), show = open ? 6 : 2;
+  return `<div class="dh"><div><h2>${s} <span class="muted" style="font-size:14px;font-weight:400">${esc(q.name)}</span></h2></div></div>
+  <div class="px-big ${cls(q.change)}"><span class="big">${P(q.price)}</span><span class="arr">${Number.isFinite(q.price) ? arrow : ''}</span></div>
+  <div class="${cls(q.change)} px-sub">${sgn(q.change, dec)} &nbsp; ${sgn(q.pct)}%</div>
+  <div class="sgrid">${rows.map(col => `<div class="scol">${col.slice(0, show).map(([l, v, c]) => `<div class="srow"><span class="l">${l}</span><span class="v ${c || ''}">${v}</span></div>`).join('')}</div>`).join('')}</div>
+  <button class="sfold" data-act="stats" title="${open ? '收起' : '展开'}">${open ? '︿' : '﹀'}</button>`;
 }
 async function renderDetail() {
   const s = state.sel; if (!s) { $('#detail').innerHTML = '<div class="muted">请先添加自选股</div>'; return; }
@@ -129,11 +137,12 @@ async function renderDetail() {
   <div class="tbar" id="tb"></div>
   <h3>${s} 相关新闻 ${Data.mode === 'mock' ? '<span class="badge">模拟</span>' : ''}</h3>
   <ul class="news" id="stockNews"><li class="muted">加载中…</li></ul>`;
-  bindChart(); renderToolbar(); loadChart(true);
+  bindChart(); renderToolbar(); loadChart(true); loadStats(s);
   const stale = () => state.sel !== s || state.tab !== 'watch';
   Data.loadNews(s).then(l => { if (!stale()) $('#stockNews').innerHTML = newsHTML(l); })
     .catch(() => { if (!stale()) $('#stockNews').innerHTML = '<li class="muted">新闻加载失败</li>'; });
 }
+function loadStats(s) { if (Data.loadDetail) Data.loadDetail(s).then(() => { if (state.sel === s && state.tab === 'watch' && $('#dhead')) $('#dhead').innerHTML = headHTML(s); }).catch(() => { }); }
 function newsHTML(list) {
   if (!Array.isArray(list)) return `<li class="muted">${list.error}</li>`;
   if (!list.length) return '<li class="muted">暂无新闻</li>';
@@ -169,6 +178,7 @@ $('#detail').addEventListener('click', e => {
   if (t.dataset.p) return setPeriod(t.dataset.p);
   const a = t.dataset.act, pop = t.parentElement.querySelector('.pop');
   if (a === 'minmenu' || a === 'indmenu') { const was = pop.classList.contains('hidden'); closePops(); pop.classList.toggle('hidden', !was); e.stopPropagation(); return; }
+  if (a === 'stats') { store.set('statsOpen', !store.get('statsOpen', true)); $('#dhead').innerHTML = headHTML(state.sel); return; }
   closePops(); if (!V) return;
   if (a === 'type') { state.type = state.type === 'candle' ? 'line' : 'candle'; store.set('ctype', state.type); renderToolbar(); }
   else if (a === 'zin') zoomAt(1 / 1.3, V.L.W / 2);
@@ -285,7 +295,7 @@ function paint() {
 
     if (p.id === 'price') {
       let l = Infinity, h = -Infinity; for (let i = i0; i <= i1; i++) { l = Math.min(l, B[i].l); h = Math.max(h, B[i].h); }
-      if (!isFinite(l)) { l = 0; h = 1; } const pad = (h - l) * .08 || h * .01 || 1; scale(l - pad, h + pad);
+      if (!isFinite(l)) { l = 0; h = 1; } const pad = (h - l) * .08 || h * .01 || 1; scale(l >= 0 ? Math.max(0, l - pad) : l - pad, h + pad);   // 价格不会为负
       const dec = decOf(B[ref].c); p.dec = dec; p.fv = v => fmt(v, dec);
       grid([0, 1, 2, 3, 4].map(k => lo + (hi - lo) * k / 4), p.fv);
       const last = B[n - 1].c, prev = n > 1 ? B[n - 2].c : B[n - 1].o;
@@ -370,7 +380,7 @@ function bindChart() {
   const pos = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
   const startDrag = q => { ptr.drag = { x: q.x, start: view.start }; };
   cv.addEventListener('pointerdown', e => {
-    if (!V) return; cv.setPointerCapture(e.pointerId); const q = pos(e); ptr.map.set(e.pointerId, q); ptr.moved = false;
+    if (!V) return; try { cv.setPointerCapture(e.pointerId); } catch { } const q = pos(e); ptr.map.set(e.pointerId, q); ptr.moved = false;
     if (ptr.map.size === 1) startDrag(q);
     else if (ptr.map.size === 2) { const [a, b] = [...ptr.map.values()]; ptr.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) }; ptr.drag = null; }
   });
@@ -485,6 +495,7 @@ async function refresh() {
     setBadge(err); renderIndices(); renderWatch();
     if (state.tab === 'watch') {
       const h = $('#dhead'); if (h) h.innerHTML = headHTML(state.sel);   // 只更新报价头部,不打断图表悬停
+      loadStats(state.sel);
       const s = state.sel, p = state.period, calm = () => state.sel === s && state.period === p && state.tab === 'watch' && state.hover < 0 && !ptr.drag && V;
       if (calm()) {
         if (isIntra(p)) {   // 分钟周期:重新取最新K线,并保持你当前看的位置

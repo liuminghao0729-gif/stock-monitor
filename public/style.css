@@ -82,3 +82,16 @@ footer{padding:16px;text-align:center}
 .pop label:hover{background:#262d38}
 .pop .pt{font-size:12px;color:var(--muted);padding:6px 8px 2px}
 .legend{margin:8px 0 6px}
+
+/* ===== 个股信息面板(仿 Moomoo)===== */
+.px-big{display:flex;align-items:baseline;gap:6px;margin-top:2px}
+.px-big .big{font-size:38px;font-weight:700;letter-spacing:-.5px;line-height:1.1}
+.px-big .arr{font-size:22px;font-weight:700}
+.px-sub{font-size:16px;margin-bottom:10px}
+.sgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:0 28px;border-top:1px solid var(--line);padding-top:8px}
+.scol{min-width:0}
+.srow{display:flex;justify-content:space-between;gap:8px;padding:5px 0;font-variant-numeric:tabular-nums;white-space:nowrap}
+.srow .l{color:var(--muted)}
+.srow .v{font-weight:600}
+.sfold{display:block;margin:2px auto 6px;border:0;background:none;color:var(--muted);padding:0 20px;font-size:14px}
+@media(max-width:620px){.sgrid{grid-template-columns:repeat(2,1fr);gap:0 16px}.px-big .big{font-size:32px}}
