@@ -674,6 +674,7 @@ function pickRow2(r, i) {
   return `<div class="prow"><div class="ph">${i ? `<span class="prank">${i}</span>` : ''}<span class="sym" data-go="${esc(r.sym)}">${esc(r.sym)}</span> <span class="muted small">${esc(r.name)}</span><span class="r pday">${r.score ?? '--'} 分</span></div>
     <div class="pm"><b>${fmt(r.price)}</b> <span class="muted small">${esc(r.tier)} · 市值 ${capStr(r.cap)} · ${esc(r.sector || '')}${r.industry ? ' / ' + esc(r.industry) : ''}</span></div>
     <div class="muted small" style="line-height:1.6">营收同比 ${pctS(r.revYoY)} · TTM 自由现金流 ${Number.isFinite(r.ttmFCF) ? '$' + bigN(r.ttmFCF) : '--'}(${pctS(r.fcfMargin)})<br>RSI ${r.rsi} · ADX ${r.adx ?? '--'} · 均线 ${r.sma.join(' / ')} · 相对 SPY(63日) ${sgn(r.rs63 * 100, 1)}%<br>量比 ${r.volRatio ?? '--'}${r.macdDiv ? ' · MACD 底背离' : ''} · EV/营收 ${fmt(v.evRev, 1)} · 预期PE ${fmt(v.fpe, 1)} · PEG ${fmt(v.peg, 2)}${r.rr ? ' · 估计收益风险比 ' + r.rr : ''}</div>
+    ${(r.warn || []).length ? `<div class="pwarn">⚠ ${r.warn.map(esc).join(';')}</div>` : ''}
     <div class="ptags">${tags}</div>
     <details><summary class="muted small">为什么入选 / 证据 / 风险 / 何时失效</summary><div class="small pdet"><p><b>入选原因</b>:${esc(r.why)}</p>${r.bullish.length ? `<p><b>利多证据</b>:${r.bullish.map(esc).join(';')}</p>` : ''}<p><b>主要风险</b></p><ul class="clist small">${li(r.risks, '')}</ul><p><b>什么会使信号失效</b>:${esc(r.invalidate)}</p>
       <p class="muted">信号日期 ${esc(r.signalDate)} · 财报季度截止 ${esc(r.fundDate || '--')} · 评分覆盖度 ${(r.coverage * 100).toFixed(0)}%</p>

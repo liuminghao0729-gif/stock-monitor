@@ -196,3 +196,4 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 .prow details summary{cursor:pointer;list-style:none}.prow details ul{margin:6px 0 0}
 .prank{display:inline-flex;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#1a1409;font-size:12px;font-weight:700;align-items:center;justify-content:center;margin-right:2px}
 .ptag.warn{color:#e0a458;border-color:rgba(224,164,88,.5)}.pdet p{margin:6px 0}
+.pwarn{margin:6px 0 2px;padding:6px 10px;border-radius:8px;background:rgba(224,164,88,.12);border:1px solid rgba(224,164,88,.35);color:#e0a458;font-size:12px;line-height:1.6}

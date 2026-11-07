@@ -837,7 +837,8 @@ def run(limit=0, out_path=None, use_history=True):
             if hs in ("NEW", "STILL_VALID", "WATCHING"):
                 row = make_row(k, s, s["T"], s["F"], ev, sc, cov, det, hs, regime)
                 row["valuation"]["label"] = val_label(s, pool)
-                row["risks"] = extra_risks(k, row) + row["risks"]
+                row["warn"] = extra_risks(k, row)                     # 醒目提示(不是硬门槛,不影响是否入选)
+                row["risks"] = row["warn"] + row["risks"]
                 (watch if hs == "WATCHING" else conf).append(row)
         watch.sort(key=lambda r: r["score"] or 0, reverse=True)
         counts[k]["CONFIRMED"] = len(conf)
