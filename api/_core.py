@@ -26,7 +26,8 @@ def _get(url, ttl=10, headers=None):
 
 def _chart(sym, rng, interval, ttl):
     ys = urllib.parse.quote(ALIAS.get(sym, sym), safe="")
-    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ys}?range={rng}&interval={interval}"
+    span = f"period1=0&period2={int(time.time()) + 86400}" if rng == "max" else f"range={rng}"   # range=max 会被 Yahoo 强制合并成季线
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ys}?{span}&interval={interval}"
     res = _get(url, ttl)["chart"]["result"]
     if not res:
         raise ValueError("no data")
@@ -55,26 +56,66 @@ def quotes(symbols):
         return [q for q in ex.map(one, symbols) if q]
 
 
-def _bars(r, daily):
+# 周期 -> (Yahoo 取数范围, Yahoo 间隔, 缓存秒数)。Yahoo 没有 4 小时和年K,由我们自己合成。
+PERIODS = {
+    "D": ("10y", "1d", 60), "W": ("max", "1wk", 300), "M": ("max", "1mo", 300), "Q": ("max", "3mo", 300),
+    "Y": ("max", "1mo", 300),
+    "1m": ("7d", "1m", 15), "5m": ("60d", "5m", 15), "15m": ("60d", "15m", 15),
+    "1h": ("730d", "60m", 30), "4h": ("730d", "60m", 30),
+}
+INTRADAY = {"1m", "5m", "15m", "1h", "4h"}
+
+
+def _nth_sunday(year, month, n):
+    d = datetime.date(year, month, 1)
+    first = d + datetime.timedelta(days=(6 - d.weekday()) % 7)
+    return first + datetime.timedelta(weeks=n - 1)
+
+
+def _ny(ts):
+    """把时间戳转成纽约当地时间(自带夏令时规则,不依赖系统时区库)。"""
+    u = datetime.datetime.utcfromtimestamp(ts)
+    start = datetime.datetime.combine(_nth_sunday(u.year, 3, 2), datetime.time(7, 0))   # 3月第2个周日 2:00 EST
+    end = datetime.datetime.combine(_nth_sunday(u.year, 11, 1), datetime.time(6, 0))    # 11月第1个周日 2:00 EDT
+    return u + datetime.timedelta(hours=-4 if start <= u < end else -5)
+
+
+def _agg(bars, keyfn):
+    out, key = [], None
+    for b in bars:
+        k = keyfn(b)
+        if k != key:
+            out.append(dict(b)); key = k
+        else:
+            c = out[-1]
+            c["h"] = max(c["h"], b["h"]); c["l"] = min(c["l"], b["l"]); c["c"] = b["c"]; c["v"] += b["v"]
+    return out
+
+
+def _bars(r, period):
     off = r["meta"].get("gmtoffset", 0)
     q = r["indicators"]["quote"][0]
+    intra = period in INTRADAY
     out = []
     for i, t in enumerate(r.get("timestamp") or []):
         o, h, l, c, v = (q[k][i] for k in ("open", "high", "low", "close", "volume"))
         if None in (o, h, l, c):
             continue
-        d = datetime.datetime.utcfromtimestamp(t + off)
-        out.append({"t": d.strftime("%Y-%m-%d" if daily else "%m-%d %H:%M"), "o": o, "h": h, "l": l, "c": c, "v": v or 0})
+        if intra and not v and h == l:      # 去掉 Yahoo 在收盘时附带的空K线(成交量为0、没有波动)
+            continue
+        d = _ny(t) if intra else datetime.datetime.utcfromtimestamp(t + off)
+        out.append({"t": d.strftime("%Y-%m-%d %H:%M" if intra else "%Y-%m-%d"),
+                    "o": round(o, 4), "h": round(h, 4), "l": round(l, 4), "c": round(c, 4), "v": int(v or 0)})
+    if period == "4h":      # 美股一天 6.5 小时:9:30-13:30 为一根,13:30-收盘为一根
+        out = _agg(out, lambda b: b["t"][:10] + ("A" if b["t"][11:] < "13:30" else "B"))
+    elif period == "Y":
+        out = _agg(out, lambda b: b["t"][:4])
     return out
 
 
-def bars(sym, rng):
-    if rng in ("1D", "5D"):
-        r = _chart(sym, "1d" if rng == "1D" else "5d", "5m" if rng == "1D" else "30m", 20)
-        return {"daily": False, "bars": _bars(r, False)}
-    n = {"1M": 22, "6M": 126, "1Y": 252, "5Y": 1260}[rng]
-    full = _bars(_chart(sym, "5y", "1d", 300), True)   # 取满5年,用来计算200日均线
-    return {"daily": True, "n": min(n, len(full)), "full": full, "bars": full[-n:]}
+def bars(sym, period):
+    rng, interval, ttl = PERIODS[period]
+    return {"bars": _bars(_chart(sym, rng, interval, ttl), period)}
 
 
 def _fh(path, params, ttl):
@@ -114,10 +155,10 @@ def route(name, q):
             syms = [s.strip().upper() for s in q.get("symbols", "").split(",") if s.strip()][:60]
             return 200, quotes(syms), 5
         if name == "bars":
-            rng = q.get("range", "6M")
-            if rng not in ("1D", "5D", "1M", "6M", "1Y", "5Y"):
-                return 400, {"error": "bad range"}, 0
-            return 200, bars(q["symbol"].upper(), rng), 20
+            period = q.get("period", "D")
+            if period not in PERIODS:
+                return 400, {"error": "bad period"}, 0
+            return 200, bars(q["symbol"].upper(), period), PERIODS[period][2]
         if name == "news":
             return 200, news(q.get("symbol", "").upper()), 120
         if name == "earnings":

@@ -11,8 +11,8 @@ const LiveData = (() => {
       const list = await api('/api/quotes?symbols=' + encodeURIComponent([...new Set(syms)].join(',')));
       list.forEach(q => { if (M.info[q.sym]) q.name = M.info[q.sym].name; qc[q.sym] = q; });
     },
-    bars: (sym, range) => bc[sym + '|' + range],
-    async loadBars(sym, range) { bc[sym + '|' + range] = await api(`/api/bars?symbol=${encodeURIComponent(sym)}&range=${range}`); },
+    bars: (sym, period) => bc[sym + '|' + period],
+    async loadBars(sym, period) { bc[sym + '|' + period] = await api(`/api/bars?symbol=${encodeURIComponent(sym)}&period=${period}`); },
     async loadNews(sym) {
       const r = await api('/api/news?symbol=' + encodeURIComponent(sym || ''));
       if (r.error === 'no_key') return { error: '未设置 Finnhub Key,新闻暂不可用' };

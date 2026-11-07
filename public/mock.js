@@ -51,21 +51,47 @@ const MockData = (() => {
     });
     return (cache[sym] = bars);
   }
-  // 日内:基于最近几天的日线造5分钟/30分钟线
+  // 日内:基于最近几天的日线造分钟线
   function intraday(sym, days, per, stepMin) {
-    const d = daily(sym), r = rng(hash(sym + 'i')), out = [];
+    const d = daily(sym), r = rng(hash(sym + 'i' + per)), out = [], k0 = Math.sqrt(13 / per);
     for (let k = d.length - days; k < d.length; k++) {
       const b = d[k]; let p = b.o;
       for (let j = 0; j < per; j++) {
         const target = b.o + (b.c - b.o) * (j + 1) / per, o = p;
-        const c = j === per - 1 ? b.c : target + gauss(r) * (b.h - b.l) * .12;
+        const c = j === per - 1 ? b.c : target + gauss(r) * (b.h - b.l) * .12 * k0;
         const mins = 9 * 60 + 30 + j * stepMin;
-        out.push({ t: b.t.slice(5) + ' ' + String(mins / 60 | 0).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0'),
-          o, c, h: Math.min(b.h, Math.max(o, c) * (1 + r() * .002)), l: Math.max(b.l, Math.min(o, c) * (1 - r() * .002)), v: Math.round(b.v / per * (.5 + r())) });
+        out.push({ t: b.t + ' ' + String(mins / 60 | 0).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0'),
+          o, c, h: Math.min(b.h, Math.max(o, c) * (1 + r() * .002 * k0)), l: Math.max(b.l, Math.min(o, c) * (1 - r() * .002 * k0)), v: Math.round(b.v / per * (.5 + r())) });
         p = c;
       }
     }
     return out;
+  }
+  function agg(bars, keyFn) {
+    const out = []; let key = null;
+    for (const b of bars) {
+      const k = keyFn(b);
+      if (k !== key) { out.push({ ...b }); key = k; }
+      else { const c = out[out.length - 1]; c.h = Math.max(c.h, b.h); c.l = Math.min(c.l, b.l); c.c = b.c; c.v += b.v; }
+    }
+    return out;
+  }
+  const weekKey = b => { const d = new Date(b.t + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7); return d.toISOString().slice(0, 10); };
+  const bcache = {};
+  function periodBars(sym, p) {
+    const key = sym + '|' + p; if (bcache[key]) return bcache[key];
+    const d = daily(sym); let out;
+    if (p === 'D') out = d;
+    else if (p === 'W') out = agg(d, weekKey);
+    else if (p === 'M') out = agg(d, b => b.t.slice(0, 7));
+    else if (p === 'Q') out = agg(d, b => b.t.slice(0, 4) + 'Q' + (Math.floor((+b.t.slice(5, 7) - 1) / 3)));
+    else if (p === 'Y') out = agg(d, b => b.t.slice(0, 4));
+    else if (p === '1m') out = intraday(sym, 5, 390, 1);
+    else if (p === '5m') out = intraday(sym, 40, 78, 5);
+    else if (p === '15m') out = intraday(sym, 40, 26, 15);
+    else if (p === '1h') out = intraday(sym, 250, 7, 60);
+    else out = agg(periodBars(sym, '1h'), b => b.t.slice(0, 10) + (b.t.slice(11) < '13:30' ? 'A' : 'B'));   // 4h
+    return (bcache[key] = out);
   }
   const live = {}; // 模拟实时跳动
   function tick() { Object.keys(info).forEach(s => { const r = Math.random(); live[s] = (live[s] || 0) + (r - .5) * info[s].vol * .06; }); }
@@ -79,14 +105,8 @@ const MockData = (() => {
       return { sym, name: info[sym].name, price, prev: prev.c, change: price - prev.c, pct: (price / prev.c - 1) * 100,
         high: Math.max(last.h, price), low: Math.min(last.l, price), open: last.o, volume: last.v, index: !!info[sym].index };
     },
-    // 返回 {bars, daily:是否日线, full:完整日线(用于均线预热)}
-    bars(sym, range) {
-      const d = daily(sym);
-      if (range === '1D') return { bars: intraday(sym, 1, 78, 5), daily: false };
-      if (range === '5D') return { bars: intraday(sym, 5, 13, 30), daily: false };
-      const n = { '1M': 22, '6M': 126, '1Y': 252, '5Y': 1260 }[range];
-      return { bars: d.slice(-n), daily: true, full: d, n };
-    },
+    // 返回 {bars:[{t,o,h,l,c,v}...]},period: D W M Q Y 1m 5m 15m 1h 4h
+    bars(sym, period) { return { bars: periodBars(sym, period) }; },
     news(sym) {
       const r = rng(hash(sym || 'all') + new Date().getHours());
       const T = sym ? [

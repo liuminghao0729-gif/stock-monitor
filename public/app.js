@@ -13,17 +13,37 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } }
 };
 
+
+// ===== 周期与状态 =====
+const PERIODS = { D: '日K', W: '周K', M: '月K', Q: '季K', Y: '年K' };
+const MINUTES = { '1m': '1分', '5m': '5分', '15m': '15分', '1h': '1小时', '4h': '4小时' };
+const DEF_COUNT = { D: 120, W: 104, M: 120, Q: 80, Y: 40, '1m': 240, '5m': 160, '15m': 130, '1h': 120, '4h': 100 };
+const isIntra = p => p in MINUTES;
+const C = { bg: '#12151a', line: '#222831', grid: '#232a33', text: '#8b949e', accent: '#4c8dff' };
+
 const state = {
   watch: store.get('watch', ['AAPL', 'NVDA', 'VOO', 'QQQ']),
-  sel: null, range: '6M',
-  ind: store.get('ind', { ma: [1, 1, 1, 1, 0, 0], vol: 1, rsi: 1, macd: 1, chip: 1 }),
+  sel: null,
+  period: store.get('period', 'D'), minute: store.get('minute', '1m'), type: store.get('ctype', 'candle'),
+  ind: store.get('ind2', { ma: [1, 1, 1, 1, 0, 0], boll: 0, chip: 1, vol: 1, macd: 1, rsi: 1 }),
   hover: -1, tab: 'watch', day: 0
 };
+if (!(state.period in PERIODS) && !(state.period in MINUTES)) state.period = 'D';
+if (!(state.minute in MINUTES)) state.minute = '1m';
 state.sel = state.watch[0] || 'AAPL';
 
-// ===== 指标计算 =====
-function sma(a, n) { return a.map((_, i) => i < n - 1 ? null : a.slice(i - n + 1, i + 1).reduce((x, y) => x + y, 0) / n); }
+// ===== 指标计算(对整段历史计算一次,缩放拖动时只切片显示)=====
+function sma(a, n) { const o = new Array(a.length).fill(null); let s = 0; for (let i = 0; i < a.length; i++) { s += a[i]; if (i >= n) s -= a[i - n]; if (i >= n - 1) o[i] = s / n; } return o; }
 function ema(a, n) { const k = 2 / (n + 1), o = []; a.forEach((v, i) => o.push(i ? v * k + o[i - 1] * (1 - k) : v)); return o; }
+function boll(c, n = 20, k = 2) {
+  const mid = sma(c, n), up = [], lo = [];
+  for (let i = 0; i < c.length; i++) {
+    if (mid[i] == null) { up.push(null); lo.push(null); continue; }
+    let v = 0; for (let j = i - n + 1; j <= i; j++) v += (c[j] - mid[i]) ** 2;
+    const sd = Math.sqrt(v / n); up.push(mid[i] + k * sd); lo.push(mid[i] - k * sd);
+  }
+  return { mid, up, lo };
+}
 function rsi(c, n = 14) {
   const o = c.map(() => null); let g = 0, l = 0;
   for (let i = 1; i < c.length; i++) {
@@ -37,12 +57,13 @@ function macd(c) {
   const e12 = ema(c, 12), e26 = ema(c, 26), dif = c.map((_, i) => e12[i] - e26[i]), dea = ema(dif, 9);
   return { dif, dea, hist: dif.map((v, i) => (v - dea[i]) * 2) };
 }
-// 筹码分布(估算):把最近120根K线的成交量按价格区间摊开,越久远权重越低
-function chips(bars, bins = 40) {
-  const seg = bars.slice(-120), lo = Math.min(...seg.map(b => b.l)), hi = Math.max(...seg.map(b => b.h)), step = (hi - lo) / bins || 1, arr = new Array(bins).fill(0);
+// 筹码分布(估算):把当前窗口内K线的成交量按价格区间摊开,越久远权重越低
+function chips(bars, i0, i1, bins = 48) {
+  const a = Math.max(i0, i1 - 500), seg = bars.slice(a, i1 + 1); if (!seg.length) return null;
+  const lo = Math.min(...seg.map(b => b.l)), hi = Math.max(...seg.map(b => b.h)), step = (hi - lo) / bins || 1, arr = new Array(bins).fill(0);
   seg.forEach((b, i) => {
-    const w = Math.pow(.985, seg.length - 1 - i), a = Math.floor((b.l - lo) / step), z = Math.min(bins - 1, Math.floor((b.h - lo) / step)), cnt = z - a + 1;
-    for (let k = a; k <= z; k++) arr[k] += b.v * w / cnt;
+    const w = Math.pow(.985, seg.length - 1 - i), x = Math.floor((b.l - lo) / step), z = Math.min(bins - 1, Math.floor((b.h - lo) / step)), cnt = z - x + 1;
+    for (let k = x; k <= z; k++) arr[k] += b.v * w / cnt;
   });
   return { arr, lo, step };
 }
@@ -88,10 +109,11 @@ $('#addForm').addEventListener('submit', async e => {
 });
 function selectStock(s) { state.sel = s; state.hover = -1; switchTab('watch'); renderWatch(); renderDetail(); }
 
+
 // ===== 个股详情 =====
 function headHTML(s) {
   const q = Data.quote(s);
-  return `<div class="dh"><div><h2>${s} <span class="muted" style="font-size:14px;font-weight:400">${q.name}</span></h2></div>
+  return `<div class="dh"><div><h2>${s} <span class="muted" style="font-size:14px;font-weight:400">${esc(q.name)}</span></h2></div>
     <div style="text-align:right"><span class="big ${cls(q.change)}">${fmt(q.price)}</span> <span class="${cls(q.change)}">${sgn(q.change)} (${sgn(q.pct)}%)</span></div></div>
   <div class="stats">
     <div class="stat"><div class="l">今开</div>${fmt(q.open)}</div><div class="stat"><div class="l">最高</div>${fmt(q.high)}</div>
@@ -99,21 +121,16 @@ function headHTML(s) {
     <div class="stat"><div class="l">成交量</div>${Number.isFinite(q.price) ? big(q.volume) : '--'}</div></div>`;
 }
 async function renderDetail() {
-  const s = state.sel, r = state.range; if (!s) { $('#detail').innerHTML = '<div class="muted">请先添加自选股</div>'; return; }
-  const I = state.ind;
+  const s = state.sel; if (!s) { $('#detail').innerHTML = '<div class="muted">请先添加自选股</div>'; return; }
+  V = null;
   $('#detail').innerHTML = `<div id="dhead">${headHTML(s)}</div>
-  <div class="ctrl" id="ranges">${['1D', '5D', '1M', '6M', '1Y', '5Y'].map(r => `<button data-r="${r}" class="${r === state.range ? 'on' : ''}">${{ '1D': '1日', '5D': '5日', '1M': '1月', '6M': '半年', '1Y': '1年', '5Y': '5年' }[r]}</button>`).join('')}</div>
-  <div class="ctrl" id="inds">
-    ${MA_DEF.map((m, i) => `<label style="color:${m[1]}"><input type="checkbox" data-ma="${i}" ${I.ma[i] ? 'checked' : ''}>MA${m[0]}</label>`).join('')}
-    ${[['vol', '成交量'], ['rsi', 'RSI'], ['macd', 'MACD'], ['chip', '筹码分布(估算)']].map(([k, n]) => `<label><input type="checkbox" data-k="${k}" ${I[k] ? 'checked' : ''}>${n}</label>`).join('')}
-  </div>
   <div class="legend" id="legend"></div>
-  <div class="chartwrap" id="cw"><div class="muted" style="padding:40px 0;text-align:center">图表加载中…</div></div>
+  <div class="chartwrap" id="cw"><canvas id="cv"></canvas><div id="cload" class="cload">图表加载中…</div></div>
+  <div class="tbar" id="tb"></div>
   <h3>${s} 相关新闻 ${Data.mode === 'mock' ? '<span class="badge">模拟</span>' : ''}</h3>
   <ul class="news" id="stockNews"><li class="muted">加载中…</li></ul>`;
-  const stale = () => state.sel !== s || state.range !== r || state.tab !== 'watch';
-  Data.loadBars(s, r).then(() => { if (!stale()) drawCharts(); })
-    .catch(() => { if (!stale()) $('#cw').innerHTML = '<div class="muted" style="padding:40px 0;text-align:center">图表数据加载失败,稍后会自动重试</div>'; });
+  bindChart(); renderToolbar(); loadChart(true);
+  const stale = () => state.sel !== s || state.tab !== 'watch';
   Data.loadNews(s).then(l => { if (!stale()) $('#stockNews').innerHTML = newsHTML(l); })
     .catch(() => { if (!stale()) $('#stockNews').innerHTML = '<li class="muted">新闻加载失败</li>'; });
 }
@@ -123,106 +140,272 @@ function newsHTML(list) {
   return list.map(n => `<li><span class="tag ${n.hot ? 'hot' : ''}">${n.hot ? '重要' : n.src}</span><div>${/^https?:\/\//.test(n.url || '') ? `<a href="${n.url}" target="_blank" rel="noopener noreferrer" style="color:inherit">${esc(n.title)}</a>` : esc(n.title)}<div class="muted small">${esc(n.src)} · ${n.minsAgo < 60 ? n.minsAgo + ' 分钟前' : Math.round(n.minsAgo / 60) + ' 小时前'}</div></div></li>`).join('');
 }
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ===== 底部工具栏(仿 Moomoo):日K 周K 月K 季K 年K [1分▾]  ...  蜡烛 缩放 指标 =====
+const IND_ITEMS = [['ma0', 'MA5', MA_DEF[0][1]], ['ma1', 'MA10', MA_DEF[1][1]], ['ma2', 'MA20', MA_DEF[2][1]], ['ma3', 'MA50', MA_DEF[3][1]], ['ma4', 'MA100', MA_DEF[4][1]], ['ma5', 'MA200', MA_DEF[5][1]], ['boll', 'BOLL(20,2)'], ['chip', '筹码分布(估算)']];
+const SUB_ITEMS = [['vol', '成交量'], ['macd', 'MACD(12,26,9)'], ['rsi', 'RSI(6,12,24)']];
+const isMA = k => /^ma\d$/.test(k);     // 均线键名 ma0..ma5(注意 macd 不是均线)
+const indOn = k => isMA(k) ? state.ind.ma[+k.slice(2)] : state.ind[k];
+function renderToolbar() {
+  const p = state.period, chk = ([k, n, c]) => `<label ${c ? `style="color:${c}"` : ''}><input type="checkbox" data-ind="${k}" ${indOn(k) ? 'checked' : ''}>${n}</label>`;
+  $('#tb').innerHTML = `<div class="tl">${Object.entries(PERIODS).map(([k, n]) => `<button class="tb ${p === k ? 'on' : ''}" data-p="${k}">${n}</button>`).join('')}
+    <span class="pwrap"><button class="tb ${isIntra(p) ? 'on' : ''}" data-act="minmenu">${MINUTES[state.minute]} ▾</button>
+      <div class="pop hidden" id="popMin">${Object.entries(MINUTES).map(([k, n]) => `<button data-p="${k}" class="${p === k ? 'on' : ''}">${n}</button>`).join('')}</div></span></div>
+    <div class="tr"><button class="tb" data-act="type" title="切换蜡烛图 / 折线图">${state.type === 'candle' ? '蜡烛图' : '折线图'}</button>
+      <button class="tb ic" data-act="zout" title="缩小">−</button><button class="tb ic" data-act="zin" title="放大">＋</button><button class="tb ic" data-act="reset" title="复位到最新">⟲</button>
+      <span class="pwrap"><button class="tb" data-act="indmenu">指标</button>
+        <div class="pop right hidden" id="popInd"><div class="pt">主图</div>${IND_ITEMS.map(chk).join('')}<div class="pt">副图</div>${SUB_ITEMS.map(chk).join('')}</div></span></div>`;
+}
+function syncChecks() { document.querySelectorAll('#popInd input[data-ind]').forEach(i => i.checked = !!indOn(i.dataset.ind)); }
+function closePops() { document.querySelectorAll('.pop').forEach(p => p.classList.add('hidden')); }
+function setPeriod(p) {
+  closePops(); if (p === state.period) return;
+  state.period = p; store.set('period', p);
+  if (isIntra(p)) { state.minute = p; store.set('minute', p); }
+  state.hover = -1; renderToolbar(); loadChart(true);
+}
 $('#detail').addEventListener('click', e => {
-  const r = e.target.dataset.r; if (r) { state.range = r; state.hover = -1; renderDetail(); }
+  const t = e.target.closest('[data-p],[data-act]'); if (!t) return;
+  if (t.dataset.p) return setPeriod(t.dataset.p);
+  const a = t.dataset.act, pop = t.parentElement.querySelector('.pop');
+  if (a === 'minmenu' || a === 'indmenu') { const was = pop.classList.contains('hidden'); closePops(); pop.classList.toggle('hidden', !was); e.stopPropagation(); return; }
+  closePops(); if (!V) return;
+  if (a === 'type') { state.type = state.type === 'candle' ? 'line' : 'candle'; store.set('ctype', state.type); renderToolbar(); }
+  else if (a === 'zin') zoomAt(1 / 1.3, V.L.W / 2);
+  else if (a === 'zout') zoomAt(1.3, V.L.W / 2);
+  else if (a === 'reset') resetView();
+  paint();
 });
 $('#detail').addEventListener('change', e => {
-  const t = e.target, I = state.ind;
-  if (t.dataset.ma !== undefined) I.ma[+t.dataset.ma] = t.checked ? 1 : 0;
-  if (t.dataset.k) I[t.dataset.k] = t.checked ? 1 : 0;
-  store.set('ind', I); drawCharts();
+  const k = e.target.dataset.ind; if (!k) return;
+  if (isMA(k)) state.ind.ma[+k.slice(2)] = e.target.checked ? 1 : 0; else state.ind[k] = e.target.checked ? 1 : 0;
+  store.set('ind2', state.ind); if (V) { layout(); paint(); }
 });
+document.addEventListener('click', e => { if (!e.target.closest('.pwrap')) closePops(); });
 
-// ===== 图表(自己用 Canvas 画,无需外部库)=====
-let V = null; // 当前图表数据,供悬停使用
+// ===== 图表:数据、视图(缩放/拖动)、布局 =====
+let V = null;                                    // 当前图表数据与布局
+const view = { start: 0, count: 100 };           // 可见窗口:第 start 根K线开始,共 count 根(可为小数,左右允许留白)
+const ptr = { map: new Map(), drag: null, pinch: null, my: -1, moved: false };
+const PL = 4, PR = 58;                           // 绘图区左右边距(右侧放价格轴)
+
 function prepare() {
-  const R = Data.bars(state.sel, state.range), src = R.daily ? R.full : R.bars, n = R.daily ? R.n : R.bars.length;
-  const c = src.map(b => b.c), off = src.length - n;
-  const cut = a => a.slice(off);
-  const ma = MA_DEF.map(([k]) => R.daily ? cut(sma(c, k)) : null);
-  const m = macd(c);
-  return { bars: R.bars, daily: R.daily, ma, rsi: cut(rsi(c)), macd: { dif: cut(m.dif), dea: cut(m.dea), hist: cut(m.hist) }, chip: chips(R.daily ? R.full : R.bars) };
+  const bars = Data.bars(state.sel, state.period).bars.slice();
+  if (!isIntra(state.period) && bars.length) {   // 日K及以上:用最新报价实时更新最后一根
+    const q = Data.quote(state.sel);
+    if (Number.isFinite(q.price)) { const b = { ...bars[bars.length - 1] }; b.c = q.price; b.h = Math.max(b.h, q.price); b.l = Math.min(b.l, q.price); bars[bars.length - 1] = b; }
+  }
+  const c = bars.map(b => b.c);
+  return { bars, ma: MA_DEF.map(([k]) => sma(c, k)), boll: boll(c), rsi: [rsi(c, 6), rsi(c, 12), rsi(c, 24)], macd: macd(c) };
 }
-function mk(h) {
-  const cv = document.createElement('canvas'), dpr = window.devicePixelRatio || 1, w = cv.parentW;
-  return { cv, h, dpr };
+async function loadChart(reset) {
+  const s = state.sel, p = state.period, ld = $('#cload'), same = () => state.sel === s && state.period === p && state.tab === 'watch';
+  if (ld) { ld.style.display = 'block'; ld.textContent = '图表加载中…'; }
+  try { await Data.loadBars(s, p); } catch { if (same() && ld) ld.textContent = '图表数据加载失败,稍后会自动重试'; return; }
+  if (!same()) return;
+  const R = Data.bars(s, p);
+  if (!R || !R.bars.length) { if (ld) ld.textContent = '暂无数据'; V = null; return; }
+  V = prepare(); if (reset) resetView(); ld.style.display = 'none'; layout(); paint();
 }
-function drawCharts() {
-  const cw = $('#cw'); if (!cw || !Data.bars(state.sel, state.range)) return;
-  V = prepare(); const I = state.ind;
-  const W = cw.clientWidth, chipW = I.chip ? 90 : 0, mainW = W - chipW;
-  cw.innerHTML = '';
-  const panels = [{ id: 'price', h: 300 }];
-  if (I.vol) panels.push({ id: 'vol', h: 70 }); if (I.rsi) panels.push({ id: 'rsi', h: 80 }); if (I.macd) panels.push({ id: 'macd', h: 90 });
-  V.panels = panels;
-  panels.forEach(p => {
-    const row = document.createElement('div'); row.className = 'chartrow sub';
-    const cv = document.createElement('canvas'); const dpr = window.devicePixelRatio || 1;
-    cv.width = mainW * dpr; cv.height = p.h * dpr; cv.style.width = mainW + 'px'; cv.style.height = p.h + 'px';
-    row.appendChild(cv); p.cv = cv; p.ctx = cv.getContext('2d'); p.ctx.scale(dpr, dpr); p.w = mainW;
-    if (p.id === 'price' && chipW) {
-      const c2 = document.createElement('canvas'); c2.width = chipW * dpr; c2.height = p.h * dpr; c2.style.width = chipW + 'px'; c2.style.height = p.h + 'px';
-      row.appendChild(c2); p.chipCtx = c2.getContext('2d'); p.chipCtx.scale(dpr, dpr); p.chipW = chipW;
-    }
-    cw.appendChild(row);
-    cv.addEventListener('mousemove', e => { const r = cv.getBoundingClientRect(), n = V.bars.length; state.hover = Math.max(0, Math.min(n - 1, Math.floor((e.clientX - r.left - 4) / ((mainW - 56) / n)))); paint(); });
-    cv.addEventListener('mouseleave', () => { state.hover = -1; paint(); });
-  });
-  paint();
+function resetView() {
+  const n = V.bars.length, c0 = Math.min(DEF_COUNT[state.period], n), pad = Math.max(2, Math.round(c0 * .05));
+  view.count = c0 + pad; view.start = n - c0; clampView();
 }
+function clampView() {
+  const n = V.bars.length; view.count = Math.max(12, Math.min(Math.max(30, n * 1.15), view.count));
+  view.start = Math.max(-view.count * .25, Math.min(n - view.count * .65, view.start));
+}
+const plotW = () => V.L.W - PL - PR;
+function zoomAt(f, mx) {
+  const pw = plotW(), a = view.start + (mx - PL) / pw * view.count, n = V.bars.length;
+  view.count = Math.max(12, Math.min(Math.max(30, n * 1.15), view.count * f));
+  view.start = a - (mx - PL) / pw * view.count; clampView();
+}
+const idxAt = x => Math.max(0, Math.min(V.bars.length - 1, Math.round(view.start + (x - PL) / (plotW() / view.count) - .5)));
+// 数据刷新后保持用户当前看的位置:停在最新处就继续跟随最新,否则按时间对齐
+function rebase(oldB, newB) {
+  if (!oldB.length || !newB.length) return;
+  if (view.start + view.count >= oldB.length - .5) { view.start += newB.length - oldB.length; return; }
+  const k = Math.max(0, Math.min(oldB.length - 1, Math.round(view.start))), idx = newB.findIndex(b => b.t === oldB[k].t);
+  if (idx >= 0) view.start += idx - k;
+}
+function refreshChart() {
+  if (!V) return; const L = V.L; V = prepare(); V.L = L; clampView(); paint();
+}
+function drawCharts() { if (V) { layout(); paint(); } }   // 窗口大小变化时重排
+
+function layout() {
+  const cv = $('#cv'); if (!cv || !V) return;
+  const W = cv.parentElement.clientWidth, dpr = window.devicePixelRatio || 1, mob = W < 520, I = state.ind, anyMA = I.ma.some(x => x);
+  const maN = I.ma.filter(x => x).length, lines = (anyMA ? (mob ? Math.ceil(maN / 3) : 1) : 0) + (I.boll ? (mob ? 2 : 1) : 0), panels = [{ id: 'price', h: mob ? 260 : 340, head: 6 + lines * 16 }];
+  [['vol', I.vol], ['macd', I.macd], ['rsi', I.rsi]].forEach(([id, on]) => on && panels.push({ id, h: mob ? 80 : 96, head: 20 }));
+  let y = 0; panels.forEach(p => { p.y = y; y += p.h; });
+  const H = y + 22;
+  cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  V.L = { W, H, panels, dpr };
+}
+const decOf = v => v < 1 ? 4 : v < 20 ? 3 : 2;
+const fmtT = t => { const p = state.period; return isIntra(p) ? t.slice(5) : (p === 'M' || p === 'Q') ? t.slice(0, 7) : p === 'Y' ? t.slice(0, 4) : t; };
+function segs(ctx, parts, x, y, maxW, lh) {
+  let cx = x, cy = y, lines = 1; ctx.textAlign = 'left';
+  for (const [t, c] of parts) {
+    const w = ctx.measureText(t).width + 9;
+    if (cx + w > maxW && cx > x) { cx = x; cy += lh; lines++; }
+    ctx.fillStyle = c; ctx.fillText(t, cx, cy); cx += w;
+  }
+  return lines;
+}
+
 function paint() {
-  const n = V.bars.length, I = state.ind;
-  V.panels.forEach(p => {
-    const x = p.ctx, w = p.w, h = p.h, L = 4, Rr = 52, pw = w - L - Rr, bw = pw / n, X = i => L + (i + .5) * bw;
-    x.clearRect(0, 0, w, h); x.font = '11px sans-serif'; x.textBaseline = 'middle';
-    const grid = (v, y) => { x.strokeStyle = '#222a35'; x.beginPath(); x.moveTo(L, y); x.lineTo(w - Rr, y); x.stroke(); x.fillStyle = '#8b949e'; x.textAlign = 'left'; x.fillText(v, w - Rr + 4, y); };
-    const line = (arr, Y, col, lw = 1.2) => { x.strokeStyle = col; x.lineWidth = lw; x.beginPath(); let st = false; arr.forEach((v, i) => { if (v == null) return; st ? x.lineTo(X(i), Y(v)) : (x.moveTo(X(i), Y(v)), st = true); }); x.stroke(); x.lineWidth = 1; };
-    const scale = (lo, hi, pad = 8) => { const r = hi - lo || 1; return v => pad + (1 - (v - lo) / r) * (h - pad * 2); };
+  const cv = $('#cv'); if (!cv || !V || !V.L) return;
+  const { W, H, panels, dpr } = V.L, ctx = cv.getContext('2d'), I = state.ind, B = V.bars, n = B.length;
+  const pw = W - PL - PR, cnt = view.count, bw = pw / cnt, st = view.start, X = i => PL + (i - st + .5) * bw;
+  const i0 = Math.max(0, Math.floor(st)), i1 = Math.min(n - 1, Math.ceil(st + cnt) - 1);
+  const hv = state.hover >= 0 ? Math.min(n - 1, state.hover) : -1, ref = hv >= 0 ? hv : Math.max(0, i1);
+  const axisX = W - PR + 5;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  ctx.font = '11px -apple-system,"PingFang SC",sans-serif'; ctx.textBaseline = 'middle';
+  V.hits = [];
+  const dash = (x0, y0, x1, y1, col, d = [3, 4]) => { ctx.strokeStyle = col; ctx.setLineDash(d); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]); };
+  const clipPlot = (top, bot) => { ctx.save(); ctx.beginPath(); ctx.rect(PL, top, pw, bot - top); ctx.clip(); };
+  const poly = (arr, Y, col, lw = 1.2) => {
+    ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.beginPath(); let on = false;
+    for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) { const v = arr[i]; if (v == null) { on = false; continue; } on ? ctx.lineTo(X(i), Y(v)) : (ctx.moveTo(X(i), Y(v)), on = true); }
+    ctx.stroke(); ctx.lineWidth = 1;
+  };
+  const axisLabel = (txt, y, bg, fg = '#fff') => { ctx.font = '11px sans-serif'; const w = ctx.measureText(txt).width + 8; ctx.fillStyle = bg; ctx.fillRect(W - PR + 1, y - 8, w, 16); ctx.fillStyle = fg; ctx.textAlign = 'left'; ctx.fillText(txt, W - PR + 5, y); };
+
+  panels.forEach(p => {
+    const top = p.y + p.head, bot = p.y + p.h - 4;
+    ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(0, p.y + .5); ctx.lineTo(W, p.y + .5); ctx.stroke();
+    let Y, lo, hi;
+    const scale = (l, h) => { lo = l; hi = h; Y = v => top + (1 - (v - lo) / (hi - lo || 1)) * (bot - top); p.inv = y => lo + (1 - (y - top) / (bot - top)) * (hi - lo); };
+    const grid = (vals, f) => vals.forEach(v => { const y = Y(v); dash(PL, y, W - PR, y, C.grid); ctx.fillStyle = C.text; ctx.textAlign = 'left'; ctx.fillText(f(v), axisX, y); });
+
     if (p.id === 'price') {
-      const vals = V.bars.flatMap(b => [b.h, b.l]); V.ma.forEach((a, k) => { if (a && I.ma[k]) a.forEach(v => v != null && vals.push(v)); });
-      const lo = Math.min(...vals), hi = Math.max(...vals), Y = scale(lo, hi);
-      for (let k = 0; k < 5; k++) { const v = lo + (hi - lo) * k / 4; grid(fmt(v), Y(v)); }
-      if (n <= 130) V.bars.forEach((b, i) => { x.strokeStyle = x.fillStyle = b.c >= b.o ? UP : DOWN; x.beginPath(); x.moveTo(X(i), Y(b.h)); x.lineTo(X(i), Y(b.l)); x.stroke(); x.fillRect(X(i) - Math.max(bw * .3, .5), Math.min(Y(b.o), Y(b.c)), Math.max(bw * .6, 1), Math.max(Math.abs(Y(b.o) - Y(b.c)), 1)); });
-      else { line(V.bars.map(b => b.c), Y, '#4c8dff', 1.5); }
-      V.ma.forEach((a, k) => a && I.ma[k] && line(a, Y, MA_DEF[k][1]));
-      V.lastY = Y;
-      if (p.chipCtx) drawChip(p, Y, lo, hi);
+      let l = Infinity, h = -Infinity; for (let i = i0; i <= i1; i++) { l = Math.min(l, B[i].l); h = Math.max(h, B[i].h); }
+      if (!isFinite(l)) { l = 0; h = 1; } const pad = (h - l) * .08 || h * .01 || 1; scale(l - pad, h + pad);
+      const dec = decOf(B[ref].c); p.dec = dec; p.fv = v => fmt(v, dec);
+      grid([0, 1, 2, 3, 4].map(k => lo + (hi - lo) * k / 4), p.fv);
+      const last = B[n - 1].c, prev = n > 1 ? B[n - 2].c : B[n - 1].o;
+      clipPlot(top, bot);
+      if (I.chip) {   // 筹码分布(估算),叠加在绘图区右侧
+        const c = chips(B, i0, i1); if (c) {
+          const mx = Math.max(...c.arr), maxLen = Math.min(110, pw * .28), ref0 = B[i1].c;
+          c.arr.forEach((v, k) => { const pr = c.lo + (k + .5) * c.step, y = Y(pr), bh = Math.max(Math.abs(Y(pr + c.step) - y), 1), len = v / mx * maxLen;
+            ctx.fillStyle = pr <= ref0 ? 'rgba(38,194,129,.30)' : 'rgba(239,68,68,.30)'; ctx.fillRect(W - PR - len, y - bh / 2, len, bh - .5); });
+          ctx.fillStyle = C.text; ctx.textAlign = 'right'; ctx.fillText('筹码分布(估算)', W - PR - 4, top + 8);
+        }
+      }
+      if (state.type === 'candle' && bw >= 2.2) {
+        const w = Math.min(Math.max(1, Math.floor(bw * .7)), 24);
+        for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) {
+          const b = B[i], x = X(i), col = b.c >= b.o ? UP : DOWN; ctx.strokeStyle = ctx.fillStyle = col;
+          ctx.beginPath(); ctx.moveTo(x, Y(b.h)); ctx.lineTo(x, Y(b.l)); ctx.stroke();
+          ctx.fillRect(Math.round(x - w / 2), Math.min(Y(b.o), Y(b.c)), w, Math.max(1, Math.abs(Y(b.o) - Y(b.c))));
+        }
+      } else if (state.type === 'candle' && bw >= .6) {
+        for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) { const b = B[i], x = X(i); ctx.strokeStyle = b.c >= b.o ? UP : DOWN; ctx.beginPath(); ctx.moveTo(x, Y(b.h)); ctx.lineTo(x, Y(b.l)); ctx.stroke(); }
+      } else {
+        poly(B.map(b => b.c), Y, C.accent, 1.6);
+      }
+      V.ma.forEach((a, k) => I.ma[k] && poly(a, Y, MA_DEF[k][1]));
+      if (I.boll) { poly(V.boll.mid, Y, '#f5c542'); poly(V.boll.up, Y, '#ff6fa8'); poly(V.boll.lo, Y, '#35c5e8'); }
+      // 窗口内最高/最低价标注
+      let ih = i0, il = i0; for (let i = i0; i <= i1; i++) { if (B[i].h > B[ih].h) ih = i; if (B[i].l < B[il].l) il = i; }
+      ctx.font = '11px sans-serif'; ctx.fillStyle = '#c9d1d9';
+      [[ih, B[ih].h, -9], [il, B[il].l, 10]].forEach(([i, v, dy]) => { const x = X(i), right = x < W / 2; ctx.textAlign = right ? 'left' : 'right'; ctx.fillText((right ? '← ' : '') + p.fv(v) + (right ? '' : ' →'), x + (right ? 5 : -5), Y(v) + dy); });
+      ctx.restore();
+      // 现价虚线 + 价格标签
+      const ly = Math.max(top, Math.min(bot, Y(last))); dash(PL, ly, W - PR, ly, last >= prev ? UP : DOWN, [4, 3]); axisLabel(p.fv(last), ly, last >= prev ? UP : DOWN);
+      // 左上角:均线 / BOLL 数值
+      ctx.font = '11px sans-serif'; let yy = p.y + 11;
+      const maParts = []; V.ma.forEach((a, k) => { if (I.ma[k] && a[ref] != null) maParts.push([`MA${MA_DEF[k][0]}:${p.fv(a[ref])}`, MA_DEF[k][1]]); });
+      if (maParts.length) yy += 16 * segs(ctx, maParts, PL + 4, yy, W - PR, 16);
+      if (I.boll && V.boll.mid[ref] != null) segs(ctx, [['BOLL', C.text], [`MID:${p.fv(V.boll.mid[ref])}`, '#f5c542'], [`UPPER:${p.fv(V.boll.up[ref])}`, '#ff6fa8'], [`LOWER:${p.fv(V.boll.lo[ref])}`, '#35c5e8']], PL + 4, yy, W - PR, 16);
     } else if (p.id === 'vol') {
-      const mx = Math.max(...V.bars.map(b => b.v)); grid(big(mx), 8); grid('0', h - 8);
-      V.bars.forEach((b, i) => { x.fillStyle = b.c >= b.o ? 'rgba(38,194,129,.7)' : 'rgba(239,68,68,.7)'; const hh = b.v / mx * (h - 16); x.fillRect(X(i) - Math.max(bw * .3, .5), h - 8 - hh, Math.max(bw * .6, 1), hh); });
-    } else if (p.id === 'rsi') {
-      const Y = scale(0, 100); [30, 50, 70].forEach(v => grid(v, Y(v))); line(V.rsi, Y, '#b57bee');
+      let mx = 0; for (let i = i0; i <= i1; i++) mx = Math.max(mx, B[i].v); mx = mx || 1; scale(0, mx * 1.08); p.fv = v => big(Math.round(v));
+      grid([mx], p.fv); clipPlot(top, bot);
+      for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) { const b = B[i], w = Math.min(Math.max(1, Math.floor(bw * .7)), 24); ctx.fillStyle = b.c >= b.o ? 'rgba(38,194,129,.75)' : 'rgba(239,68,68,.75)'; ctx.fillRect(Math.round(X(i) - w / 2), Y(b.v), w, Y(0) - Y(b.v)); }
+      ctx.restore(); ctx.font = '11px sans-serif';
+      segs(ctx, [['成交量', C.text], [`VOL:${big(B[ref].v)}`, '#e6a23c']], PL + 4, p.y + 11, W - PR - 20, 16);
     } else if (p.id === 'macd') {
-      const all = [...V.macd.dif, ...V.macd.dea, ...V.macd.hist].filter(v => v != null), m = Math.max(...all.map(Math.abs)) || 1, Y = scale(-m, m);
-      grid('0', Y(0));
-      V.macd.hist.forEach((v, i) => { x.fillStyle = v >= 0 ? 'rgba(38,194,129,.7)' : 'rgba(239,68,68,.7)'; x.fillRect(X(i) - Math.max(bw * .3, .5), Math.min(Y(0), Y(v)), Math.max(bw * .6, 1), Math.abs(Y(v) - Y(0))); });
-      line(V.macd.dif, Y, '#f5c542'); line(V.macd.dea, Y, '#35c5e8');
+      let m = 0; for (let i = i0; i <= i1; i++) [V.macd.dif[i], V.macd.dea[i], V.macd.hist[i]].forEach(v => v != null && (m = Math.max(m, Math.abs(v)))); m = m || 1; scale(-m * 1.1, m * 1.1); p.fv = v => fmt(v, 3);
+      grid([-m * .8, 0, m * .8], p.fv); clipPlot(top, bot);
+      for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) { const v = V.macd.hist[i], w = Math.min(Math.max(1, Math.floor(bw * .5)), 14); ctx.fillStyle = v >= 0 ? 'rgba(38,194,129,.8)' : 'rgba(239,68,68,.8)'; ctx.fillRect(Math.round(X(i) - w / 2), Math.min(Y(0), Y(v)), w, Math.max(1, Math.abs(Y(v) - Y(0)))); }
+      poly(V.macd.dif, Y, '#f5c542'); poly(V.macd.dea, Y, '#35c5e8'); ctx.restore(); ctx.font = '11px sans-serif';
+      segs(ctx, [['MACD(12,26,9)', C.text], [`DIF:${fmt(V.macd.dif[ref], 3)}`, '#f5c542'], [`DEA:${fmt(V.macd.dea[ref], 3)}`, '#35c5e8'], [`MACD:${fmt(V.macd.hist[ref], 3)}`, V.macd.hist[ref] >= 0 ? UP : DOWN]], PL + 4, p.y + 11, W - PR - 20, 16);
+    } else if (p.id === 'rsi') {
+      scale(0, 100); p.fv = v => fmt(v, 1); grid([30, 50, 70], v => String(v)); clipPlot(top, bot);
+      const rc = ['#ff9a3c', '#4c8dff', '#b57bee']; V.rsi.forEach((a, k) => poly(a, Y, rc[k], 1.1)); ctx.restore(); ctx.font = '11px sans-serif';
+      segs(ctx, [['RSI', C.text], ...[6, 12, 24].map((nn, k) => [`RSI${nn}:${V.rsi[k][ref] == null ? '--' : fmt(V.rsi[k][ref], 1)}`, rc[k]])], PL + 4, p.y + 11, W - PR - 20, 16);
     }
-    // 时间轴(最后一个面板)
-    if (p === V.panels[V.panels.length - 1]) { x.fillStyle = '#8b949e'; x.textAlign = 'center'; x.textBaseline = 'alphabetic'; (pw < 480 ? [0, .5, 1] : [0, .25, .5, .75, 1]).forEach(f => { const i = Math.min(n - 1, Math.round((n - 1) * f)); x.fillText(V.bars[i].t, Math.max(36, Math.min(w - Rr - 30, X(i))), h - 0); }); }
-    // 十字光标
-    if (state.hover >= 0) { x.strokeStyle = 'rgba(255,255,255,.35)'; x.setLineDash([3, 3]); x.beginPath(); x.moveTo(X(state.hover), 0); x.lineTo(X(state.hover), h); x.stroke(); x.setLineDash([]); }
+    if (p.id !== 'price') {   // 副图右上角 × 关闭按钮
+      const cx = W - PR - 12, cy = p.y + 10; ctx.fillStyle = C.text; ctx.textAlign = 'center'; ctx.font = '14px sans-serif'; ctx.fillText('×', cx, cy); ctx.font = '11px sans-serif';
+      V.hits.push({ x0: cx - 10, x1: cx + 10, y0: p.y, y1: p.y + 20, id: p.id });
+    }
   });
-  legend();
+
+  // 底部时间轴
+  const ay = H - 11, nt = Math.max(2, Math.floor(pw / 125)); ctx.fillStyle = C.text; ctx.textAlign = 'center';
+  for (let k = 0; k < nt; k++) { const i = Math.max(0, Math.min(n - 1, Math.round(st + (k + .5) / nt * cnt - .5))), x = Math.max(40, Math.min(W - PR - 40, X(i))); ctx.fillText(fmtT(B[i].t), x, ay); }
+
+  // 十字光标 + 轴上数值标签
+  if (hv >= 0) {
+    const x = X(hv); dash(x, 0, x, H - 22, 'rgba(230,237,243,.45)');
+    const p = panels.find(q => ptr.my >= q.y + q.head && ptr.my <= q.y + q.h);
+    if (p && ptr.my >= 0) { dash(PL, ptr.my, W - PR, ptr.my, 'rgba(230,237,243,.45)'); axisLabel(p.fv(p.inv(ptr.my)), ptr.my, '#3a4350'); }
+    const tt = B[hv].t; ctx.font = '11px sans-serif'; const w = ctx.measureText(tt).width + 12, bx = Math.max(0, Math.min(W - PR - w, x - w / 2));
+    ctx.fillStyle = '#3a4350'; ctx.fillRect(bx, H - 21, w, 18); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(tt, bx + w / 2, H - 11);
+  }
+  // 顶部 OHLC 图例
+  const b = B[ref], pc = ref > 0 ? B[ref - 1].c : b.o, chg = b.c - pc, d = decOf(b.c);
+  $('#legend').innerHTML = `<span class="muted">${b.t}</span> 开 ${fmt(b.o, d)} 高 ${fmt(b.h, d)} 低 ${fmt(b.l, d)} <b class="${cls(chg)}">收 ${fmt(b.c, d)}</b> <span class="${cls(chg)}">${sgn(chg, d)} (${sgn(pc ? chg / pc * 100 : 0)}%)</span> 量 ${big(b.v)}`;
 }
-function drawChip(p, Y, lo, hi) {
-  const x = p.chipCtx, W = p.chipW, c = V.chip, mx = Math.max(...c.arr), last = V.bars[V.bars.length - 1].c;
-  x.clearRect(0, 0, W, p.h);
-  c.arr.forEach((v, k) => {
-    const pr = c.lo + (k + .5) * c.step; if (pr < lo || pr > hi) return;
-    const y = Y(pr), bh = Math.max(Math.abs(Y(pr) - Y(pr + c.step)), 1), len = v / mx * (W - 8);
-    x.fillStyle = pr <= last ? 'rgba(38,194,129,.65)' : 'rgba(239,68,68,.65)'; x.fillRect(W - len, y - bh / 2, len, bh - .5);
+
+// ===== 图表交互:滚轮缩放、拖动、双指缩放、点按 =====
+function bindChart() {
+  const cv = $('#cv'); cv.style.touchAction = 'pan-y'; cv.style.cursor = 'crosshair';
+  const pos = e => { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const startDrag = q => { ptr.drag = { x: q.x, start: view.start }; };
+  cv.addEventListener('pointerdown', e => {
+    if (!V) return; cv.setPointerCapture(e.pointerId); const q = pos(e); ptr.map.set(e.pointerId, q); ptr.moved = false;
+    if (ptr.map.size === 1) startDrag(q);
+    else if (ptr.map.size === 2) { const [a, b] = [...ptr.map.values()]; ptr.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) }; ptr.drag = null; }
   });
-  x.fillStyle = '#8b949e'; x.font = '10px sans-serif'; x.textBaseline = 'top'; x.fillText('筹码(估算)', 4, 2);
-}
-function legend() {
-  const i = state.hover >= 0 ? state.hover : V.bars.length - 1, b = V.bars[i], I = state.ind;
-  let s = `<span class="muted">${b.t}</span> 开 ${fmt(b.o)} 高 ${fmt(b.h)} 低 ${fmt(b.l)} <b class="${cls(b.c - b.o)}">收 ${fmt(b.c)}</b> 量 ${big(b.v)}`;
-  V.ma.forEach((a, k) => { if (a && I.ma[k] && a[i] != null) s += ` <span style="color:${MA_DEF[k][1]}">MA${MA_DEF[k][0]} ${fmt(a[i])}</span>`; });
-  if (I.rsi && V.rsi[i] != null) s += ` <span style="color:#b57bee">RSI ${fmt(V.rsi[i], 1)}</span>`;
-  if (I.macd && V.macd.dif[i] != null) s += ` <span style="color:#f5c542">DIF ${fmt(V.macd.dif[i])}</span> <span style="color:#35c5e8">DEA ${fmt(V.macd.dea[i])}</span>`;
-  if (!V.daily) s += ' <span class="muted">(日内图:均线仅在1月及以上周期显示)</span>';
-  $('#legend').innerHTML = s;
+  cv.addEventListener('pointermove', e => {
+    if (!V) return; const q = pos(e), had = ptr.map.has(e.pointerId); if (had) ptr.map.set(e.pointerId, q);
+    if (ptr.pinch && ptr.map.size === 2) {
+      const [a, b] = [...ptr.map.values()], d = Math.hypot(a.x - b.x, a.y - b.y); if (d > 5) { zoomAt(ptr.pinch.d / d, (a.x + b.x) / 2); ptr.pinch.d = d; } ptr.moved = true; state.hover = -1; paint();
+    } else if (ptr.drag && had && (e.pointerType !== 'mouse' || (e.buttons & 1))) {
+      const dx = q.x - ptr.drag.x; if (Math.abs(dx) > 3) ptr.moved = true;
+      if (ptr.moved) { cv.style.cursor = 'grabbing'; state.hover = -1; view.start = ptr.drag.start - dx / (plotW() / view.count); clampView(); paint(); }
+    } else if (e.pointerType === 'mouse') { ptr.my = q.y; state.hover = idxAt(q.x); paint(); }
+  });
+  const up = e => {
+    if (!V) return; ptr.map.delete(e.pointerId); cv.style.cursor = 'crosshair';
+    if (ptr.map.size < 2) ptr.pinch = null;
+    if (ptr.map.size === 1) { startDrag([...ptr.map.values()][0]); ptr.moved = true; return; }
+    if (ptr.map.size === 0) {
+      const q = pos(e);
+      if (e.type === 'pointerup' && !ptr.moved) {
+        const hit = (V.hits || []).find(h => q.x >= h.x0 && q.x <= h.x1 && q.y >= h.y0 && q.y <= h.y1);
+        if (hit) { state.ind[hit.id] = 0; store.set('ind2', state.ind); syncChecks(); layout(); state.hover = -1; paint(); }
+        else if (e.pointerType !== 'mouse') { state.hover = state.hover >= 0 && Math.abs(state.hover - idxAt(q.x)) < 1 ? -1 : idxAt(q.x); ptr.my = q.y; paint(); }
+      }
+      ptr.drag = null;
+    }
+  };
+  cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+  cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && !ptr.drag) { state.hover = -1; ptr.my = -1; if (V) paint(); } });
+  cv.addEventListener('wheel', e => {
+    if (!V) return; e.preventDefault(); const q = pos(e);
+    if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) { view.start += e.deltaX / (plotW() / view.count); clampView(); }
+    else zoomAt(Math.exp(e.deltaY * (e.ctrlKey ? .01 : .0015)), q.x);
+    paint();
+  }, { passive: false });
+  cv.addEventListener('dblclick', () => { if (V) { resetView(); paint(); } });
 }
 
 // ===== 板块 =====
@@ -302,8 +485,13 @@ async function refresh() {
     setBadge(err); renderIndices(); renderWatch();
     if (state.tab === 'watch') {
       const h = $('#dhead'); if (h) h.innerHTML = headHTML(state.sel);   // 只更新报价头部,不打断图表悬停
-      const s = state.sel, r = state.range;
-      if ((r === '1D' || r === '5D') && state.hover < 0) Data.loadBars(s, r).then(() => { if (state.sel === s && state.range === r && state.hover < 0 && state.tab === 'watch') drawCharts(); }).catch(() => { });
+      const s = state.sel, p = state.period, calm = () => state.sel === s && state.period === p && state.tab === 'watch' && state.hover < 0 && !ptr.drag && V;
+      if (calm()) {
+        if (isIntra(p)) {   // 分钟周期:重新取最新K线,并保持你当前看的位置
+          const old = V.bars;
+          Data.loadBars(s, p).then(() => { if (calm()) { rebase(old, Data.bars(s, p).bars); refreshChart(); } }).catch(() => { });
+        } else refreshChart();   // 日K及以上:用最新报价更新最后一根
+      }
     } else if (renderers[state.tab]) renderers[state.tab]();
   } finally { busy = false; }
 }
