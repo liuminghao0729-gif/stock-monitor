@@ -104,3 +104,27 @@ def earnings(date):
     hour = {"bmo": "盘前", "amc": "盘后", "dmh": "盘中"}
     return {"items": [{"sym": x["symbol"], "when": hour.get(x.get("hour"), "盘后"), "eps": x.get("epsEstimate"),
                        "rev": x.get("revenueEstimate")} for x in rows]}
+
+
+# ---- 路由:本地服务器和 Vercel 共用 ----
+def route(name, q):
+    """返回 (状态码, 数据, 缓存秒数)。缓存可减少对 Yahoo / Finnhub 的请求,保护免费额度。"""
+    try:
+        if name == "quotes":
+            syms = [s.strip().upper() for s in q.get("symbols", "").split(",") if s.strip()][:60]
+            return 200, quotes(syms), 5
+        if name == "bars":
+            rng = q.get("range", "6M")
+            if rng not in ("1D", "5D", "1M", "6M", "1Y", "5Y"):
+                return 400, {"error": "bad range"}, 0
+            return 200, bars(q["symbol"].upper(), rng), 20
+        if name == "news":
+            return 200, news(q.get("symbol", "").upper()), 120
+        if name == "earnings":
+            datetime.date.fromisoformat(q["date"])      # 校验日期格式
+            return 200, earnings(q["date"]), 600
+        if name == "status":
+            return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY"))}, 0
+        return 404, {"error": "not found"}, 0
+    except Exception as e:
+        return 500, {"error": "server error"}, 0
