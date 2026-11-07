@@ -339,7 +339,7 @@ function signals(B, r12, mc) {
     if (d0 <= 0 && d1 > 0) cross[i] = 1; else if (d0 >= 0 && d1 < 0) cross[i] = -1;
   }
   const piv = pivotsOf(c, SIG.pivotW);
-  const div = [...divergences(c, mc.dif, 'macd', piv, v => v < 0, v => v > 0, v => Math.abs(v) * .1), ...divergences(c, r12, 'rsi', piv, v => v <= 45, v => v >= 55, () => 2)];
+  const div = [...divergences(c, mc.dif, 'macd', piv, v => v < 0, v => v > 0, v => Math.abs(v) * .1), ...divergences(c, r12, 'rsi', piv, v => v <= 50, v => v >= 50, () => 1.5)];
   return { surge, cross, div };
 }
 function prepare() {
