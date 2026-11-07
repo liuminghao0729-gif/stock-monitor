@@ -186,8 +186,9 @@ def company(sym):
     # 目标价和机构评级变动:FMP 免费接口(需要 FMP_KEY)
     out["target"] = _fmp_target(sym)
     out["grades"] = _fmp_grades(sym)
-    if not out["target"] or not out["grades"]:        # FMP 免费版不覆盖的股票,改用 Yahoo(不需要 Key)
+    if True:        # Yahoo(不需要 Key):补 FMP 免费版不覆盖的股票,并提供英文公司简介
         y = _yh_summary(sym)
+        out["about"] = (y or {}).get("about")
         out["target"] = out["target"] or (y or {}).get("target")
         out["grades"] = out["grades"] or (y or {}).get("grades")
     out["backlog"] = _sec_backlog(sym)
@@ -251,7 +252,7 @@ def _yh_summary(sym):
     if hit and time.time() - hit[0] < 3600:
         return hit[1]
     try:
-        d = _yh_open(f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{urllib.parse.quote(sym)}?modules=financialData,upgradeDowngradeHistory")
+        d = _yh_open(f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{urllib.parse.quote(sym)}?modules=financialData,upgradeDowngradeHistory,assetProfile")
         r = d["quoteSummary"]["result"][0]
         fd = r.get("financialData") or {}
         raw = lambda k: (fd.get(k) or {}).get("raw")
@@ -263,7 +264,10 @@ def _yh_summary(sym):
         h = sorted((r.get("upgradeDowngradeHistory") or {}).get("history", []), key=lambda x: x.get("epochGradeDate", 0), reverse=True)[:12]
         grades = [{"date": time.strftime("%Y-%m-%d", time.gmtime(x["epochGradeDate"])), "firm": x.get("firm"), "from": x.get("fromGrade") or None,
                    "to": x.get("toGrade"), "action": act.get(x.get("action"), x.get("action"))} for x in h] or None
-        out = {"target": target, "grades": grades}
+        ap = r.get("assetProfile") or {}
+        about = {"summary": ap.get("longBusinessSummary"), "sector": ap.get("sector"), "industry": ap.get("industry"),
+                 "employees": ap.get("fullTimeEmployees")} if ap.get("longBusinessSummary") else None
+        out = {"target": target, "grades": grades, "about": about}
     except Exception as e:
         DBG["yahoo"] = f"{sym}: {type(e).__name__}: {str(e)[:60]}"
         out = None
