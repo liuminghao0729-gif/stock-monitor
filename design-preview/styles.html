@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>风格预览</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font:14px/1.5 -apple-system,"PingFang SC","Helvetica Neue",Arial,sans-serif;background:#808080;color:#222}
+.pick{position:sticky;top:0;z-index:10;display:flex;gap:6px;padding:10px 16px;background:#2b2b2b;flex-wrap:wrap;align-items:center}
+.pick b{color:#ddd;margin-right:8px;font-weight:500}
+.pick button{border:1px solid #555;background:#3a3a3a;color:#ddd;padding:6px 14px;border-radius:6px;cursor:pointer;font:inherit}
+.pick button.on{background:#fff;color:#111;border-color:#fff}
+.desc{color:#aaa;font-size:12px;margin-left:8px}
+
+/* ====== 通用结构 ====== */
+.site{--bg:#fff;--panel:#fff;--text:#111;--muted:#777;--line:#e5e5e5;--up:#0a9e5c;--down:#d9363e;--accent:#111;--font:inherit;--num:inherit;--head:inherit;--r:0px;
+  background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh}
+.site .wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+.top{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.logo{font-family:var(--head);font-size:18px;font-weight:700;letter-spacing:.5px}
+.top .st{color:var(--muted);font-size:12px}
+.idx{display:flex;gap:0;overflow-x:auto;border-bottom:1px solid var(--line)}
+.idx div{flex:1 0 auto;padding:10px 18px 10px 0;margin-right:18px;white-space:nowrap}
+.idx .n{color:var(--muted);font-size:12px}
+.idx .v{font-family:var(--num);font-weight:600}
+.up{color:var(--up)}.down{color:var(--down)}
+.grid{display:grid;grid-template-columns:260px 1fr;gap:24px;padding:20px 0 40px}
+@media(max-width:820px){.grid{grid-template-columns:1fr}}
+.wl .row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.wl .row.sel{font-weight:600}
+.wl .s{font-weight:600}.wl .nm{color:var(--muted);font-size:12px}
+.wl .r{text-align:right;font-family:var(--num)}
+h1{font-family:var(--head);font-size:20px;font-weight:600}
+h1 span{color:var(--muted);font-size:14px;font-weight:400;margin-left:6px}
+.price{font-family:var(--num);font-size:40px;font-weight:700;line-height:1.1;margin:6px 0 2px}
+.chg{font-family:var(--num);font-size:15px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0 28px;margin:16px 0;padding-top:10px;border-top:1px solid var(--line)}
+.stats div{display:flex;justify-content:space-between;padding:5px 0}
+.stats .l{color:var(--muted)}.stats .v{font-family:var(--num);font-weight:600}
+.rng{display:flex;gap:2px;margin:6px 0}
+.rng button{border:0;background:none;color:var(--muted);padding:5px 10px;font:inherit;cursor:pointer}
+.rng button.on{color:var(--text);font-weight:600}
+.chart{width:100%;height:300px;display:block}
+.sub{display:flex;gap:18px;border-bottom:1px solid var(--line);margin:18px 0 6px}
+.sub span{padding:8px 0;color:var(--muted);cursor:pointer}
+.sub span.on{color:var(--text);font-weight:600;border-bottom:2px solid var(--accent)}
+.news div{padding:9px 0;border-bottom:1px solid var(--line)}
+.news small{color:var(--muted);margin-left:8px}
+
+/* ====== A 彭博终端 ====== */
+.a{--bg:#000;--panel:#000;--text:#e8e8e8;--muted:#9a8a5a;--line:#2a2a2a;--up:#2ee06b;--down:#ff4a4a;--accent:#ff9d1c;--num:"SF Mono",Menlo,Consolas,monospace;--font:"SF Mono",Menlo,Consolas,"PingFang SC",monospace}
+.a .logo{color:#ff9d1c;letter-spacing:2px}
+.a .top{background:#111;margin:0 -20px;padding:8px 20px;border-bottom:2px solid #ff9d1c}
+.a .idx .n,.a .stats .l{text-transform:uppercase;font-size:11px;letter-spacing:.5px}
+.a .price{color:#ff9d1c;font-size:38px}
+.a h1{color:#fff}.a .sub span.on{color:#ff9d1c}.a .rng button.on{color:#000;background:#ff9d1c}
+.a .stats{border-top:1px solid #444}.a .wl .row:hover{background:#151515}
+/* ====== B 财经报纸 ====== */
+.b{--bg:#fff1e5;--panel:#fff1e5;--text:#33302e;--muted:#807973;--line:#d9c7b8;--up:#0e7a4f;--down:#b3202a;--accent:#990f3d;--head:"Songti SC","Noto Serif SC",Georgia,serif;--font:Georgia,"Songti SC",serif;--num:Georgia,"Times New Roman",serif}
+.b .top{border-bottom:3px double #33302e;justify-content:center;padding:18px 0}
+.b .logo{font-size:30px;font-weight:600;letter-spacing:3px}
+.b .top .st{position:absolute;right:20px}
+.b .idx{border-bottom:1px solid #33302e}
+.b h1{font-size:28px;font-weight:600}.b .price{font-weight:600;font-size:44px}
+.b .sub span.on{border-color:#990f3d;color:#990f3d}.b .rng button.on{color:#990f3d}
+.b .wl .row{border-color:#d9c7b8}.b .stats{border-top:1px solid #33302e}
+.b .news div{font-size:15px}
+/* ====== C 券商 App ====== */
+.c{--bg:#0f1115;--panel:#171a20;--text:#e9ecf1;--muted:#7d8590;--line:#23272f;--up:#26c281;--down:#ef4444;--accent:#ff6a00;--num:-apple-system,"SF Pro Display","Helvetica Neue",Arial,sans-serif}
+.c .top{border:0}.c .wrap{max-width:1180px}
+.c .idx{border:0;gap:10px}.c .idx div{background:var(--panel);padding:10px 14px;margin:0;border-radius:6px;min-width:130px}
+.c .grid>div{background:var(--panel);border-radius:8px;padding:14px 16px}
+.c .wl .row{border-color:var(--line)}
+.c .rng button.on{background:#262b34;color:#fff;border-radius:5px}
+.c .sub span.on{border-color:#ff6a00}
+.c .stats{border-top:1px solid var(--line)}
+/* ====== D 瑞士极简 ====== */
+.d{--bg:#fafaf8;--panel:#fafaf8;--text:#1a1a1a;--muted:#8a8a85;--line:#e8e8e3;--up:#12805c;--down:#c8372d;--accent:#1a1a1a;--font:-apple-system,"PingFang SC","Helvetica Neue",Arial,sans-serif;--num:-apple-system,"SF Pro Display",Arial,sans-serif}
+.d .top{border:0;padding:24px 0 12px}.d .logo{font-weight:600;font-size:16px}
+.d .idx{border:0}.d .idx div{padding-bottom:18px}
+.d .grid{gap:56px}.d .price{font-weight:600;font-size:46px}
+.d h1{font-weight:500}.d .stats{border:0;padding-top:0;gap:0 48px}
+.d .wl .row{border:0;padding:12px 0}.d .sub{border-color:var(--line)}
+.d .chart{height:320px}
+.d .stats div{border-bottom:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div class="pick"><b>风格:</b>
+  <button data-t="a">A 终端风</button><button data-t="b">B 财经报纸风</button><button data-t="c" class="on">C 券商 App 风</button><button data-t="d">D 极简白底风</button>
+  <span class="desc" id="desc"></span></div>
+
+<div id="stage" class="site c">
+ <div class="wrap">
+  <div class="top"><div class="logo">盯盘</div><div class="st">美股盘中 · 09:42</div></div>
+  <div class="idx" id="idx"></div>
+  <div class="grid">
+   <div class="wl" id="wl"></div>
+   <div>
+     <h1>AAPL<span>苹果</span></h1>
+     <div class="price down">342.37</div><div class="chg down">−1.80　−0.52%</div>
+     <div class="stats">
+       <div><span class="l">最高</span><span class="v">345.79</span></div><div><span class="l">今开</span><span class="v">338.73</span></div><div><span class="l">成交量</span><span class="v">4375万</span></div>
+       <div><span class="l">最低</span><span class="v">338.30</span></div><div><span class="l">昨收</span><span class="v">344.17</span></div><div><span class="l">成交额</span><span class="v">102亿</span></div>
+       <div><span class="l">52周高</span><span class="v">355.38</span></div><div><span class="l">振幅</span><span class="v">2.18%</span></div><div><span class="l">市值</span><span class="v">5.0万亿</span></div>
+     </div>
+     <div class="rng"><button>1分 ▾</button><button class="on">日K</button><button>周K</button><button>月K</button><button>季K</button><button>年K</button></div>
+     <svg class="chart" id="chart" viewBox="0 0 800 300" preserveAspectRatio="none"></svg>
+     <div class="sub"><span class="on">图表</span><span>公司</span></div>
+     <div class="news">
+       <div>分析师上调目标价,看好下半年业绩<small>彭博 · 1 小时前</small></div>
+       <div>管理层在行业会议上谈及新产品进展<small>路透 · 2 小时前</small></div>
+       <div>期权市场出现大额成交<small>CNBC · 3 小时前</small></div>
+     </div>
+   </div>
+  </div>
+ </div>
+</div>
+
+<script>
+const desc={a:'数据密度高,黑底琥珀色,等宽数字。像专业交易终端,信息量大。',b:'米色纸张底、衬线字体、细线分隔。像《金融时报》,耐读、有编辑感。',c:'接近 Moomoo / 富途:深灰底、扁平色块、橙色强调。熟悉、上手快。',d:'浅色白底、大量留白、细线条。像 Stripe / Robinhood,最安静、最少装饰。'};
+const idx=[['标普500','7,377','+0.31%',1],['纳斯达克','24,579','+1.09%',1],['道琼斯','51,286','−0.46%',0],['黄金','4,075','−0.94%',0],['10年美债','4.86%','+0.45%',1],['VIX','25.64','−9.01%',0]];
+document.getElementById('idx').innerHTML=idx.map(i=>`<div><div class="n">${i[0]}</div><div class="v">${i[1]}</div><div class="${i[3]?'up':'down'}" style="font-size:12px">${i[2]}</div></div>`).join('');
+const wl=[['AAPL','苹果','342.37','−0.52%',0,1],['NVDA','英伟达','186.64','+2.78%',1,0],['VOO','标普500 ETF','675.99','+0.30%',1,0],['QQQ','纳指100 ETF','656.10','+1.40%',1,0]];
+document.getElementById('wl').innerHTML=wl.map(w=>`<div class="row ${w[5]?'sel':''}"><div><div class="s">${w[0]}</div><div class="nm">${w[1]}</div></div><div class="r"><div>${w[2]}</div><div class="${w[4]?'up':'down'}" style="font-size:13px">${w[3]}</div></div></div>`).join('');
+// 示意K线(随机生成,仅用于展示风格)
+function draw(theme){
+  let s=7;const r=()=>(s=(s*1664525+1013904223)>>>0)/4294967296;let p=300,bars=[];
+  for(let i=0;i<70;i++){const o=p,c=p+(r()-.46)*8;bars.push({o,c,h:Math.max(o,c)+r()*4,l:Math.min(o,c)-r()*4});p=c}
+  const lo=Math.min(...bars.map(b=>b.l)),hi=Math.max(...bars.map(b=>b.h)),Y=v=>10+(1-(v-lo)/(hi-lo))*270,w=800/bars.length;
+  const css=getComputedStyle(document.getElementById('stage')),up=css.getPropertyValue('--up').trim(),dn=css.getPropertyValue('--down').trim(),ln=css.getPropertyValue('--line').trim(),ac=css.getPropertyValue('--accent').trim();
+  let g='';for(let k=0;k<5;k++){const y=10+k*67.5;g+=`<line x1="0" x2="800" y1="${y}" y2="${y}" stroke="${ln}" stroke-width="1" vector-effect="non-scaling-stroke"/>`}
+  let body='';
+  if(theme==='b'||theme==='d'){ // 折线
+    const d=bars.map((b,i)=>`${i?'L':'M'}${(i+.5)*w},${Y(b.c)}`).join(' ');body=`<path d="${d}" fill="none" stroke="${theme==='b'?'#990f3d':'#1a1a1a'}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`;
+  } else {
+    bars.forEach((b,i)=>{const x=(i+.5)*w,col=b.c>=b.o?up:dn;body+=`<line x1="${x}" x2="${x}" y1="${Y(b.h)}" y2="${Y(b.l)}" stroke="${col}" vector-effect="non-scaling-stroke"/><rect x="${x-w*.32}" y="${Math.min(Y(b.o),Y(b.c))}" width="${w*.64}" height="${Math.max(1,Math.abs(Y(b.o)-Y(b.c)))}" fill="${col}"/>`});
+  }
+  document.getElementById('chart').innerHTML=g+body;
+}
+function set(t){const st=document.getElementById('stage');st.className='site '+t;document.querySelectorAll('.pick button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));document.getElementById('desc').textContent=desc[t];draw(t)}
+document.querySelectorAll('.pick button').forEach(b=>b.onclick=()=>set(b.dataset.t));
+set('c');
+</script>
+</body>
+</html>

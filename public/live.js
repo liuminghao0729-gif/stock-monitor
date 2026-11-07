@@ -18,13 +18,13 @@ const LiveData = (() => {
     async loadCompany(sym) { return api('/api/company?symbol=' + encodeURIComponent(sym)); },
     async loadNews(sym) {
       const r = await api('/api/news?symbol=' + encodeURIComponent(sym || ''));
-      if (r.error === 'no_key') return { error: '未设置 Finnhub Key,新闻暂不可用' };
+      if (r.error === 'no_key') return { error: '暂无资讯' };
       return r.items.map(x => ({ title: x.title, src: x.src, url: x.url, minsAgo: Math.max(1, Math.round((Date.now() / 1000 - x.ts) / 60)), hot: false }));
     },
     async loadEarnings(d) {
       const ds = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
       const r = await api('/api/earnings?date=' + ds), out = { 盘前: [], 盘中: [], 盘后: [] };
-      if (r.error === 'no_key') return { error: '未设置 Finnhub Key,财报日历暂不可用' };
+      if (r.error === 'no_key') return { error: '暂无数据' };
       r.items.forEach(x => out[x.when].push({ sym: x.sym, name: (M.info[x.sym] || {}).name || '', eps: x.eps == null ? '--' : x.eps.toFixed(2), rev: x.rev ? (x.rev / 1e9).toFixed(1) + 'B' : '--' }));
       return out;
     },

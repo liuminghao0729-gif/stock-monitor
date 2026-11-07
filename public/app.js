@@ -1,8 +1,8 @@
 // ===== 工具 =====
 const $ = s => document.querySelector(s);
-const UP = '#26c281', DOWN = '#ef4444';           // 美股习惯:涨绿跌红
+const UP = '#8fcaa6', DOWN = '#e3917f';           // 美股习惯:涨绿跌红
 const REFRESH = 15;                                // 自动刷新间隔(秒)
-const MA_DEF = [[5, '#f5c542'], [10, '#b57bee'], [20, '#35c5e8'], [50, '#ff9a3c'], [100, '#ff6fa8'], [200, '#e6edf3']];
+const MA_DEF = [[5, '#e2c07a'], [10, '#b49ad8'], [20, '#6fc4c9'], [50, '#e29a62'], [100, '#dc8fa8'], [200, '#e9efec']];
 let Data = MockData; // 启动时会检查后台,可用则切换为真实数据(网址加 ?mock 可强制用模拟数据)
 const fmt = (n, d = 2) => Number.isFinite(n) ? n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '--';
 const cls = n => n >= 0 ? 'up' : 'down';
@@ -19,7 +19,7 @@ const PERIODS = { D: '日K', W: '周K', M: '月K', Q: '季K', Y: '年K' };
 const MINUTES = { '1m': '1分', '5m': '5分', '15m': '15分', '1h': '1小时', '4h': '4小时' };
 const DEF_COUNT = { D: 120, W: 104, M: 120, Q: 80, Y: 40, '1m': 240, '5m': 160, '15m': 130, '1h': 120, '4h': 100 };
 const isIntra = p => p in MINUTES;
-const C = { bg: '#12151a', line: '#222831', grid: '#232a33', text: '#8b949e', accent: '#4c8dff' };
+const C = { line: 'rgba(239,244,241,.13)', grid: 'rgba(239,244,241,.07)', text: '#a1b2ac', accent: '#cfa76c', tag: 'rgba(40,62,58,.95)' };
 
 const state = {
   watch: store.get('watch', ['AAPL', 'NVDA', 'VOO', 'QQQ']),
@@ -122,7 +122,7 @@ function headHTML(s) {
   const rows = [   // 三列,排列参照 Moomoo
     [['成交额', cn(d.turnover)], ['成交量', cn(q.volume, '股')], ['换手率', pct(d.turnoverRate)], ['52周最高', P(d.wk52h)], ['52周最低', P(d.wk52l)], ['股息率', pct(d.divYield)]],
     [['最高', P(q.high), vs(q.high)], ['最低', P(q.low), vs(q.low)], ['市值', cn(d.mcap)], ['总股本', cn(d.shares)], ['振幅', pct(d.amp)], ['市盈率(TTM)', num(d.pe)]],
-    [['今开', P(q.open), vs(q.open)], ['昨收', P(q.prev)], ['平均价', P(d.avg)], ['量比(估算)', num(d.volRatio)], ['历史最高', P(d.ath)], ['历史最低', P(d.atl)]]
+    [['今开', P(q.open), vs(q.open)], ['昨收', P(q.prev)], ['平均价', P(d.avg)], ['量比', num(d.volRatio)], ['历史最高', P(d.ath)], ['历史最低', P(d.atl)]]
   ];
   const arrow = q.change >= 0 ? '↑' : '↓', open = store.get('statsOpen', true), show = open ? 6 : 2;
   return `<div class="dh"><div><h2>${s} <span class="muted" style="font-size:14px;font-weight:400">${esc(q.name)}</span></h2></div>${state.watch.includes(s) ? '' : '<button class="tb on" data-act="addwatch">＋ 加入自选</button>'}</div>
@@ -140,11 +140,12 @@ async function renderDetail() {
     <div class="legend" id="legend"></div>
     <div class="chartwrap" id="cw"><canvas id="cv"></canvas><div id="cload" class="cload">图表加载中…</div></div>
     <div class="tbar" id="tb"></div>
-    <h3>${s} 相关新闻 ${Data.mode === 'mock' ? '<span class="badge">模拟</span>' : ''}</h3>
+    <h3>${s} 相关新闻</h3>
     <ul class="news" id="stockNews"><li class="muted">加载中…</li></ul>
   </div>
   <div id="dcompany" class="hidden"></div>`;
   bindChart(); renderToolbar(); loadChart(true); loadStats(s); showDT(state.dt);
+  { const q = Data.quote(s); countUp($('.px-big .big'), q.price, Number.isFinite(q.price) ? decOf(q.price) : 2); }
   const stale = () => state.sel !== s || state.tab !== 'watch';
   Data.loadNews(s).then(l => { if (!stale()) $('#stockNews').innerHTML = newsHTML(l); })
     .catch(() => { if (!stale()) $('#stockNews').innerHTML = '<li class="muted">新闻加载失败</li>'; });
@@ -157,15 +158,15 @@ function showDT(dt) {
 }
 const REC_COLORS = ['#1f9d6b', '#26c281', '#8b949e', '#f08a4b', '#ef4444'], REC_NAMES = ['强烈买入', '买入', '持有', '卖出', '强烈卖出'];
 function recHTML(c) {
-  const r = c && Array.isArray(c.rec) && c.rec[0]; if (!r) return '<div class="muted small">暂无分析师评级数据</div>';
-  const v = [r.strongBuy, r.buy, r.hold, r.sell, r.strongSell].map(x => x || 0), tot = v.reduce((a, b) => a + b, 0); if (!tot) return '<div class="muted small">暂无分析师评级数据</div>';
+  const r = c && Array.isArray(c.rec) && c.rec[0]; if (!r) return '<div class="muted small">暂无数据</div>';
+  const v = [r.strongBuy, r.buy, r.hold, r.sell, r.strongSell].map(x => x || 0), tot = v.reduce((a, b) => a + b, 0); if (!tot) return '<div class="muted small">暂无数据</div>';
   const score = (5 * v[0] + 4 * v[1] + 3 * v[2] + 2 * v[3] + v[4]) / tot, label = score >= 4.5 ? '强力推荐' : score >= 3.5 ? '买入' : score >= 2.5 ? '持有' : score >= 1.5 ? '卖出' : '强力卖出';
   return `<div class="rec-h"><b>${tot} 位分析师综合评级</b> <span class="${score >= 3.5 ? 'up' : score >= 2.5 ? '' : 'down'}">${label}</span> <span class="muted small">更新:${esc(r.period || '')}</span></div>
     <div class="recbar">${v.map((n, i) => n ? `<span style="flex:${n};background:${REC_COLORS[i]}" title="${REC_NAMES[i]} ${n}">${n}</span>` : '').join('')}</div>
     <div class="reclegend">${REC_NAMES.map((nm, i) => `<span><i style="background:${REC_COLORS[i]}"></i>${nm} ${v[i]}</span>`).join('')}</div>`;
 }
 function earnHTML(c) {
-  const e = c && Array.isArray(c.earn) ? c.earn.filter(x => x && x.actual != null) : []; if (!e.length) return '<div class="muted small">暂无财报数据</div>';
+  const e = c && Array.isArray(c.earn) ? c.earn.filter(x => x && x.actual != null) : []; if (!e.length) return '<div class="muted small">暂无数据</div>';
   return `<table><thead><tr><th>季度</th><th class="r">预期EPS</th><th class="r">实际EPS</th><th class="r">超预期</th></tr></thead><tbody>${e.map(x => { const sp = x.surprisePercent; return `<tr><td>${esc(x.period || '')}</td><td class="r">${x.estimate == null ? '--' : fmt(x.estimate)}</td><td class="r">${fmt(x.actual)}</td><td class="r ${sp >= 0 ? 'up' : 'down'}">${Number.isFinite(sp) ? sgn(sp) + '%' : '--'}</td></tr>`; }).join('')}</tbody></table>`;
 }
 const list = a => `<ul class="clist">${(a || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
@@ -175,10 +176,10 @@ function companyHTML(s, c) {
   const web = /^https?:\/\//.test(p.weburl || '') ? ` · <a href="${p.weburl}" target="_blank" rel="noopener noreferrer">官网</a>` : '';
   const peers = (k && k.comp) || (c && c.peers ? c.peers.filter(x => x !== s).slice(0, 8) : []);
   const chips = peers.map(x => /^[A-Z.]{1,6}$/.test(x) ? `<button class="chip" data-go="${x}">${x}</button>` : `<span class="chip plain">${esc(x)}</span>`).join('');
-  const note = c && c.error === 'no_key' ? '未设置 Finnhub Key,自动数据(评级、财报)暂不可用' : c && c.error === 'mock' ? '模拟模式下没有评级与财报数据' : '';
-  let h = `<div class="csec"><h3>${esc(k ? k.n : q.name)} <span class="muted small">${meta}${web}</span></h3>${k ? `<p class="intro">${esc(k.intro)}</p>` : '<p class="muted">这只股票还没有手写的公司分析,下面只显示自动数据。</p>'}</div>`;
+  const note = c && c.error ? '暂无数据' : '';
+  let h = `<div class="csec"><h3>${esc(k ? k.n : q.name)} <span class="muted small">${meta}${web}</span></h3>${k ? `<p class="intro">${esc(k.intro)}</p>` : '<p class="muted">暂无这家公司的详细分析</p>'}</div>`;
   if (k) h += `<div class="csec"><h3>主营业务</h3>${list(k.segs)}</div>`;
-  h += `<div class="csec"><h3>分析师评级 ${Data.mode === 'mock' ? '<span class="badge">模拟</span>' : ''}</h3>${note && !(c && c.rec) ? `<div class="muted small">${note}</div>` : recHTML(c)}<div class="muted small" style="margin-top:6px">只显示评级人数分布。免费数据里没有各家机构的目标价与评级变动。</div></div>`;
+  h += `<div class="csec"><h3>分析师评级</h3>${note && !(c && c.rec) ? `<div class="muted small">${note}</div>` : recHTML(c)}</div>`;
   if (peers.length) h += `<div class="csec"><h3>竞争对手</h3><div class="chips">${chips}</div></div>`;
   if (k) {
     h += `<div class="csec"><h3>竞争优势</h3>${list(k.adv)}</div>
@@ -188,7 +189,7 @@ function companyHTML(s, c) {
       <div class="csec"><h3>主要风险</h3>${list(k.risks)}</div>`;
   }
   h += `<div class="csec"><h3>财报对比(近 4 个季度)</h3>${note && !(c && c.earn) ? `<div class="muted small">${note}</div>` : earnHTML(c)}</div>
-    <div class="muted small cfoot">${k ? `业务、竞争优势、护城河、订单等为手写内容,撰写于 ${COMPANY_ASOF},基于公开信息,可能已过时,订单数字请以公司最新财报为准。` : ''}评级与财报来自 Finnhub。以上不构成投资建议。</div>`;
+    <div class="small cfoot">${k ? `分析内容撰写于 ${COMPANY_ASOF},可能已过时,订单等数字以最新财报为准。` : ''}</div>`;
   return h;
 }
 async function renderCompany() {
@@ -272,7 +273,19 @@ async function loadChart(reset) {
   if (!same()) return;
   const R = Data.bars(s, p);
   if (!R || !R.bars.length) { if (ld) ld.textContent = '暂无数据'; V = null; return; }
-  V = prepare(); if (reset) resetView(); ld.style.display = 'none'; layout(); paint();
+  V = prepare(); if (reset) resetView(); ld.style.display = 'none'; layout(); if (reset) animateReveal(); else paint();
+}
+const calm = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+function animateReveal() {   // 曲线从左到右"画"出来
+  const tok = V; if (!tok) return; if (calm()) { paint(); return; }
+  const t0 = performance.now(), dur = 900; tok.reveal = 0; paint();
+  (function f(t) { if (V !== tok) return; const k = Math.min(1, (t - t0) / dur); tok.reveal = 1 - Math.pow(1 - k, 3); paint(); if (k < 1) requestAnimationFrame(f); })(t0);
+}
+let lastShown = null;
+function countUp(el, to, dec) {   // 价格数字滚动到新价格
+  if (!el || !Number.isFinite(to)) return; const from = Number.isFinite(lastShown) ? lastShown : to; lastShown = to;
+  if (calm() || from === to) return; const t0 = performance.now(), dur = 650;
+  (function f(t) { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = fmt(from + (to - from) * e, dec); if (k < 1 && el.isConnected) requestAnimationFrame(f); })(t0);
 }
 function resetView() {
   const n = V.bars.length, c0 = Math.min(DEF_COUNT[state.period], n), pad = Math.max(2, Math.round(c0 * .05));
@@ -331,7 +344,8 @@ function paint() {
   const hv = state.hover >= 0 ? Math.min(n - 1, state.hover) : -1, ref = hv >= 0 ? hv : Math.max(0, i1);
   const axisX = W - PR + 5;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+  ctx.clearRect(0, 0, W, H);
+  const revealing = V.reveal != null && V.reveal < 1; if (revealing) { ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W * V.reveal, H); ctx.clip(); }
   ctx.font = '11px -apple-system,"PingFang SC",sans-serif'; ctx.textBaseline = 'middle';
   V.hits = [];
   const dash = (x0, y0, x1, y1, col, d = [3, 4]) => { ctx.strokeStyle = col; ctx.setLineDash(d); ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.setLineDash([]); };
@@ -361,8 +375,8 @@ function paint() {
         const c = chips(B, i0, i1); if (c) {
           const mx = Math.max(...c.arr), maxLen = Math.min(110, pw * .28), ref0 = B[i1].c;
           c.arr.forEach((v, k) => { const pr = c.lo + (k + .5) * c.step, y = Y(pr), bh = Math.max(Math.abs(Y(pr + c.step) - y), 1), len = v / mx * maxLen;
-            ctx.fillStyle = pr <= ref0 ? 'rgba(38,194,129,.30)' : 'rgba(239,68,68,.30)'; ctx.fillRect(W - PR - len, y - bh / 2, len, bh - .5); });
-          ctx.fillStyle = C.text; ctx.textAlign = 'right'; ctx.fillText('筹码分布(估算)', W - PR - 4, top + 8);
+            ctx.fillStyle = pr <= ref0 ? 'rgba(143,202,166,.30)' : 'rgba(227,145,127,.30)'; ctx.fillRect(W - PR - len, y - bh / 2, len, bh - .5); });
+          ctx.fillStyle = C.text; ctx.textAlign = 'right'; ctx.fillText('筹码分布', W - PR - 4, top + 8);
         }
       }
       if (state.type === 'candle' && bw >= 2.2) {
@@ -394,13 +408,13 @@ function paint() {
     } else if (p.id === 'vol') {
       let mx = 0; for (let i = i0; i <= i1; i++) mx = Math.max(mx, B[i].v); mx = mx || 1; scale(0, mx * 1.08); p.fv = v => big(Math.round(v));
       grid([mx], p.fv); clipPlot(top, bot);
-      for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) { const b = B[i], w = Math.min(Math.max(1, Math.floor(bw * .7)), 24); ctx.fillStyle = b.c >= b.o ? 'rgba(38,194,129,.75)' : 'rgba(239,68,68,.75)'; ctx.fillRect(Math.round(X(i) - w / 2), Y(b.v), w, Y(0) - Y(b.v)); }
+      for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) { const b = B[i], w = Math.min(Math.max(1, Math.floor(bw * .7)), 24); ctx.fillStyle = b.c >= b.o ? 'rgba(143,202,166,.75)' : 'rgba(227,145,127,.75)'; ctx.fillRect(Math.round(X(i) - w / 2), Y(b.v), w, Y(0) - Y(b.v)); }
       ctx.restore(); ctx.font = '11px sans-serif';
       segs(ctx, [['成交量', C.text], [`VOL:${big(B[ref].v)}`, '#e6a23c']], PL + 4, p.y + 11, W - PR - 20, 16);
     } else if (p.id === 'macd') {
       let m = 0; for (let i = i0; i <= i1; i++) [V.macd.dif[i], V.macd.dea[i], V.macd.hist[i]].forEach(v => v != null && (m = Math.max(m, Math.abs(v)))); m = m || 1; scale(-m * 1.1, m * 1.1); p.fv = v => fmt(v, 3);
       grid([-m * .8, 0, m * .8], p.fv); clipPlot(top, bot);
-      for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) { const v = V.macd.hist[i], w = Math.min(Math.max(1, Math.floor(bw * .5)), 14); ctx.fillStyle = v >= 0 ? 'rgba(38,194,129,.8)' : 'rgba(239,68,68,.8)'; ctx.fillRect(Math.round(X(i) - w / 2), Math.min(Y(0), Y(v)), w, Math.max(1, Math.abs(Y(v) - Y(0)))); }
+      for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) { const v = V.macd.hist[i], w = Math.min(Math.max(1, Math.floor(bw * .5)), 14); ctx.fillStyle = v >= 0 ? 'rgba(143,202,166,.8)' : 'rgba(227,145,127,.8)'; ctx.fillRect(Math.round(X(i) - w / 2), Math.min(Y(0), Y(v)), w, Math.max(1, Math.abs(Y(v) - Y(0)))); }
       poly(V.macd.dif, Y, '#f5c542'); poly(V.macd.dea, Y, '#35c5e8'); ctx.restore(); ctx.font = '11px sans-serif';
       segs(ctx, [['MACD(12,26,9)', C.text], [`DIF:${fmt(V.macd.dif[ref], 3)}`, '#f5c542'], [`DEA:${fmt(V.macd.dea[ref], 3)}`, '#35c5e8'], [`MACD:${fmt(V.macd.hist[ref], 3)}`, V.macd.hist[ref] >= 0 ? UP : DOWN]], PL + 4, p.y + 11, W - PR - 20, 16);
     } else if (p.id === 'rsi') {
@@ -420,12 +434,13 @@ function paint() {
 
   // 十字光标 + 轴上数值标签
   if (hv >= 0) {
-    const x = X(hv); dash(x, 0, x, H - 22, 'rgba(230,237,243,.45)');
+    const x = X(hv); dash(x, 0, x, H - 22, 'rgba(239,244,241,.4)');
     const p = panels.find(q => ptr.my >= q.y + q.head && ptr.my <= q.y + q.h);
-    if (p && ptr.my >= 0) { dash(PL, ptr.my, W - PR, ptr.my, 'rgba(230,237,243,.45)'); axisLabel(p.fv(p.inv(ptr.my)), ptr.my, '#3a4350'); }
+    if (p && ptr.my >= 0) { dash(PL, ptr.my, W - PR, ptr.my, 'rgba(239,244,241,.4)'); axisLabel(p.fv(p.inv(ptr.my)), ptr.my, C.tag); }
     const tt = B[hv].t; ctx.font = '11px sans-serif'; const w = ctx.measureText(tt).width + 12, bx = Math.max(0, Math.min(W - PR - w, x - w / 2));
-    ctx.fillStyle = '#3a4350'; ctx.fillRect(bx, H - 21, w, 18); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(tt, bx + w / 2, H - 11);
+    ctx.fillStyle = C.tag; ctx.fillRect(bx, H - 21, w, 18); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(tt, bx + w / 2, H - 11);
   }
+  if (revealing) ctx.restore();
   // 顶部 OHLC 图例
   const b = B[ref], pc = ref > 0 ? B[ref - 1].c : b.o, chg = b.c - pc, d = decOf(b.c);
   $('#legend').innerHTML = `<span class="muted">${b.t}</span> 开 ${fmt(b.o, d)} 高 ${fmt(b.h, d)} 低 ${fmt(b.l, d)} <b class="${cls(chg)}">收 ${fmt(b.c, d)}</b> <span class="${cls(chg)}">${sgn(chg, d)} (${sgn(pc ? chg / pc * 100 : 0)}%)</span> 量 ${big(b.v)}`;
@@ -499,8 +514,7 @@ async function renderEarnings() {
   if (state.tab !== 'earnings' || state.day !== idx) return;
   if (E.error) { el.innerHTML = tabs + `<div class="card muted">${E.error}</div>`; return; }
   el.innerHTML = tabs + `<div class="grid2">${['盘前', '盘中', '盘后'].map(k => `<div class="card sess"><h4>${k}发布 · ${E[k].length} 家</h4>
-    ${E[k].length ? `<table><thead><tr><th>公司</th><th class="r">预期EPS</th><th class="r">预期营收</th></tr></thead><tbody>${E[k].map(e => `<tr><td><span class="sym" data-go="${esc(e.sym)}">${esc(e.sym)}</span> <span class="muted small">${esc(e.name)}</span></td><td class="r">${e.eps}</td><td class="r">${e.rev}</td></tr>`).join('')}</tbody></table>` : '<div class="muted small">暂无</div>'}</div>`).join('')}</div>
-    <div class="muted small">${Data.mode === 'mock' ? '财报数据当前为模拟。' : '数据来自 Finnhub,按预期营收排序,最多显示 45 家。'}</div>`;
+    ${E[k].length ? `<table><thead><tr><th>公司</th><th class="r">预期EPS</th><th class="r">预期营收</th></tr></thead><tbody>${E[k].map(e => `<tr><td><span class="sym" data-go="${esc(e.sym)}">${esc(e.sym)}</span> <span class="muted small">${esc(e.name)}</span></td><td class="r">${e.eps}</td><td class="r">${e.rev}</td></tr>`).join('')}</tbody></table>` : '<div class="muted small">暂无</div>'}</div>`).join('')}</div>`;
 }
 // ===== 涨跌幅榜 =====
 async function renderMovers() {
@@ -509,16 +523,12 @@ async function renderMovers() {
   if (state.tab !== 'movers') return;
   const all = universe().map(Data.quote).filter(q => Number.isFinite(q.price)), top = (a, t) => `<div class="card"><h3 style="margin-top:0">${t}</h3><table><tbody>${a.map(q => qrow(q.sym)).join('')}</tbody></table></div>`;
   const byPct = [...all].sort((a, b) => b.pct - a.pct), byVol = [...all].sort((a, b) => b.volume * b.price - a.volume * a.price);
-  el.innerHTML = `<div class="grid2">${top(byPct.slice(0, 10), '涨幅榜')}${top(byPct.slice(-10).reverse(), '跌幅榜')}${top(byVol.slice(0, 10), '成交额榜')}</div>
-    <div class="muted small" style="margin-top:8px">当前榜单范围:内置的 ${all.length} 只热门股票(全市场榜单需要付费数据,后续可评估)。</div>`;
+  el.innerHTML = `<div class="grid2">${top(byPct.slice(0, 10), '涨幅榜')}${top(byPct.slice(-10).reverse(), '跌幅榜')}${top(byVol.slice(0, 10), '成交额榜')}</div>`;
 }
 // ===== 推送提醒 =====
 async function renderAlerts() {
   const el = $('#view-alerts');
-  el.innerHTML = `<div class="card"><h3 style="margin-top:0">手机推送提醒(第 3 阶段开发)</h3>
-    <div class="todo">计划推送三类消息:<br>① 重要实时新闻 ② 你自选股的重要个股新闻 ③ 全球宏观重大新闻(美联储、非农、CPI 等)</div>
-    <div class="todo">实现思路:后台程序定时抓取新闻 → 判断是否重要 → 通过手机 App(如 Bark / Telegram)推送给你。网页本身不能 24 小时在后台运行,所以需要后台程序。</div>
-    <h3>全球宏观 / 市场快讯 ${Data.mode === 'mock' ? '<span class="badge">模拟</span>' : ''}</h3><ul class="news" id="macroNews"><li class="muted">加载中…</li></ul></div>`;
+  el.innerHTML = `<div class="card"><h3 style="margin-top:0">市场快讯</h3><ul class="news" id="macroNews"><li class="muted">加载中…</li></ul></div>`;
   let l; try { l = await Data.loadNews(''); } catch { l = { error: '新闻加载失败' }; }
   if (state.tab === 'alerts') $('#macroNews').innerHTML = newsHTML(l);
 }
@@ -570,7 +580,6 @@ async function init() {
   if (!location.search.includes('mock')) {
     try { const r = await fetch('/api/status'); if (r.ok && (await r.json()).finnhub !== undefined) Data = LiveData; } catch { }
   }
-  document.querySelector('footer').textContent = Data.mode === 'live' ? '仅供学习参考,不构成投资建议。行情来自 Yahoo 财经(非官方接口,可能有延迟),新闻/财报来自 Finnhub。' : '仅供学习参考,不构成投资建议。当前为模拟数据。';
   marketStatus(); let err = false;
   try { await Data.refreshQuotes(coreSymbols()); } catch { err = true; }
   setBadge(err); renderIndices(); renderWatch(); renderDetail(); $('#countdown').textContent = left;
