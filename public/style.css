@@ -1,9 +1,9 @@
 /* ===== 铜绿青 · 磨砂玻璃 · Fraunces + Manrope ===== */
 :root{
-  --bg:#0d1413;--text:#eff4f1;--muted:#a1b2ac;--faint:#62736d;--line:rgba(239,244,241,.12);
-  --accent:#cfa76c;--up:#8fcaa6;--down:#e3917f;
-  --glass:rgba(225,250,244,.045);--gline:rgba(205,240,232,.14);--sel:rgba(225,250,244,.07);
-  --hz1:radial-gradient(circle,rgba(58,132,120,.5),transparent 65%);--hz2:radial-gradient(circle,rgba(160,112,66,.3),transparent 65%);
+  --bg:#08090a;--text:#f1f2f0;--muted:#a3a8a6;--faint:#646a68;--line:rgba(255,255,255,.12);
+  --accent:#cfa76c;--up:#7ed3a4;--down:#ef8a78;
+  --glass:rgba(255,255,255,.045);--gline:rgba(255,255,255,.13);--sel:rgba(255,255,255,.075);
+  --hz1:radial-gradient(circle,rgba(150,168,190,.30),transparent 65%);--hz2:radial-gradient(circle,rgba(176,120,66,.30),transparent 65%);
   --ui:"Manrope","PingFang SC","Helvetica Neue",sans-serif;--disp:"Fraunces","Songti SC",Georgia,serif;
 }
 *{box-sizing:border-box}
@@ -23,10 +23,10 @@ input[type=checkbox]{accent-color:var(--accent)}
 /* 背景:两团缓慢飘动的雾 + 细颗粒 */
 .haze{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:0}
 .haze i{position:absolute;border-radius:50%;filter:blur(80px);animation:drift 40s ease-in-out infinite alternate}
-.haze .a{width:780px;height:780px;left:-200px;top:-260px;background:var(--hz1)}
-.haze .b{width:700px;height:700px;right:-220px;bottom:-260px;background:var(--hz2);animation-delay:-16s}
+.haze .a{width:760px;height:760px;left:-260px;top:-320px;background:var(--hz1)}
+.haze .b{width:720px;height:720px;right:-260px;bottom:-300px;background:var(--hz2);animation-delay:-16s}
 @keyframes drift{to{transform:translate(70px,50px) scale(1.14)}}
-.grain{position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.22;mix-blend-mode:overlay;
+.grain{position:fixed;inset:0;pointer-events:none;z-index:1;opacity:.16;mix-blend-mode:overlay;
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
 .shell{position:relative;z-index:2;max-width:1180px;margin:0 auto;padding:0 28px}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -36,8 +36,9 @@ input[type=checkbox]{accent-color:var(--accent)}
 .view:not(#view-watch){animation:fade .5s both}
 
 /* 玻璃面板 */
-.card{background:var(--glass);border:1px solid var(--gline);border-radius:18px;padding:18px 20px;min-width:0;backdrop-filter:blur(24px) saturate(1.25);-webkit-backdrop-filter:blur(24px) saturate(1.25);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 24px 60px rgba(0,0,0,.28)}
+.card{position:relative;background:linear-gradient(135deg,rgba(255,255,255,.085),rgba(255,255,255,.025) 45%,rgba(255,255,255,.04));border:1px solid var(--gline);border-radius:20px;padding:18px 20px;min-width:0;
+  backdrop-filter:blur(28px) saturate(1.5) brightness(1.06);-webkit-backdrop-filter:blur(28px) saturate(1.5) brightness(1.06);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 1px 0 0 rgba(255,255,255,.06),inset 0 -1px 0 rgba(0,0,0,.35),0 24px 60px rgba(0,0,0,.5)}
 #detail.card{background:none;border:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;padding:0}
 
 /* 顶部 */
@@ -81,7 +82,8 @@ main{padding:30px 0 40px}
 .wrow.sel::before{content:"";position:absolute;left:0;top:20%;bottom:20%;width:2px;background:var(--accent);border-radius:2px}
 .wrow .s{font-weight:600;letter-spacing:.04em}.wrow .nm{font-size:12px;color:var(--muted)}
 .wrow .px{text-align:right;font-variant-numeric:tabular-nums}
-.chg{min-width:62px;text-align:right;font-variant-numeric:tabular-nums;font-size:13px}
+.chg{min-width:64px;text-align:center;font-variant-numeric:tabular-nums;font-size:13px;font-weight:600;padding:3px 8px;border-radius:99px}
+.chg.up{background:rgba(126,211,164,.13)}.chg.down{background:rgba(239,138,120,.13)}
 .wrow .x{color:var(--faint);padding:0 4px;opacity:0}
 .wrow:hover .x{opacity:1}
 
@@ -109,10 +111,11 @@ main{padding:30px 0 40px}
 
 /* 图表 */
 .legend{font-size:12px;min-height:18px;margin:6px 2px;font-variant-numeric:tabular-nums;color:var(--muted)}
-.chartwrap{position:relative;background:var(--glass);border:1px solid var(--gline);border-radius:18px;overflow:hidden;
-  backdrop-filter:blur(24px) saturate(1.25);-webkit-backdrop-filter:blur(24px) saturate(1.25);box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 24px 60px rgba(0,0,0,.28)}
+.chartwrap{position:relative;background:linear-gradient(135deg,rgba(255,255,255,.075),rgba(255,255,255,.02) 45%,rgba(255,255,255,.035));border:1px solid var(--gline);border-radius:20px;overflow:hidden;
+  backdrop-filter:blur(28px) saturate(1.5) brightness(1.06);-webkit-backdrop-filter:blur(28px) saturate(1.5) brightness(1.06);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),inset 1px 0 0 rgba(255,255,255,.06),inset 0 -1px 0 rgba(0,0,0,.35),0 24px 60px rgba(0,0,0,.5)}
 .chartwrap canvas{display:block;width:100%}
-.cload{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);background:rgba(13,20,19,.7);z-index:2}
+.cload{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);background:rgba(8,9,10,.7);z-index:2}
 .tbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 0}
 .tl,.tr{display:flex;gap:2px;align-items:center;flex-wrap:wrap}
 .tb{color:var(--muted);font-size:13px;letter-spacing:.04em;padding:6px 11px;position:relative}
@@ -121,7 +124,7 @@ main{padding:30px 0 40px}
 .tb.on::after{content:"";position:absolute;left:11px;right:11px;bottom:1px;height:1.5px;background:var(--accent);border-radius:2px}
 .tb.ic{font-size:16px;padding:3px 10px}
 .pwrap{position:relative;display:inline-block}
-.pop{position:absolute;bottom:calc(100% + 8px);left:0;z-index:20;background:rgba(15,24,22,.92);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--gline);border-radius:12px;padding:6px;min-width:110px;box-shadow:0 16px 40px rgba(0,0,0,.45);animation:fade .2s both}
+.pop{position:absolute;bottom:calc(100% + 8px);left:0;z-index:20;background:rgba(14,15,16,.94);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--gline);border-radius:12px;padding:6px;min-width:110px;box-shadow:0 16px 40px rgba(0,0,0,.45);animation:fade .2s both}
 .pop.right{left:auto;right:0;min-width:176px}
 .pop button{display:block;width:100%;text-align:left;border-radius:8px;padding:7px 10px}
 .pop button:hover{background:var(--sel)}

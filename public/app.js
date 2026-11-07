@@ -1,6 +1,6 @@
 // ===== 工具 =====
 const $ = s => document.querySelector(s);
-const UP = '#8fcaa6', DOWN = '#e3917f';           // 美股习惯:涨绿跌红
+const UP = '#7ed3a4', DOWN = '#ef8a78';           // 美股习惯:涨绿跌红
 const REFRESH = 15;                                // 自动刷新间隔(秒)
 const MA_DEF = [[5, '#e2c07a'], [10, '#b49ad8'], [20, '#6fc4c9'], [50, '#e29a62'], [100, '#dc8fa8'], [200, '#e9efec']];
 let Data = MockData; // 启动时会检查后台,可用则切换为真实数据(网址加 ?mock 可强制用模拟数据)
@@ -19,7 +19,7 @@ const PERIODS = { D: '日K', W: '周K', M: '月K', Q: '季K', Y: '年K' };
 const MINUTES = { '1m': '1分', '5m': '5分', '15m': '15分', '1h': '1小时', '4h': '4小时' };
 const DEF_COUNT = { D: 120, W: 104, M: 120, Q: 80, Y: 40, '1m': 240, '5m': 160, '15m': 130, '1h': 120, '4h': 100 };
 const isIntra = p => p in MINUTES;
-const C = { line: 'rgba(239,244,241,.13)', grid: 'rgba(239,244,241,.07)', text: '#a1b2ac', accent: '#cfa76c', tag: 'rgba(40,62,58,.95)' };
+const C = { line: 'rgba(255,255,255,.13)', grid: 'rgba(255,255,255,.07)', text: '#a3a8a6', accent: '#cfa76c', tag: 'rgba(52,54,56,.96)' };
 
 const state = {
   watch: store.get('watch', ['AAPL', 'NVDA', 'VOO', 'QQQ']),
@@ -375,7 +375,7 @@ function paint() {
         const c = chips(B, i0, i1); if (c) {
           const mx = Math.max(...c.arr), maxLen = Math.min(110, pw * .28), ref0 = B[i1].c;
           c.arr.forEach((v, k) => { const pr = c.lo + (k + .5) * c.step, y = Y(pr), bh = Math.max(Math.abs(Y(pr + c.step) - y), 1), len = v / mx * maxLen;
-            ctx.fillStyle = pr <= ref0 ? 'rgba(143,202,166,.30)' : 'rgba(227,145,127,.30)'; ctx.fillRect(W - PR - len, y - bh / 2, len, bh - .5); });
+            ctx.fillStyle = pr <= ref0 ? 'rgba(126,211,164,.30)' : 'rgba(239,138,120,.30)'; ctx.fillRect(W - PR - len, y - bh / 2, len, bh - .5); });
           ctx.fillStyle = C.text; ctx.textAlign = 'right'; ctx.fillText('筹码分布', W - PR - 4, top + 8);
         }
       }
@@ -408,13 +408,13 @@ function paint() {
     } else if (p.id === 'vol') {
       let mx = 0; for (let i = i0; i <= i1; i++) mx = Math.max(mx, B[i].v); mx = mx || 1; scale(0, mx * 1.08); p.fv = v => big(Math.round(v));
       grid([mx], p.fv); clipPlot(top, bot);
-      for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) { const b = B[i], w = Math.min(Math.max(1, Math.floor(bw * .7)), 24); ctx.fillStyle = b.c >= b.o ? 'rgba(143,202,166,.75)' : 'rgba(227,145,127,.75)'; ctx.fillRect(Math.round(X(i) - w / 2), Y(b.v), w, Y(0) - Y(b.v)); }
+      for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) { const b = B[i], w = Math.min(Math.max(1, Math.floor(bw * .7)), 24); ctx.fillStyle = b.c >= b.o ? 'rgba(126,211,164,.75)' : 'rgba(239,138,120,.75)'; ctx.fillRect(Math.round(X(i) - w / 2), Y(b.v), w, Y(0) - Y(b.v)); }
       ctx.restore(); ctx.font = '11px sans-serif';
       segs(ctx, [['成交量', C.text], [`VOL:${big(B[ref].v)}`, '#e6a23c']], PL + 4, p.y + 11, W - PR - 20, 16);
     } else if (p.id === 'macd') {
       let m = 0; for (let i = i0; i <= i1; i++) [V.macd.dif[i], V.macd.dea[i], V.macd.hist[i]].forEach(v => v != null && (m = Math.max(m, Math.abs(v)))); m = m || 1; scale(-m * 1.1, m * 1.1); p.fv = v => fmt(v, 3);
       grid([-m * .8, 0, m * .8], p.fv); clipPlot(top, bot);
-      for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) { const v = V.macd.hist[i], w = Math.min(Math.max(1, Math.floor(bw * .5)), 14); ctx.fillStyle = v >= 0 ? 'rgba(143,202,166,.8)' : 'rgba(227,145,127,.8)'; ctx.fillRect(Math.round(X(i) - w / 2), Math.min(Y(0), Y(v)), w, Math.max(1, Math.abs(Y(v) - Y(0)))); }
+      for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) { const v = V.macd.hist[i], w = Math.min(Math.max(1, Math.floor(bw * .5)), 14); ctx.fillStyle = v >= 0 ? 'rgba(126,211,164,.8)' : 'rgba(239,138,120,.8)'; ctx.fillRect(Math.round(X(i) - w / 2), Math.min(Y(0), Y(v)), w, Math.max(1, Math.abs(Y(v) - Y(0)))); }
       poly(V.macd.dif, Y, '#f5c542'); poly(V.macd.dea, Y, '#35c5e8'); ctx.restore(); ctx.font = '11px sans-serif';
       segs(ctx, [['MACD(12,26,9)', C.text], [`DIF:${fmt(V.macd.dif[ref], 3)}`, '#f5c542'], [`DEA:${fmt(V.macd.dea[ref], 3)}`, '#35c5e8'], [`MACD:${fmt(V.macd.hist[ref], 3)}`, V.macd.hist[ref] >= 0 ? UP : DOWN]], PL + 4, p.y + 11, W - PR - 20, 16);
     } else if (p.id === 'rsi') {
