@@ -4,6 +4,11 @@ on:
     # 周一至周五 UTC 22:30(美股 16:00 收盘后至少 1.5 小时,夏令时和冬令时都已收盘)。GitHub 可能有几分钟延迟。
     - cron: "30 22 * * 1-5"
   workflow_dispatch:      # 允许在网页上手动运行
+    inputs:
+      notify_only:
+        description: "只发一条测试推送(不重新跑选股、不提交)"
+        type: boolean
+        default: false
 
 # 只给这一个任务"写入仓库"的权限,用来把当天的结果提交回仓库;提交后 Vercel 会自动重新部署
 permissions:
@@ -20,12 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: 记录上一次的行情日期(用来判断今天有没有新行情)
+        if: ${{ !inputs.notify_only }}
         run: echo "PREV_DATA_DATE=$(python3 -c "import json;print(json.load(open('public/screener.json')).get('dataDate',''))")" >> "$GITHUB_ENV"
       - name: 运行每日选股(V2.0)
+        if: ${{ !inputs.notify_only }}
         env:
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
         run: python3 tools/screener_v2.py
       - name: 检查结果文件
+        if: ${{ !inputs.notify_only }}
         run: |
           python3 - <<'PY'
           import json
@@ -35,6 +43,7 @@ jobs:
           print("行情日期", d["dataDate"], "| 扫描", d["universe"], "只 |", [(p["name"], p["confirmedTotal"]) for p in d["presets"]])
           PY
       - name: 有变化才提交
+        if: ${{ !inputs.notify_only }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -49,4 +58,4 @@ jobs:
         continue-on-error: true
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-        run: python3 tools/notify_screener.py
+        run: python3 tools/notify_screener.py ${{ inputs.notify_only && '--force' || '' }}
