@@ -31,5 +31,5 @@ class H(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     print("网站已启动:http://127.0.0.1:5173  (按 Ctrl+C 停止)")
-    print("Finnhub Key:", "已设置" if os.environ.get("FINNHUB_KEY") else "未设置(新闻和财报日历暂不可用)")
+    print("Finnhub Key:", "已设置" if os.environ.get("FINNHUB_KEY") else "未设置(新闻和财报日历暂不可用)", "| FMP Key:", "已设置" if os.environ.get("FMP_KEY") else "未设置(目标价、评级变动、涨跌榜暂不可用)")
     ThreadingHTTPServer(("127.0.0.1", 5173), H).serve_forever()

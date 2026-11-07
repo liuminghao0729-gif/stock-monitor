@@ -177,6 +177,21 @@ function earnHTML(c) {
   const e = c && Array.isArray(c.earn) ? c.earn.filter(x => x && x.actual != null) : []; if (!e.length) return '<div class="muted small">暂无数据</div>';
   return `<table><thead><tr><th>季度</th><th class="r">预期EPS</th><th class="r">实际EPS</th><th class="r">超预期</th></tr></thead><tbody>${e.map(x => { const sp = x.surprisePercent; return `<tr><td>${esc(x.period || '')}</td><td class="r">${x.estimate == null ? '--' : fmt(x.estimate)}</td><td class="r">${fmt(x.actual)}</td><td class="r ${sp >= 0 ? 'up' : 'down'}">${Number.isFinite(sp) ? sgn(sp) + '%' : '--'}</td></tr>`; }).join('')}</tbody></table>`;
 }
+function targetHTML(c) {
+  const t = c && c.target; if (!t || !t.avg) return '<div class="muted small">暂无数据</div>';
+  const q = Data.quote(state.sel), px = q && q.price, lo = t.low, hi = t.high, span = hi - lo;
+  const pos = v => span > 0 ? Math.max(0, Math.min(100, (v - lo) / span * 100)) : 50;
+  const up = Number.isFinite(px) && px ? (t.avg / px - 1) * 100 : NaN;
+  return `<div class="tgt-h"><span>平均目标价 <b>${fmt(t.avg)}</b></span>${Number.isFinite(up) ? `<span class="${cls(up)}">较现价 ${sgn(up)}%</span>` : ''}<span class="muted small">${t.n ? '近一季度 ' + t.n + ' 家机构' : ''}</span></div>
+    <div class="tgt-bar"><i style="left:${pos(t.avg)}%" class="avg"></i>${Number.isFinite(px) && px >= lo && px <= hi ? `<i style="left:${pos(px)}%" class="now"></i>` : ''}</div>
+    <div class="tgt-n"><span>最低 ${fmt(lo)}</span><span>中位 ${fmt(t.median)}</span><span>最高 ${fmt(hi)}</span></div>`;
+}
+const GRADE_ACT = { upgrade: ['上调', 'up'], downgrade: ['下调', 'down'], initialize: ['首次覆盖', ''], maintain: ['维持', 'muted'], reiterate: ['重申', 'muted'] };
+function gradesHTML(c) {
+  const g = c && Array.isArray(c.grades) ? c.grades : []; if (!g.length) return '<div class="muted small">暂无数据</div>';
+  return `<table><thead><tr><th>日期</th><th>机构</th><th>评级变化</th><th class="r">动作</th></tr></thead><tbody>${g.map(x => { const a = GRADE_ACT[x.action] || [x.action || '', 'muted'];
+    return `<tr><td class="muted small">${esc(x.date || '')}</td><td>${esc(x.firm || '')}</td><td>${x.from && x.from !== x.to ? esc(x.from) + ' → ' : ''}${esc(x.to || '')}</td><td class="r ${a[1]}">${a[0]}</td></tr>`; }).join('')}</tbody></table>`;
+}
 const list = a => `<ul class="clist">${(a || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
 function companyHTML(s, c) {
   const k = COMPANIES[s], p = (c && c.profile) || {}, q = Data.quote(s);
@@ -188,6 +203,7 @@ function companyHTML(s, c) {
   let h = `<div class="csec"><h3>${esc(k ? k.n : q.name)} <span class="muted small">${meta}${web}</span></h3>${k ? `<p class="intro">${esc(k.intro)}</p>` : '<p class="muted">暂无这家公司的详细分析</p>'}</div>`;
   if (k) h += `<div class="csec"><h3>主营业务</h3>${list(k.segs)}</div>`;
   h += `<div class="csec"><h3>分析师评级</h3>${note && !(c && c.rec) ? `<div class="muted small">${note}</div>` : recHTML(c)}</div>`;
+  h += `<div class="csec"><h3>分析师目标价</h3>${targetHTML(c)}</div><div class="csec"><h3>最近机构评级变动</h3>${gradesHTML(c)}</div>`;
   if (peers.length) h += `<div class="csec"><h3>竞争对手</h3><div class="chips">${chips}</div></div>`;
   if (k) {
     h += `<div class="csec"><h3>竞争优势</h3>${list(k.adv)}</div>
@@ -602,11 +618,19 @@ async function renderEarnings() {
   if (state.tab !== 'earnings' || state.day !== idx) return;
   if (E.error) { el.innerHTML = tabs + `<div class="card muted">${E.error}</div>`; return; }
   el.innerHTML = tabs + `<div class="grid2">${['盘前', '盘中', '盘后'].map(k => `<div class="card sess"><h4>${k}发布 · ${E[k].length} 家</h4>
-    ${E[k].length ? `<table><thead><tr><th>公司</th><th class="r">预期EPS</th><th class="r">预期营收</th></tr></thead><tbody>${E[k].map(e => `<tr><td><span class="sym" data-go="${esc(e.sym)}">${esc(e.sym)}</span> <span class="muted small">${esc(e.name)}</span></td><td class="r">${e.eps}</td><td class="r">${e.rev}</td></tr>`).join('')}</tbody></table>` : '<div class="muted small">暂无</div>'}</div>`).join('')}</div>`;
+    ${E[k].length ? `<table><thead><tr><th>公司</th><th class="r">预期EPS</th><th class="r">预期营收</th></tr></thead><tbody>${E[k].map(e => `<tr><td><span class="sym" data-go="${esc(e.sym)}">${esc(e.sym)}</span> <span class="muted small">${esc(e.name)}</span></td><td class="r">${e.eps}${e.cur ? ' <span class="muted small">' + esc(e.cur) + '</span>' : ''}</td><td class="r">${e.rev}</td></tr>`).join('')}</tbody></table>` : '<div class="muted small">暂无</div>'}</div>`).join('')}</div>`;
 }
 // ===== 涨跌幅榜 =====
 async function renderMovers() {
   const el = $('#view-movers'); loading(el);
+  let M = null; if (Data.loadMovers) { try { M = await Data.loadMovers(); } catch { } }
+  if (state.tab !== 'movers') return;
+  if (M) {   // 全市场榜单(已过滤 5 美元以下的小壳股)
+    const mrow = x => `<tr><td><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> <span class="muted small">${esc(x.name)}</span></td><td class="r">${fmt(x.price)}</td><td class="r ${cls(x.pct)}">${sgn(x.pct)}%</td></tr>`;
+    const box = (t, b) => `<div class="card"><h3 style="margin-top:0">${t}</h3>${b.items.length ? `<table><tbody>${b.items.map(mrow).join('')}</tbody></table>` : '<div class="muted small">过滤小壳股后暂无</div>'}</div>`;
+    el.innerHTML = `<div class="grid2">${box('全市场涨幅榜', M.gainers)}${box('全市场跌幅榜', M.losers)}${box('成交最活跃', M.actives)}</div><div class="muted small" style="padding:10px 4px">已过滤股价低于 5 美元的股票;数据来自免费接口,可能有延迟。</div>`;
+    return;
+  }
   try { await Data.refreshQuotes(universe()); } catch { }
   if (state.tab !== 'movers') return;
   const all = universe().map(Data.quote).filter(q => Number.isFinite(q.price)), top = (a, t) => `<div class="card"><h3 style="margin-top:0">${t}</h3><table><tbody>${a.map(q => qrow(q.sym)).join('')}</tbody></table></div>`;

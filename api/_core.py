@@ -1,6 +1,6 @@
 """数据后台的核心逻辑(只用 Python 自带库,无需安装任何东西)。
 - 行情/K线:Yahoo 财经(非官方接口,不需要 Key)
-- 新闻/财报日历:Finnhub(需要环境变量 FINNHUB_KEY,Key 只由你在终端里临时设置,不写入任何文件)
+- 新闻/财报日历:Finnhub(环境变量 FINNHUB_KEY);目标价/评级变动/涨跌榜:FMP(环境变量 FMP_KEY)。Key 只在终端或 Vercel 环境变量里设置,不写入任何文件
 """
 import json, os, time, datetime, urllib.request, urllib.parse
 from concurrent.futures import ThreadPoolExecutor
@@ -173,7 +173,7 @@ def detail(sym):
 
 def company(sym):
     """公司资料、竞争对手、分析师评级分布、财报对比(Finnhub 免费接口,需要 Key)。部分接口失败时对应字段为 None。"""
-    if not os.environ.get("FINNHUB_KEY"):
+    if not os.environ.get("FINNHUB_KEY") and not os.environ.get("FMP_KEY"):
         return {"error": "no_key"}
     out = {}
     for key, path, params in [("profile", "stock/profile2", {"symbol": sym}), ("peers", "stock/peers", {"symbol": sym}),
@@ -182,12 +182,56 @@ def company(sym):
             out[key] = _fh(path, params, 3600)
         except Exception:
             out[key] = None
-    # 试探:目标价、机构评级变动(Finnhub 免费版通常没有权限)。失败时返回错误原因,方便确认能不能用
-    for key, path, params in [("target", "stock/price-target", {"symbol": sym}), ("ud", "stock/upgrade-downgrade", {"symbol": sym})]:
+    # 目标价和机构评级变动:FMP 免费接口(需要 FMP_KEY)
+    out["target"] = _fmp_target(sym)
+    out["grades"] = _fmp_grades(sym)
+    return out
+
+
+def _fmp(path, params, ttl):
+    key = os.environ.get("FMP_KEY")
+    if not key:
+        return None
+    params = dict(params, apikey=key)
+    return _get("https://financialmodelingprep.com/stable/" + path + "?" + urllib.parse.urlencode(params), ttl)
+
+
+def _fmp_target(sym):
+    try:
+        c = _fmp("price-target-consensus", {"symbol": sym}, 3600)
+        m = _fmp("price-target-summary", {"symbol": sym}, 3600)
+        c = c[0] if c else None
+        m = m[0] if m else None
+        if not c:
+            return None
+        return {"high": c.get("targetHigh"), "low": c.get("targetLow"), "avg": c.get("targetConsensus"), "median": c.get("targetMedian"),
+                "n": (m or {}).get("lastQuarterCount"), "avgQ": (m or {}).get("lastQuarterAvgPriceTarget")}
+    except Exception:
+        return None
+
+
+def _fmp_grades(sym):
+    try:
+        d = _fmp("grades", {"symbol": sym, "limit": 30}, 3600) or []
+        return [{"date": x.get("date"), "firm": x.get("gradingCompany"), "from": x.get("previousGrade"), "to": x.get("newGrade"),
+                 "action": x.get("action")} for x in d[:12]]
+    except Exception:
+        return None
+
+
+def movers():
+    """全市场涨幅榜 / 跌幅榜 / 成交最活跃(FMP)。过滤掉股价低于 5 美元的小壳股和非美股交易所。"""
+    if not os.environ.get("FMP_KEY"):
+        return {"error": "no_key"}
+    out = {}
+    for key, path in [("gainers", "biggest-gainers"), ("losers", "biggest-losers"), ("actives", "most-actives")]:
         try:
-            out[key] = _fh(path, params, 3600)
-        except Exception as e:
-            out[key] = {"error": f"{type(e).__name__}: {str(e)[:60]}"}
+            d = _fmp(path, {}, 120) or []
+        except Exception:
+            d = []
+        rows = [x for x in d if (x.get("price") or 0) >= 5 and x.get("exchange") in ("NASDAQ", "NYSE", "AMEX")]
+        out[key] = {"total": len(d), "items": [{"sym": x["symbol"], "name": x.get("name", ""), "price": x["price"], "pct": x.get("changesPercentage"),
+                                                 "change": x.get("change")} for x in rows[:10]]}
     return out
 
 
@@ -215,9 +259,17 @@ def earnings(date):
     if d is None:
         return {"error": "no_key", "items": []}
     rows = sorted(d.get("earningsCalendar", []), key=lambda x: x.get("revenueEstimate") or 0, reverse=True)[:45]
+
+    def cur(sym):       # 公司的财报币种(Finnhub 公司资料里的 currency),查不到就当作美元
+        try:
+            return (_fh("stock/profile2", {"symbol": sym}, 86400) or {}).get("currency") or "USD"
+        except Exception:
+            return "USD"
+    with ThreadPoolExecutor(6) as ex:
+        curs = list(ex.map(cur, [x["symbol"] for x in rows]))
     hour = {"bmo": "盘前", "amc": "盘后", "dmh": "盘中"}
     return {"items": [{"sym": x["symbol"], "when": hour.get(x.get("hour"), "盘后"), "eps": x.get("epsEstimate"),
-                       "rev": x.get("revenueEstimate")} for x in rows]}
+                       "rev": x.get("revenueEstimate"), "cur": c} for x, c in zip(rows, curs)]}
 
 
 # ---- 路由:本地服务器和 Vercel 共用 ----
@@ -237,12 +289,14 @@ def route(name, q):
         if name == "earnings":
             datetime.date.fromisoformat(q["date"])      # 校验日期格式
             return 200, earnings(q["date"]), 600
+        if name == "movers":
+            return 200, movers(), 120
         if name == "company":
             return 200, company(q["symbol"].upper()), 600
         if name == "detail":
             return 200, detail(q["symbol"].upper()), 15
         if name == "status":
-            return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY"))}, 0
+            return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY")), "fmp": bool(os.environ.get("FMP_KEY"))}, 0
         return 404, {"error": "not found"}, 0
     except Exception as e:
         # 只返回错误类型和简短说明(urllib 的错误信息不含网址和密钥),方便排查

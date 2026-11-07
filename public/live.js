@@ -16,6 +16,7 @@ const LiveData = (() => {
     detail: sym => dc[sym],
     async loadDetail(sym) { dc[sym] = await api('/api/detail?symbol=' + encodeURIComponent(sym)); },
     async loadCompany(sym) { return api('/api/company?symbol=' + encodeURIComponent(sym)); },
+    async loadMovers() { const r = await api('/api/movers'); if (r.error) throw new Error(r.error); return r; },
     async loadNews(sym) {
       const r = await api('/api/news?symbol=' + encodeURIComponent(sym || ''));
       if (r.error === 'no_key') return { error: '暂无资讯' };
@@ -25,7 +26,7 @@ const LiveData = (() => {
       const ds = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
       const r = await api('/api/earnings?date=' + ds), out = { 盘前: [], 盘中: [], 盘后: [] };
       if (r.error === 'no_key') return { error: '暂无数据' };
-      r.items.forEach(x => out[x.when].push({ sym: x.sym, name: (M.info[x.sym] || {}).name || '', eps: x.eps == null ? '--' : x.eps.toFixed(2), rev: x.rev ? (x.rev / 1e9).toFixed(1) + 'B' : '--' }));
+      r.items.forEach(x => out[x.when].push({ sym: x.sym, name: (M.info[x.sym] || {}).name || '', eps: x.eps == null ? '--' : x.eps.toFixed(2), rev: x.rev ? (x.rev / 1e9).toFixed(1) + 'B' + (x.cur && x.cur !== 'USD' ? ' ' + x.cur : '') : '--', cur: x.cur && x.cur !== 'USD' ? x.cur : '' }));
       return out;
     },
     async validate(sym) { await this.refreshQuotes([sym]); return !!qc[sym]; }
