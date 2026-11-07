@@ -3,7 +3,12 @@ on:
   schedule:
     # 周一至周五,UTC 8:00-23:59(覆盖美股盘前到盘后),每 5 分钟一次。GitHub 可能有几分钟延迟。
     - cron: "*/5 8-23 * * 1-5"
-  workflow_dispatch: {}   # 允许在网页上手动点一下运行,方便测试
+  workflow_dispatch:      # 允许在网页上手动运行
+    inputs:
+      test:
+        description: "只发一条测试推送(检查手机能否收到)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -24,4 +29,4 @@ jobs:
         env:
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-        run: python3 push/notify.py
+        run: python3 push/notify.py ${{ inputs.test && '--test' || '' }}

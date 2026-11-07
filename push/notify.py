@@ -90,5 +90,12 @@ def selftest():
         print(sc, tag, a["headline"])
 
 
+def test_push():
+    send("美股推送测试", "收到这条说明:GitHub → ntfy → 手机 这条链路是通的。")
+    print("已发送测试推送")
+
+
 if __name__ == "__main__":
-    selftest() if "--selftest" in sys.argv else main()
+    if "--selftest" in sys.argv: selftest()
+    elif "--test" in sys.argv: test_push()
+    else: main()
