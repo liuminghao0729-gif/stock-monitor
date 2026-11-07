@@ -662,6 +662,34 @@ async function renderMovers() {
   const byPct = [...all].sort((a, b) => b.pct - a.pct), byVol = [...all].sort((a, b) => b.volume * b.price - a.volume * a.price);
   el.innerHTML = `<div class="grid2">${top(byPct.slice(0, 10), '涨幅榜')}${top(byPct.slice(-10).reverse(), '跌幅榜')}${top(byVol.slice(0, 10), '成交额榜')}</div>`;
 }
+// ===== 股票推荐 =====
+const PICK_RULES = {
+  growth: ['营收同比 ≥ 20%;净利润同比 ≥ 15%(营收 ≥ 30% 可暂时亏损);毛利率 ≥ 40%(科技)/ 30%(其他)', '均线 20>50>200 多头,60 日趋势 R² ≥ 0.5,ADX ≥ 20', '加分:距 52 周高点 ≤ 10%、近 6 个月涨 ≥ 30%、强于大盘'],
+  pullback: ['同"激进成长"的成长条件', '价格在 200 日线上方,触及布林带下轨,RSI ≤ 40,当日涨幅 < 9%'],
+  reversal: ['MACD 底背离;近 1 年价格分位 ≤ 25%;RSI ≤ 40', '近 5 日成交量 ≥ 前 25 日均量 1.3 倍;营收同比 > 0']
+};
+const capStr = n => !n ? '--' : n >= 1e12 ? (n / 1e12).toFixed(2) + 'T' : (n / 1e9).toFixed(0) + 'B';
+function pickRow(r, id) {
+  const m = r.m || {}, pctS = v => Number.isFinite(v) ? (v * 100).toFixed(0) + '%' : '--';
+  const metrics = id === 'reversal' ? `RSI ${m.rsi ?? '--'} · 价格分位 ${m.pctile ?? '--'}% · 量比 ${m.volr ?? '--'}` : `营收 ${pctS(m.revG)} · 毛利 ${pctS(m.gm)} · RSI ${m.rsi ?? '--'} · ADX ${m.adx ?? '--'}`;
+  const tags = `${r.strict ? '<span class="ptag ok">完全符合</span>' : '<span class="ptag part">部分符合</span>'}${m.roeOk ? '<span class="ptag">ROE 达标</span>' : ''}${m.valOk ? '<span class="ptag">估值合格</span>' : ''}`;
+  return `<div class="prow"><div class="ph"><span class="sym" data-go="${esc(r.sym)}">${esc(r.sym)}</span> <span class="muted small">${esc(r.name)}</span><span class="r ${cls(r.day)} pday">${sgn(r.day)}%</span></div>
+    <div class="pm"><b>${fmt(r.price)}</b> <span class="muted small">市值 ${capStr(r.cap)} · ${esc(r.sector || '')}</span></div>
+    <div class="muted small">${metrics}</div><div class="ptags">${tags}</div>
+    <details><summary class="muted small">命中 ${r.hits.length} 项${r.misses.length ? ',未满足 ' + r.misses.length + ' 项' : ''}</summary><ul class="clist small">${r.hits.map(x => `<li class="up">✓ ${esc(x)}</li>`).join('')}${r.misses.map(x => `<li class="down">✗ ${esc(x)}</li>`).join('')}${(r.nodata || []).map(x => `<li class="muted">? ${esc(x)}(无数据)</li>`).join('')}</ul></details></div>`;
+}
+async function renderPicks() {
+  const el = $('#view-picks'); loading(el);
+  let P = null; if (Data.loadPicks) { try { P = await Data.loadPicks(); } catch { } }
+  if (state.tab !== 'picks') return;
+  if (!P) { el.innerHTML = '<div class="card muted">暂无推荐数据。运行 python3 tools/screener.py 生成,或等待每日自动更新。</div>'; return; }
+  el.innerHTML = `<div class="pnote"><b>每日选股 · 每组 5 只</b><span class="muted small"> 更新于 ${esc(P.asof)} · 从 ${P.universe} 只股票中筛选(${esc(P.rules.cap)};${esc(P.rules.vol)};${esc(P.rules.price)})</span></div>
+    <div class="grid3 picks">${P.presets.map(p => `<div class="card pcol"><h3 style="margin:0">${esc(p.name)}</h3><div class="muted small">${esc(p.desc)}</div>
+      <ul class="clist small prules">${(PICK_RULES[p.id] || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+      <div class="small" style="margin:6px 0 10px">完全符合条件的有 <b>${p.strictCount}</b> 只${p.strictCount < p.picks.length ? ',不足 5 只时用"部分符合"的补足' : ''}</div>
+      ${p.picks.length ? p.picks.map(r => pickRow(r, p.id)).join('') : '<div class="muted small">今天没有股票入选</div>'}</div>`).join('')}</div>
+    <div class="muted small" style="padding:8px 4px;line-height:1.7">仅为条件筛选,不是买卖建议,不构成投资建议。技术形态的预测能力并没有被证明,中型股涨跌幅更大,请自行判断风险。基本面数据为最近一季同比,来自 Yahoo 免费接口,可能有延迟或错误。</div>`;
+}
 // ===== 宏观 =====
 function spark(v, w = 120, h = 34) {
   if (!v || v.length < 2) return ''; const lo = Math.min(...v), hi = Math.max(...v), r = hi - lo || 1;
@@ -687,7 +715,7 @@ async function renderAlerts() {
   let l; try { l = await Data.loadNews(''); } catch { l = { error: '新闻加载失败' }; }
   if (state.tab === 'alerts') $('#macroNews').innerHTML = newsHTML(l);
 }
-const renderers = { sectors: renderSectors, earnings: renderEarnings, movers: renderMovers, macro: renderMacro, alerts: renderAlerts };
+const renderers = { sectors: renderSectors, earnings: renderEarnings, movers: renderMovers, picks: renderPicks, macro: renderMacro, alerts: renderAlerts };
 document.addEventListener('click', e => {
   const go = e.target.closest('[data-go]'); if (go) selectStock(go.dataset.go);
   if (e.target.dataset.day !== undefined) { state.day = +e.target.dataset.day; renderEarnings(); }

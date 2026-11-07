@@ -17,6 +17,7 @@ const LiveData = (() => {
     async loadDetail(sym) { dc[sym] = await api('/api/detail?symbol=' + encodeURIComponent(sym)); },
     async loadCompany(sym) { return api('/api/company?symbol=' + encodeURIComponent(sym)); },
     async loadMovers() { const r = await api('/api/movers'); if (r.error) throw new Error(r.error); return r; },
+    async loadPicks() { const r = await fetch('/screener.json?t=' + Math.floor(Date.now() / 600000)); if (!r.ok) throw new Error('none'); return r.json(); },
     async loadMacro() { const r = await api('/api/macro'); if (r.error) throw new Error(r.error); return r; },
     async loadNews(sym) {
       const r = await api('/api/news?symbol=' + encodeURIComponent(sym || ''));

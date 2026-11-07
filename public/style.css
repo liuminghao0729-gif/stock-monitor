@@ -187,3 +187,10 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 .kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:14px;margin:4px 0 10px}.kv div{display:flex;flex-direction:column;gap:3px}.kv b{font-weight:600;font-size:15px}
 .grid3{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:14px}
 .mac .mv b{font-family:Fraunces,serif;font-size:26px;font-weight:600}.mac .mrow{display:flex;justify-content:space-between;align-items:flex-end;margin:6px 0 2px}.mac .spk{color:var(--accent);line-height:0}
+
+.pnote{padding:2px 4px 12px}.picks{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));align-items:start}
+.pcol .prules{margin:8px 0 4px;color:var(--muted)}.prow{padding:12px 0;border-top:1px solid var(--line)}
+.prow .ph{display:flex;align-items:baseline;gap:8px}.prow .pday{margin-left:auto;font-weight:600}.prow .pm{margin:3px 0}.prow .pm b{font-size:18px;font-family:Fraunces,serif;font-weight:600}
+.ptags{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.ptag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+.ptag.ok{color:var(--up);border-color:rgba(126,211,164,.45)}.ptag.part{color:var(--accent);border-color:rgba(207,167,108,.45)}
+.prow details summary{cursor:pointer;list-style:none}.prow details ul{margin:6px 0 0}

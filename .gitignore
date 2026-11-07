@@ -4,3 +4,5 @@ push/sent.json
 __pycache__/
 .claude/
 .DS_Store
+skills/
+*.zip
