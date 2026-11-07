@@ -662,34 +662,38 @@ async function renderMovers() {
   const byPct = [...all].sort((a, b) => b.pct - a.pct), byVol = [...all].sort((a, b) => b.volume * b.price - a.volume * a.price);
   el.innerHTML = `<div class="grid2">${top(byPct.slice(0, 10), '涨幅榜')}${top(byPct.slice(-10).reverse(), '跌幅榜')}${top(byVol.slice(0, 10), '成交额榜')}</div>`;
 }
-// ===== 股票推荐 =====
-const PICK_RULES = {
-  growth: ['营收同比 ≥ 25%;净利润同比 ≥ 20%(营收 ≥ 35% 可暂时亏损);毛利率 ≥ 45%(科技)/ 35%(其他)', '均线 20>50>200 多头,60 日趋势 R² ≥ 0.5,ADX ≥ 20', '加分:距 52 周高点 ≤ 10%、近 6 个月涨 ≥ 30%、强于大盘'],
-  pullback: ['同"激进成长"的成长条件', '价格在 200 日线上方,触及布林带下轨,RSI ≤ 40,当日涨幅 < 9%'],
-  reversal: ['MACD 底背离;近 1 年价格分位 ≤ 25%;RSI ≤ 40', '近 5 日成交量 ≥ 前 25 日均量 1.3 倍;营收同比 > 0']
-};
 const capStr = n => !n ? '--' : n >= 1e12 ? (n / 1e12).toFixed(2) + 'T' : (n / 1e9).toFixed(0) + 'B';
-function pickRow(r, id) {
-  const m = r.m || {}, pctS = v => Number.isFinite(v) ? (v * 100).toFixed(0) + '%' : '--';
-  const metrics = id === 'reversal' ? `RSI ${m.rsi ?? '--'} · 价格分位 ${m.pctile ?? '--'}% · 量比 ${m.volr ?? '--'}<br>营收 ${pctS(m.revG)} · 自由现金流率 ${pctS(m.fcfM)} · ROE ${pctS(m.roe)}`
-    : `营收 ${pctS(m.revG)} · 净利润 ${pctS(m.earnG)} · 毛利 ${pctS(m.gm)}<br>自由现金流率 ${pctS(m.fcfM)} · ROE ${pctS(m.roe)} · RSI ${m.rsi ?? '--'} · ADX ${m.adx ?? '--'}`;
-  const tags = `${r.strict ? '<span class="ptag ok">完全符合</span>' : '<span class="ptag part">部分符合</span>'}${m.roeOk ? '<span class="ptag">ROE 达标</span>' : ''}${m.valOk ? '<span class="ptag">估值合格</span>' : ''}`;
-  return `<div class="prow"><div class="ph"><span class="prank">${r.rank}</span><span class="sym" data-go="${esc(r.sym)}">${esc(r.sym)}</span> <span class="muted small">${esc(r.name)}</span><span class="r ${cls(r.day)} pday">${sgn(r.day)}%</span></div>
-    <div class="pm"><b>${fmt(r.price)}</b> <span class="muted small">市值 ${capStr(r.cap)} · ${esc(r.sector || '')} · 质量分 ${r.quality ?? '--'}</span></div>
-    <div class="muted small" style="line-height:1.6">${metrics}</div><div class="ptags">${tags}</div>
-    <details><summary class="muted small">命中 ${r.hits.length} 项${r.misses.length ? ',未满足 ' + r.misses.length + ' 项' : ''}</summary><ul class="clist small">${r.hits.map(x => `<li class="up">✓ ${esc(x)}</li>`).join('')}${r.misses.map(x => `<li class="down">✗ ${esc(x)}</li>`).join('')}${(r.nodata || []).map(x => `<li class="muted">? ${esc(x)}(无数据)</li>`).join('')}</ul></details></div>`;
+const ST_LABEL = { NEW: '新入选', STILL_VALID: '持续有效', WATCHING: '观察中', INVALIDATED: '已失效', DATA_INSUFFICIENT: '数据不足' };
+const REGIME = { BULL: '牛市(SPY 在 200 日线上,50 日线上升)', BEAR: '熊市(SPY 在 200 日线下,200 日线下降)', NEUTRAL: '中性' };
+const VAL_LABEL = { UNDERVALUED_RELATIVE_TO_PEERS: '同行相对低估', FAIR_VALUATION: '估值适中', EXPENSIVE_RELATIVE_TO_PEERS: '同行相对偏贵', NOT_MEANINGFUL: '估值不适用' };
+const STRAT_LOGIC = { growth: '基本面高速增长 + 趋势健康 + 相对强度领先。不追求低估值,寻找增长有证据的公司。', pullback: '基本面健康、长期趋势未破坏,近期合理回调后出现止跌确认。回调不等于深度超卖。', reversal: '经历明显下跌但仍有存续能力,下跌动量衰竭并出现价格反转证据。风险最高。' };
+function pickRow2(r, i) {
+  const pctS = v => Number.isFinite(v) ? (v * 100).toFixed(0) + '%' : '--', v = r.valuation || {};
+  const tags = [`<span class="ptag ${r.status === 'WATCHING' ? 'part' : 'ok'}">${ST_LABEL[r.status]}</span>`, r.path ? `<span class="ptag">${esc(r.path)}</span>` : '', ...(r.flags || []).map(f => `<span class="ptag warn">${esc(f)}</span>`), v.label ? `<span class="ptag">${esc(VAL_LABEL[v.label] || v.label)}</span>` : '', `<span class="ptag">研究优先级:${esc(r.priority)}</span>`].join('');
+  const li = (a, c) => (a || []).map(x => `<li class="${c}">${esc(x)}</li>`).join('');
+  return `<div class="prow"><div class="ph">${i ? `<span class="prank">${i}</span>` : ''}<span class="sym" data-go="${esc(r.sym)}">${esc(r.sym)}</span> <span class="muted small">${esc(r.name)}</span><span class="r pday">${r.score ?? '--'} 分</span></div>
+    <div class="pm"><b>${fmt(r.price)}</b> <span class="muted small">${esc(r.tier)} · 市值 ${capStr(r.cap)} · ${esc(r.sector || '')}${r.industry ? ' / ' + esc(r.industry) : ''}</span></div>
+    <div class="muted small" style="line-height:1.6">营收同比 ${pctS(r.revYoY)} · TTM 自由现金流 ${Number.isFinite(r.ttmFCF) ? '$' + bigN(r.ttmFCF) : '--'}(${pctS(r.fcfMargin)})<br>RSI ${r.rsi} · ADX ${r.adx ?? '--'} · 均线 ${r.sma.join(' / ')} · 相对 SPY(63日) ${sgn(r.rs63 * 100, 1)}%<br>量比 ${r.volRatio ?? '--'}${r.macdDiv ? ' · MACD 底背离' : ''} · EV/营收 ${fmt(v.evRev, 1)} · 预期PE ${fmt(v.fpe, 1)} · PEG ${fmt(v.peg, 2)}${r.rr ? ' · 估计收益风险比 ' + r.rr : ''}</div>
+    <div class="ptags">${tags}</div>
+    <details><summary class="muted small">为什么入选 / 证据 / 风险 / 何时失效</summary><div class="small pdet"><p><b>入选原因</b>:${esc(r.why)}</p>${r.bullish.length ? `<p><b>利多证据</b>:${r.bullish.map(esc).join(';')}</p>` : ''}<p><b>主要风险</b></p><ul class="clist small">${li(r.risks, '')}</ul><p><b>什么会使信号失效</b>:${esc(r.invalidate)}</p>
+      <p class="muted">信号日期 ${esc(r.signalDate)} · 财报季度截止 ${esc(r.fundDate || '--')} · 评分覆盖度 ${(r.coverage * 100).toFixed(0)}%</p>
+      <p><b>通过</b></p><ul class="clist small">${li(r.passed, 'up')}</ul>${r.failed.length ? `<p><b>未通过</b></p><ul class="clist small">${li(r.failed, 'down')}</ul>` : ''}${r.pending.length ? `<p><b>待确认/无数据</b></p><ul class="clist small">${li(r.pending, 'muted')}</ul>` : ''}</div></details></div>`;
 }
 async function renderPicks() {
   const el = $('#view-picks'); loading(el);
   let P = null; if (Data.loadPicks) { try { P = await Data.loadPicks(); } catch { } }
   if (state.tab !== 'picks') return;
-  if (!P) { el.innerHTML = '<div class="card muted">暂无推荐数据。运行 python3 tools/screener.py 生成,或等待每日自动更新。</div>'; return; }
-  el.innerHTML = `<div class="pnote"><b>每日选股 · 每组 5 只</b><span class="muted small"> 更新于 ${esc(P.asof)} · 从 ${P.universe} 只股票中筛选(${esc(P.rules.cap)};${esc(P.rules.vol)};${esc(P.rules.price)})</span></div>
-    <div class="grid3 picks">${P.presets.map(p => `<div class="card pcol"><h3 style="margin:0">${esc(p.name)}</h3><div class="muted small">${esc(p.desc)}</div>
-      <ul class="clist small prules">${(PICK_RULES[p.id] || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
-      <div class="small" style="margin:6px 0 10px">完全符合条件的有 <b>${p.strictCount}</b> 只${p.strictCount < p.picks.length ? ',不足 5 只时用"部分符合"的补足' : ''}</div>
-      ${p.picks.length ? p.picks.map(r => pickRow(r, p.id)).join('') : '<div class="muted small">今天没有股票入选</div>'}</div>`).join('')}</div>
-    <div class="muted small" style="padding:8px 4px;line-height:1.7">排序:先取"完全符合条件"的股票,按公司质量从好到差排列;质量分综合营收增速、净利润增速、自由现金流率、ROE、毛利率和信号强度(在这一组股票内比较百分位,极端数字已封顶)。排第 5 的就是这 5 只里最弱的。不足 5 只时才用"部分符合"的补。</div><div class="muted small" style="padding:0 4px 8px;line-height:1.7">仅为条件筛选,不是买卖建议,不构成投资建议。技术形态的预测能力并没有被证明,中型股涨跌幅更大,请自行判断风险。基本面数据为最近一季同比,来自 Yahoo 免费接口,可能有延迟或错误。</div>`;
+  if (!P) { el.innerHTML = '<div class="card muted">暂无推荐数据。运行 python3 tools/screener_v2.py 生成,或等待每日自动更新。</div>'; return; }
+  if (P.version !== 2) { el.innerHTML = '<div class="card muted">推荐数据版本过旧,请重新运行 python3 tools/screener_v2.py</div>'; return; }
+  const cnt = c => `股票池 ${c.universe} → 财务安全 ${c.safety} → 形态 ${c.setup} → 观察 ${c.WATCHING} / 确认 ${c.CONFIRMED}${c.DATA_INSUFFICIENT ? ' · 数据不足 ' + c.DATA_INSUFFICIENT : ''}`;
+  el.innerHTML = `<div class="pnote"><b>每日选股 V2.0</b><span class="muted small"> 行情日期 ${esc(P.dataDate)} · 更新于 ${esc(P.asof)} · 扫描 ${P.universe} 只 · 市场环境:${esc(REGIME[P.regime] || P.regime)}</span></div>
+    <div class="grid3 picks">${P.presets.map(p => `<div class="card pcol"><h3 style="margin:0">${esc(p.name)}</h3><div class="muted small" style="margin:4px 0 8px;line-height:1.6">${esc(STRAT_LOGIC[p.id] || '')}</div><div class="muted small" style="margin-bottom:8px">${esc(cnt(p.counts))}</div>
+      <div class="small"><b>已确认</b> ${p.confirmedTotal} 只${p.confirmedTotal > p.confirmed.length ? `(显示前 ${p.confirmed.length})` : ''}</div>
+      ${p.confirmed.length ? p.confirmed.map((r, i) => pickRow2(r, i + 1)).join('') : '<div class="muted small" style="padding:8px 0">今天没有股票满足全部确认条件。不会为了凑数降低标准。</div>'}
+      ${p.watching.length ? `<div class="small" style="margin-top:12px"><b>观察列表</b> <span class="muted">(形态初步符合,尚未确认,不计入确认数量)共 ${p.watchingTotal} 只</span></div>${p.watching.map(r => pickRow2(r, 0)).join('')}` : ''}
+      ${p.invalidated.length ? `<div class="small" style="margin-top:12px"><b>已失效</b></div>${p.invalidated.map(x => `<div class="muted small"><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> ${esc(x.reason)}(${esc(x.date)})</div>`).join('')}` : ''}</div>`).join('')}</div>
+    <div class="card small muted" style="line-height:1.8"><b>数据限制(如实披露)</b><ul class="clist">${(P.dataLimits || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
+    <div class="muted small" style="padding:8px 4px;line-height:1.7">评分只用于通过硬门槛之后的排序,评分高不等于出现买入信号。仅为条件筛选,不是买卖建议,不构成投资建议。这些参数没有经过回测验证,技术形态没有被证明有预测能力。基本面数据来自 Yahoo 免费接口,可能有延迟或错误。</div>`;
 }
 // ===== 宏观 =====
 function spark(v, w = 120, h = 34) {
