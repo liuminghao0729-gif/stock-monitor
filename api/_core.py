@@ -127,4 +127,5 @@ def route(name, q):
             return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY"))}, 0
         return 404, {"error": "not found"}, 0
     except Exception as e:
-        return 500, {"error": "server error"}, 0
+        # 只返回错误类型和简短说明(urllib 的错误信息不含网址和密钥),方便排查
+        return 500, {"error": "server error", "detail": f"{type(e).__name__}: {str(e)[:80]}"}, 0
