@@ -19,6 +19,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: 记录上一次的行情日期(用来判断今天有没有新行情)
+        run: echo "PREV_DATA_DATE=$(python3 -c "import json;print(json.load(open('public/screener.json')).get('dataDate',''))")" >> "$GITHUB_ENV"
       - name: 运行每日选股(V2.0)
         env:
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
@@ -43,3 +45,8 @@ jobs:
             git commit -m "每日选股更新 $(date -u +%Y-%m-%d)"
             git push
           fi
+      - name: 手机推送摘要(失败不影响更新)
+        continue-on-error: true
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python3 tools/notify_screener.py
