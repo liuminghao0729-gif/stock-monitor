@@ -31,6 +31,7 @@ const state = {
 if (!(state.period in PERIODS) && !(state.period in MINUTES)) state.period = 'D';
 if (!(state.minute in MINUTES)) state.minute = '1m';
 state.sel = state.watch[0] || 'AAPL';
+if (store.get('indv', 0) < 3) { Object.assign(state.ind, { sr: 1, trend: 1, pat: 1 }); store.set('ind2', state.ind); store.set('indv', 3); }   // 版本 3:支撑压力、趋势线、形态识别默认开启(一次性重置旧设置;之后你在菜单里的开关会被记住)
 
 // ===== 指标计算(对整段历史计算一次,缩放拖动时只切片显示)=====
 function sma(a, n) { const o = new Array(a.length).fill(null); let s = 0; for (let i = 0; i < a.length; i++) { s += a[i]; if (i >= n) s -= a[i - n]; if (i >= n - 1) o[i] = s / n; } return o; }
