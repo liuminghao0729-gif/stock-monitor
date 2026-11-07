@@ -209,7 +209,8 @@ function companyHTML(s, c) {
   let h = `<div class="csec"><h3>${esc(k ? k.n : q.name)} <span class="muted small">${meta}${web}</span></h3>${k ? `<p class="intro">${esc(k.intro)}</p>` : '<p class="muted">暂无这家公司的详细分析</p>'}</div>`;
   if (k) h += `<div class="csec"><h3>主营业务</h3>${list(k.segs)}</div>`;
   h += `<div class="csec"><h3>分析师评级</h3>${note && !(c && c.rec) ? `<div class="muted small">${note}</div>` : recHTML(c)}</div>`;
-  h += `<div class="csec"><h3>分析师目标价</h3>${targetHTML(c)}</div><div class="csec"><h3>最近机构评级变动</h3>${gradesHTML(c)}</div>`;
+  if (c && c.target) h += `<div class="csec"><h3>分析师目标价</h3>${targetHTML(c)}</div>`;      // 没数据(如 ETF)就不显示这一栏
+  if (c && Array.isArray(c.grades) && c.grades.length) h += `<div class="csec"><h3>最近机构评级变动</h3>${gradesHTML(c)}</div>`;
   if (peers.length) h += `<div class="csec"><h3>竞争对手</h3><div class="chips">${chips}</div></div>`;
   if (!k && backlogHTML(c)) h += `<div class="csec"><h3>在手订单</h3>${backlogHTML(c)}</div>`;
   if (k) {

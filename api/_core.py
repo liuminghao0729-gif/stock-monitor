@@ -186,6 +186,10 @@ def company(sym):
     # 目标价和机构评级变动:FMP 免费接口(需要 FMP_KEY)
     out["target"] = _fmp_target(sym)
     out["grades"] = _fmp_grades(sym)
+    if not out["target"] or not out["grades"]:        # FMP 免费版不覆盖的股票,改用 Yahoo(不需要 Key)
+        y = _yh_summary(sym)
+        out["target"] = out["target"] or (y or {}).get("target")
+        out["grades"] = out["grades"] or (y or {}).get("grades")
     out["backlog"] = _sec_backlog(sym)
     return out
 
@@ -222,6 +226,49 @@ def _fmp_grades(sym):
     except Exception as e:
         DBG["grades"] = f"{sym}: {type(e).__name__}: {str(e)[:60]}"
         return None
+
+
+_yh = {"op": None, "crumb": None, "t": 0}
+
+
+def _yh_open(url):
+    import http.cookiejar
+    if not _yh["op"] or time.time() - _yh["t"] > 3000:        # Yahoo 需要先拿一个临时的 crumb
+        op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        op.addheaders = list(UA.items())
+        try:
+            op.open("https://fc.yahoo.com", timeout=10)
+        except Exception:
+            pass
+        _yh["crumb"] = op.open("https://query2.finance.yahoo.com/v1/test/getcrumb", timeout=10).read().decode()
+        _yh["op"], _yh["t"] = op, time.time()
+    return json.load(_yh["op"].open(url + "&crumb=" + urllib.parse.quote(_yh["crumb"]), timeout=15))
+
+
+def _yh_summary(sym):
+    """Yahoo 的分析师目标价和评级变动(非官方接口,可能随时变动)。ETF 或没人覆盖的股票返回 None。"""
+    hit = _cache.get("yh:" + sym)
+    if hit and time.time() - hit[0] < 3600:
+        return hit[1]
+    try:
+        d = _yh_open(f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{urllib.parse.quote(sym)}?modules=financialData,upgradeDowngradeHistory")
+        r = d["quoteSummary"]["result"][0]
+        fd = r.get("financialData") or {}
+        raw = lambda k: (fd.get(k) or {}).get("raw")
+        target = None
+        if raw("targetMeanPrice"):
+            target = {"high": raw("targetHighPrice"), "low": raw("targetLowPrice"), "avg": raw("targetMeanPrice"),
+                      "median": raw("targetMedianPrice"), "n": raw("numberOfAnalystOpinions"), "avgQ": None}
+        act = {"up": "upgrade", "down": "downgrade", "main": "maintain", "init": "initialize", "reit": "reiterate"}
+        h = sorted((r.get("upgradeDowngradeHistory") or {}).get("history", []), key=lambda x: x.get("epochGradeDate", 0), reverse=True)[:12]
+        grades = [{"date": time.strftime("%Y-%m-%d", time.gmtime(x["epochGradeDate"])), "firm": x.get("firm"), "from": x.get("fromGrade") or None,
+                   "to": x.get("toGrade"), "action": act.get(x.get("action"), x.get("action"))} for x in h] or None
+        out = {"target": target, "grades": grades}
+    except Exception as e:
+        DBG["yahoo"] = f"{sym}: {type(e).__name__}: {str(e)[:60]}"
+        out = None
+    _cache["yh:" + sym] = (time.time(), out)
+    return out
 
 
 def _sec_backlog(sym):
