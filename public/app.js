@@ -25,7 +25,7 @@ const state = {
   watch: store.get('watch', ['AAPL', 'NVDA', 'VOO', 'QQQ']),
   sel: null,
   period: store.get('period', 'D'), minute: store.get('minute', '1m'), type: store.get('ctype', 'candle'),
-  ind: Object.assign({ ma: [1, 1, 1, 1, 0, 0], boll: 0, chip: 1, vol: 1, macd: 1, rsi: 1, sr: 1, trend: 1, pat: 1 }, store.get('ind2', {})),
+  ind: Object.assign({ ma: [1, 1, 1, 1, 0, 0], boll: 0, chip: 1, vol: 1, macd: 1, rsi: 1, sr: 1, trend: 1, pat: 1, sig: 1 }, store.get('ind2', {})),
   hover: -1, tab: 'watch', day: 0, dt: 'chart'
 };
 if (!(state.period in PERIODS) && !(state.period in MINUTES)) state.period = 'D';
@@ -257,7 +257,7 @@ const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 
 // ===== 底部工具栏(仿 Moomoo):日K 周K 月K 季K 年K [1分▾]  ...  蜡烛 缩放 指标 =====
 const IND_ITEMS = [['ma0', 'MA5', MA_DEF[0][1]], ['ma1', 'MA10', MA_DEF[1][1]], ['ma2', 'MA20', MA_DEF[2][1]], ['ma3', 'MA50', MA_DEF[3][1]], ['ma4', 'MA100', MA_DEF[4][1]], ['ma5', 'MA200', MA_DEF[5][1]], ['boll', 'BOLL(20,2)'], ['chip', '筹码分布(估算)'], ['sr', '支撑 / 压力(参考)'], ['trend', '趋势线(参考)'], ['pat', '形态识别(参考)']];
-const SUB_ITEMS = [['vol', '成交量'], ['macd', 'MACD(12,26,9)'], ['rsi', 'RSI(6,12,24)']];
+const SUB_ITEMS = [['vol', '成交量'], ['macd', 'MACD(12,26,9)'], ['rsi', 'RSI(6,12,24)'], ['sig', '信号提示(放量 / 金叉死叉 / 背离)']];
 const isMA = k => /^ma\d$/.test(k);     // 均线键名 ma0..ma5(注意 macd 不是均线)
 const indOn = k => isMA(k) ? state.ind.ma[+k.slice(2)] : state.ind[k];
 function renderToolbar() {
@@ -306,6 +306,42 @@ const view = { start: 0, count: 100 };           // 可见窗口:第 start 根K�
 const ptr = { map: new Map(), drag: null, pinch: null, my: -1, moved: false };
 const PL = 4, PR = 58;                           // 绘图区左右边距(右侧放价格轴)
 
+// ===== 副图信号:放量、MACD 金叉死叉、RSI / MACD 顶底背离 =====
+const SIG = { surge: 2.0, surgeDays: 20, pivotW: 5, gapMin: 8, gapMax: 80 };
+function pivotsOf(c, w) {   // 波段高低点:左右各 w 根都不比它更极端(右侧确认后才成立,不使用未来数据)
+  const lows = [], highs = [];
+  for (let i = w; i < c.length - w; i++) {
+    let lo = true, hi = true;
+    for (let k = i - w; k <= i + w; k++) { if (c[k] < c[i]) lo = false; if (c[k] > c[i]) hi = false; }
+    if (lo && (!lows.length || i - lows[lows.length - 1] > 1)) lows.push(i);
+    if (hi && (!highs.length || i - highs[highs.length - 1] > 1)) highs.push(i);
+  }
+  return { lows, highs };
+}
+function divergences(c, ind, name, piv, zoneLow, zoneHigh, minDiff) {
+  const out = [];
+  for (let q = 1; q < piv.lows.length; q++) {   // 底背离:价格创新低,指标没有创新低(且前一个低点处于偏弱区域)
+    const a = piv.lows[q - 1], b = piv.lows[q], gap = b - a; if (gap < SIG.gapMin || gap > SIG.gapMax || ind[a] == null || ind[b] == null) continue;
+    if (c[b] < c[a] * .999 && ind[b] > ind[a] + minDiff(ind[a]) && zoneLow(ind[a])) out.push({ type: 'bull', a, b, name });
+  }
+  for (let q = 1; q < piv.highs.length; q++) {   // 顶背离:价格创新高,指标没有创新高
+    const a = piv.highs[q - 1], b = piv.highs[q], gap = b - a; if (gap < SIG.gapMin || gap > SIG.gapMax || ind[a] == null || ind[b] == null) continue;
+    if (c[b] > c[a] * 1.001 && ind[b] < ind[a] - minDiff(ind[a]) && zoneHigh(ind[a])) out.push({ type: 'bear', a, b, name });
+  }
+  return out;
+}
+function signals(B, r12, mc) {
+  const n = B.length, c = B.map(b => b.c), surge = new Array(n).fill(false), cross = new Array(n).fill(0);
+  const pre = [0]; for (let i = 0; i < n; i++) pre.push(pre[i] + (B[i].v || 0));
+  for (let i = SIG.surgeDays; i < n; i++) { const avg = (pre[i] - pre[i - SIG.surgeDays]) / SIG.surgeDays; if (avg > 0 && B[i].v >= SIG.surge * avg) surge[i] = true; }
+  for (let i = 35; i < n; i++) {   // 前 35 根 EMA 还没稳定,不判断
+    const d0 = mc.dif[i - 1] - mc.dea[i - 1], d1 = mc.dif[i] - mc.dea[i];
+    if (d0 <= 0 && d1 > 0) cross[i] = 1; else if (d0 >= 0 && d1 < 0) cross[i] = -1;
+  }
+  const piv = pivotsOf(c, SIG.pivotW);
+  const div = [...divergences(c, mc.dif, 'macd', piv, v => v < 0, v => v > 0, v => Math.abs(v) * .1), ...divergences(c, r12, 'rsi', piv, v => v <= 45, v => v >= 55, () => 2)];
+  return { surge, cross, div };
+}
 function prepare() {
   const bars = Data.bars(state.sel, state.period).bars.slice();
   if (!isIntra(state.period) && bars.length) {   // 日K及以上:用最新报价实时更新最后一根
@@ -313,7 +349,8 @@ function prepare() {
     if (Number.isFinite(q.price)) { const b = { ...bars[bars.length - 1] }; b.c = q.price; b.h = Math.max(b.h, q.price); b.l = Math.min(b.l, q.price); bars[bars.length - 1] = b; }
   }
   const c = bars.map(b => b.c);
-  return { bars, ma: MA_DEF.map(([k]) => sma(c, k)), boll: boll(c), rsi: [rsi(c, 6), rsi(c, 12), rsi(c, 24)], macd: macd(c) };
+  const rs = [rsi(c, 6), rsi(c, 12), rsi(c, 24)], mc = macd(c);
+  return { bars, ma: MA_DEF.map(([k]) => sma(c, k)), boll: boll(c), rsi: rs, macd: mc, sig: signals(bars, rs[1], mc) };
 }
 async function loadChart(reset) {
   const s = state.sel, p = state.period, ld = $('#cload'), same = () => state.sel === s && state.period === p && state.tab === 'watch';
@@ -480,6 +517,9 @@ function paint() {
   };
   const axisLabel = (txt, y, bg, fg = '#fff') => { ctx.font = '11px sans-serif'; const w = ctx.measureText(txt).width + 8; ctx.fillStyle = bg; ctx.fillRect(W - PR + 1, y - 8, w, 16); ctx.fillStyle = fg; ctx.textAlign = 'left'; ctx.fillText(txt, W - PR + 5, y); };
 
+  const divLines = (list, arr, Y) => list.forEach(d => { if (d.b < i0 - 1 || d.a > i1 + 1) return; ctx.strokeStyle = d.type === 'bull' ? UP : DOWN; ctx.lineWidth = 1.3; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(X(d.a), Y(arr[d.a])); ctx.lineTo(X(d.b), Y(arr[d.b])); ctx.stroke(); ctx.setLineDash([]); ctx.lineWidth = 1; });
+  const divLabels = (list, arr, Y, top, bot) => { let lx = -99; list.forEach(d => { if (d.b < i0 || d.b > i1) return; const x = X(d.b), bull = d.type === 'bull'; if (Math.abs(x - lx) < 44) return; lx = x; const y = Math.max(top + 10, Math.min(bot - 8, Y(arr[d.b]) + (bull ? 13 : -13))); ctx.fillStyle = bull ? UP : DOWN; ctx.fillText(bull ? '底背离' : '顶背离', x, y); }); };
+
   panels.forEach(p => {
     const top = p.y + p.head, bot = p.y + p.h - 4;
     ctx.strokeStyle = C.line; ctx.beginPath(); ctx.moveTo(0, p.y + .5); ctx.lineTo(W, p.y + .5); ctx.stroke();
@@ -535,20 +575,32 @@ function paint() {
       if (maParts.length) yy += 16 * segs(ctx, maParts, PL + 4, yy, W - PR, 16);
       if (I.boll && V.boll.mid[ref] != null) segs(ctx, [['BOLL', C.text], [`MID:${p.fv(V.boll.mid[ref])}`, '#f5c542'], [`UPPER:${p.fv(V.boll.up[ref])}`, '#ff6fa8'], [`LOWER:${p.fv(V.boll.lo[ref])}`, '#35c5e8']], PL + 4, yy, W - PR, 16);
     } else if (p.id === 'vol') {
-      let mx = 0; for (let i = i0; i <= i1; i++) mx = Math.max(mx, B[i].v); mx = mx || 1; scale(0, mx * 1.08); p.fv = v => big(Math.round(v));
+      let mx = 0; for (let i = i0; i <= i1; i++) mx = Math.max(mx, B[i].v); mx = mx || 1; scale(0, mx * (I.sig ? 1.3 : 1.08)); p.fv = v => big(Math.round(v));
       grid([mx], p.fv); clipPlot(top, bot);
       for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) { const b = B[i], w = Math.min(Math.max(1, Math.floor(bw * .7)), 24); ctx.fillStyle = b.c >= b.o ? 'rgba(126,211,164,.75)' : 'rgba(239,138,120,.75)'; ctx.fillRect(Math.round(X(i) - w / 2), Y(b.v), w, Y(0) - Y(b.v)); }
       ctx.restore(); ctx.font = '11px sans-serif';
+      if (I.sig) { ctx.font = '10px -apple-system,"PingFang SC",sans-serif'; ctx.fillStyle = '#e6a23c'; ctx.textAlign = 'center'; let lx = -99;
+        for (let i = Math.max(0, i0); i <= Math.min(n - 1, i1); i++) if (V.sig.surge[i]) { const x = X(i); if (x - lx < 30) continue; lx = x; ctx.fillText('放量', x, Math.max(top + 7, Y(B[i].v) - 7)); } ctx.font = '11px sans-serif'; }
       segs(ctx, [['成交量', C.text], [`VOL:${big(B[ref].v)}`, '#e6a23c']], PL + 4, p.y + 11, W - PR - 20, 16);
     } else if (p.id === 'macd') {
       let m = 0; for (let i = i0; i <= i1; i++) [V.macd.dif[i], V.macd.dea[i], V.macd.hist[i]].forEach(v => v != null && (m = Math.max(m, Math.abs(v)))); m = m || 1; scale(-m * 1.1, m * 1.1); p.fv = v => fmt(v, 3);
       grid([-m * .8, 0, m * .8], p.fv); clipPlot(top, bot);
       for (let i = Math.max(0, i0 - 1); i <= Math.min(n - 1, i1 + 1); i++) { const v = V.macd.hist[i], w = Math.min(Math.max(1, Math.floor(bw * .5)), 14); ctx.fillStyle = v >= 0 ? 'rgba(126,211,164,.8)' : 'rgba(239,138,120,.8)'; ctx.fillRect(Math.round(X(i) - w / 2), Math.min(Y(0), Y(v)), w, Math.max(1, Math.abs(Y(v) - Y(0)))); }
-      poly(V.macd.dif, Y, '#f5c542'); poly(V.macd.dea, Y, '#35c5e8'); ctx.restore(); ctx.font = '11px sans-serif';
+      poly(V.macd.dif, Y, '#f5c542'); poly(V.macd.dea, Y, '#35c5e8');
+      if (I.sig) divLines(V.sig.div.filter(d => d.name === 'macd'), V.macd.dif, Y);
+      ctx.restore(); ctx.font = '11px sans-serif';
+      if (I.sig) { ctx.font = '10px -apple-system,"PingFang SC",sans-serif'; ctx.textAlign = 'center'; let lx = -99;
+        for (let i = Math.max(0, i0); i <= Math.min(n - 1, i1); i++) { const cr = V.sig.cross[i]; if (!cr) continue; const x = X(i), yv = Math.max(top + 12, Math.min(bot - 12, Y((V.macd.dif[i] + V.macd.dea[i]) / 2))), col = cr > 0 ? UP : DOWN, up = cr > 0;
+          ctx.fillStyle = col; ctx.beginPath(); up ? (ctx.moveTo(x, yv + 3), ctx.lineTo(x - 4, yv + 10), ctx.lineTo(x + 4, yv + 10)) : (ctx.moveTo(x, yv - 3), ctx.lineTo(x - 4, yv - 10), ctx.lineTo(x + 4, yv - 10)); ctx.fill();
+          if (x - lx >= 34) { lx = x; ctx.fillText(up ? '金叉' : '死叉', x, Math.max(top + 6, Math.min(bot - 4, up ? yv + 19 : yv - 18))); } }
+        divLabels(V.sig.div.filter(d => d.name === 'macd'), V.macd.dif, Y, top, bot); ctx.font = '11px sans-serif'; }
       segs(ctx, [['MACD(12,26,9)', C.text], [`DIF:${fmt(V.macd.dif[ref], 3)}`, '#f5c542'], [`DEA:${fmt(V.macd.dea[ref], 3)}`, '#35c5e8'], [`MACD:${fmt(V.macd.hist[ref], 3)}`, V.macd.hist[ref] >= 0 ? UP : DOWN]], PL + 4, p.y + 11, W - PR - 20, 16);
     } else if (p.id === 'rsi') {
       scale(0, 100); p.fv = v => fmt(v, 1); grid([30, 50, 70], v => String(v)); clipPlot(top, bot);
-      const rc = ['#ff9a3c', '#4c8dff', '#b57bee']; V.rsi.forEach((a, k) => poly(a, Y, rc[k], 1.1)); ctx.restore(); ctx.font = '11px sans-serif';
+      const rc = ['#ff9a3c', '#4c8dff', '#b57bee']; V.rsi.forEach((a, k) => poly(a, Y, rc[k], 1.1));
+      if (I.sig) divLines(V.sig.div.filter(d => d.name === 'rsi'), V.rsi[1], Y);
+      ctx.restore(); ctx.font = '11px sans-serif';
+      if (I.sig) { ctx.font = '10px -apple-system,"PingFang SC",sans-serif'; ctx.textAlign = 'center'; divLabels(V.sig.div.filter(d => d.name === 'rsi'), V.rsi[1], Y, top, bot); ctx.font = '11px sans-serif'; }
       segs(ctx, [['RSI', C.text], ...[6, 12, 24].map((nn, k) => [`RSI${nn}:${V.rsi[k][ref] == null ? '--' : fmt(V.rsi[k][ref], 1)}`, rc[k]])], PL + 4, p.y + 11, W - PR - 20, 16);
     }
     if (p.id !== 'price') {   // 副图右上角 × 关闭按钮
