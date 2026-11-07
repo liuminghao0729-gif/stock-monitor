@@ -25,7 +25,7 @@ const state = {
   watch: store.get('watch', ['AAPL', 'NVDA', 'VOO', 'QQQ']),
   sel: null,
   period: store.get('period', 'D'), minute: store.get('minute', '1m'), type: store.get('ctype', 'candle'),
-  ind: Object.assign({ ma: [1, 1, 1, 1, 0, 0], boll: 0, chip: 1, vol: 1, macd: 1, rsi: 1, sr: 1, trend: 1 }, store.get('ind2', {})),
+  ind: Object.assign({ ma: [1, 1, 1, 1, 0, 0], boll: 0, chip: 1, vol: 1, macd: 1, rsi: 1, sr: 1, trend: 1, pat: 1 }, store.get('ind2', {})),
   hover: -1, tab: 'watch', day: 0, dt: 'chart'
 };
 if (!(state.period in PERIODS) && !(state.period in MINUTES)) state.period = 'D';
@@ -214,7 +214,7 @@ function newsHTML(list) {
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 // ===== 底部工具栏(仿 Moomoo):日K 周K 月K 季K 年K [1分▾]  ...  蜡烛 缩放 指标 =====
-const IND_ITEMS = [['ma0', 'MA5', MA_DEF[0][1]], ['ma1', 'MA10', MA_DEF[1][1]], ['ma2', 'MA20', MA_DEF[2][1]], ['ma3', 'MA50', MA_DEF[3][1]], ['ma4', 'MA100', MA_DEF[4][1]], ['ma5', 'MA200', MA_DEF[5][1]], ['boll', 'BOLL(20,2)'], ['chip', '筹码分布(估算)'], ['sr', '支撑 / 压力(参考)'], ['trend', '趋势线(参考)']];
+const IND_ITEMS = [['ma0', 'MA5', MA_DEF[0][1]], ['ma1', 'MA10', MA_DEF[1][1]], ['ma2', 'MA20', MA_DEF[2][1]], ['ma3', 'MA50', MA_DEF[3][1]], ['ma4', 'MA100', MA_DEF[4][1]], ['ma5', 'MA200', MA_DEF[5][1]], ['boll', 'BOLL(20,2)'], ['chip', '筹码分布(估算)'], ['sr', '支撑 / 压力(参考)'], ['trend', '趋势线(参考)'], ['pat', '形态识别(参考)']];
 const SUB_ITEMS = [['vol', '成交量'], ['macd', 'MACD(12,26,9)'], ['rsi', 'RSI(6,12,24)']];
 const isMA = k => /^ma\d$/.test(k);     // 均线键名 ma0..ma5(注意 macd 不是均线)
 const indOn = k => isMA(k) ? state.ind.ma[+k.slice(2)] : state.ind[k];
@@ -349,10 +349,10 @@ function segs(ctx, parts, x, y, maxW, lh) {
 function srCalc(B, i1) {
   const a = Math.max(0, i1 - 250), W = B.slice(a, i1 + 1), nW = W.length;
   if (nW < 40) return { lv: [], tl: [] };
-  const price = W[nW - 1].c, bins = 60, lo = Math.min(...W.map(b => b.l)), hi = Math.max(...W.map(b => b.h)), step = (hi - lo) / bins || 1, arr = new Array(bins).fill(0);
+  const price = W[nW - 1].c, bins = 80, lo = Math.min(...W.map(b => b.l)), hi = Math.max(...W.map(b => b.h)), step = (hi - lo) / bins || 1, arr = new Array(bins).fill(0);
   W.forEach((b, i) => { const w = Math.pow(.995, nW - 1 - i), x = Math.floor((b.l - lo) / step), z = Math.min(bins - 1, Math.floor((b.h - lo) / step)), c = z - x + 1; for (let k = x; k <= z; k++) arr[k] += b.v * w / c; });
   const sm = arr.map((_, i) => (arr[Math.max(0, i - 1)] + arr[i] + arr[Math.min(bins - 1, i + 1)]) / 3), mx = Math.max(...sm) || 1, cand = [];
-  for (let i = 1; i < bins - 1; i++) if (sm[i] > 0 && sm[i] >= sm[i - 1] && sm[i] >= sm[i + 1] && sm[i] > .35 * mx) cand.push({ p: lo + (i + .5) * step, s: sm[i] / mx, src: '筹码' });
+  for (let i = 1; i < bins - 1; i++) if (sm[i] > 0 && sm[i] >= sm[i - 1] && sm[i] >= sm[i + 1] && sm[i] > .18 * mx) cand.push({ p: lo + (i + .5) * step, s: sm[i] / mx, src: '筹码' });
   const K = 5, pl = [], ph = [], tl3 = [], th3 = [];   // 波段低点 / 高点:左右各 5 根都不比它更极端(趋势线另用更灵敏的 3 根)
   for (let i = K; i < nW - K; i++) {
     let isL = true, isH = true;
@@ -370,8 +370,6 @@ function srCalc(B, i1) {
     const t = m[m.length - 1];
     if (t && Math.abs(c.p - t.p) / t.p < .01) { t.p = (t.p * t.n + c.p) / (t.n + 1); t.s += c.s; t.n++; if (!t.src.includes(c.src)) t.src += '+' + c.src; } else m.push({ ...c, n: 1 });
   }
-  const pick = f => m.filter(f).sort((x, y) => y.s - x.s).slice(0, 3);
-  const sup = pick(x => x.p < price * .995 && x.s >= .9), res = pick(x => x.p > price * 1.005 && x.s >= .9);
   // 趋势线:过两个波段低点(上升支撑线)或两个波段高点(下降压力线),中间不能被价格穿破,触碰点越多越强
   const trend = (piv, low) => {
     const wick = i => Math.log(low ? W[i].l : W[i].h), clo = i => Math.log(W[i].c), ps = piv.slice(-10); let best = null;
@@ -390,30 +388,29 @@ function srCalc(B, i1) {
     }
     return best;
   };
-  return { lv: [...sup.map(x => ({ ...x, kind: 'sup' })), ...res.map(x => ({ ...x, kind: 'res' }))], tl: [trend(tl3, true), trend(th3, false)].filter(Boolean) };
+  return { all: m.map(x => ({ ...x, kind: x.p < price ? 'sup' : 'res' })), price, tl: [trend(tl3, true), trend(th3, false)].filter(Boolean) };
 }
-function drawSR(ctx, { X, Y, top, bot, W, PL, PR, i1, ext, I }) {
+function drawSR(ctx, { X, Y, top, bot, W, PL, PR, i1, ext, I, lo, hi }) {
   const key = state.sel + '|' + state.period + '|' + V.bars.length + '|' + i1;
   if (!V._sr || V._sr.key !== key) V._sr = { key, val: srCalc(V.bars, i1) };
   const R = V._sr.val, dots = s => s >= 1.8 ? '●●●' : s >= 1.2 ? '●●' : '●', dec = decOf(V.bars[i1].c);
   ctx.font = '11px -apple-system,"PingFang SC",sans-serif'; ctx.textBaseline = 'middle';
   if (I.sr) {
+    const pr = R.price, vis = R.all.filter(l => (l.kind === 'sup' ? l.p < pr * .995 : l.p > pr * 1.005) && l.s >= .45 && l.p >= lo && l.p <= hi);
+    const top5 = k => vis.filter(l => l.kind === k).sort((a, b) => b.s - a.s).slice(0, 5);   // 每侧最多 5 条:当前可见价格范围内最强的
+    const chosen = [...top5('sup'), ...top5('res')], labeled = new Set([...chosen].sort((a, b) => b.s - a.s).slice(0, 3));   // 只给最强的 3 条标文字,避免挤成一团
     let lastY = -99;
-    [...R.lv].sort((a, b) => b.p - a.p).forEach(l => {
+    chosen.sort((a, b) => b.p - a.p).forEach(l => {
       const y = Y(l.p); if (y < top || y > bot) return;
-      const col = l.kind === 'sup' ? UP : DOWN, al = Math.min(.85, .35 + l.s * .22);
+      const col = l.kind === 'sup' ? UP : DOWN, al = Math.min(.7, .22 + l.s * .13);
       ctx.save(); ctx.strokeStyle = col; ctx.globalAlpha = al; ctx.setLineDash([6, 4]); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(PL, y); ctx.lineTo(W - PR, y); ctx.stroke(); ctx.restore();
-      if (Math.abs(y - lastY) > 13) { ctx.fillStyle = col; ctx.globalAlpha = .95; ctx.textAlign = 'left'; ctx.fillText(`${l.kind === 'sup' ? '支撑' : '压力'} ${fmt(l.p, dec)} ${dots(l.s)}　${l.src}`, PL + 8, y - 7); ctx.globalAlpha = 1; lastY = y; }
+      if (labeled.has(l) && Math.abs(y - lastY) > 13) { ctx.font = '10.5px -apple-system,"PingFang SC",sans-serif'; ctx.fillStyle = col; ctx.globalAlpha = .95; ctx.textAlign = 'left'; ctx.fillText(`${l.kind === 'sup' ? '支撑' : '压力'} ${fmt(l.p, dec)} ${dots(l.s)} ${l.src.replace(/筹码/g, '筹').replace(/低点/g, '低').replace(/高点/g, '高')}`, PL + 8, y - 7); ctx.globalAlpha = 1; lastY = y; }
     });
   }
   if (I.trend) R.tl.forEach(t => {
     const at = i => Math.exp(t.yp + t.slope * (i - t.p)), end = i1 + ext, col = t.low ? UP : DOWN;
     ctx.save(); ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.globalAlpha = .9; ctx.beginPath(); ctx.moveTo(X(t.p), Y(at(t.p))); ctx.lineTo(X(end), Y(at(end))); ctx.stroke();
     ctx.fillStyle = col; [t.p, t.q].forEach(i => { ctx.beginPath(); ctx.arc(X(i), Y(at(i)), 3, 0, 7); ctx.fill(); });
-    if (t.off > .02) {   // 平行通道线
-      const k = Math.exp(t.low ? t.off : -t.off); ctx.globalAlpha = .55; ctx.setLineDash([2, 4]); ctx.lineWidth = 1.1; ctx.beginPath(); ctx.moveTo(X(t.p), Y(at(t.p) * k)); ctx.lineTo(X(end), Y(at(end) * k)); ctx.stroke();
-      ctx.setLineDash([]); ctx.globalAlpha = .8; ctx.textAlign = 'right'; const cy = Y(at(i1) * k); if (cy > top && cy < bot) ctx.fillText(t.low ? '通道上轨' : '通道下轨', W - PR - 8, cy + (t.low ? -10 : 12));
-    }
     ctx.restore();
     const ly = Y(at(i1)); if (ly > top && ly < bot) { ctx.fillStyle = col; ctx.textAlign = 'right'; ctx.fillText(`${t.low ? '上升趋势线' : '下降趋势线'} · ${t.touches}点`, W - PR - 8, ly + (t.low ? 12 : -12)); }
   });
@@ -477,7 +474,12 @@ function paint() {
       }
       V.ma.forEach((a, k) => I.ma[k] && poly(a, Y, MA_DEF[k][1]));
       if (I.boll) { poly(V.boll.mid, Y, '#f5c542'); poly(V.boll.up, Y, '#ff6fa8'); poly(V.boll.lo, Y, '#35c5e8'); }
-      if ((I.sr || I.trend) && n >= 40) drawSR(ctx, { X, Y, top, bot, W, PL, PR, i1, ext: Math.max(2, cnt * .12), I });
+      if (I.pat && n >= 60) {
+        const pk = state.sel + '|' + state.period + '|' + n + '|' + i1;
+        if (!V._pat || V._pat.key !== pk) { const a0 = Math.max(0, i1 - 250); V._pat = { key: pk, off: a0, list: detectPatterns(V.bars.slice(a0, i1 + 1), isIntra(state.period)) }; }
+        drawPatterns(ctx, { X, Y, top, bot, W, PL, PR, off: V._pat.off, ext: Math.max(2, cnt * .12), list: V._pat.list, up: UP, down: DOWN, accent: C.accent, last: i1 });
+      }
+      if ((I.sr || I.trend) && n >= 40) drawSR(ctx, { X, Y, top, bot, W, PL, PR, i1, ext: Math.max(2, cnt * .12), I, lo, hi });
       // 窗口内最高/最低价标注
       let ih = i0, il = i0; for (let i = i0; i <= i1; i++) { if (B[i].h > B[ih].h) ih = i; if (B[i].l < B[il].l) il = i; }
       ctx.font = '11px sans-serif'; ctx.fillStyle = '#c9d1d9';
