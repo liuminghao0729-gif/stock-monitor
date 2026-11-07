@@ -368,7 +368,7 @@ MACRO = [("DGS10", "10年期美债收益率", "%", None, 90), ("DGS2", "2年期�
          ("PAYEMS", "非农新增就业", "千人", "chg", 24)]
 RELEASES = {"Consumer Price Index": "CPI 通胀数据", "Employment Situation": "非农就业报告", "Gross Domestic Product": "GDP",
             "Personal Income and Outlays": "PCE 通胀数据", "Producer Price Index": "PPI 生产者物价", "Advance Monthly Sales for Retail": "零售销售",
-            "FOMC Press Release": "FOMC 议息", "Job Openings and Labor Turnover": "JOLTS 职位空缺"}
+            "Job Openings and Labor Turnover": "JOLTS 职位空缺"}
 
 
 def _fred(path, params, ttl):
@@ -401,9 +401,11 @@ def macro():
         today = datetime.date.today()
         d = _fred("releases/dates", {"realtime_start": str(today), "realtime_end": str(today + datetime.timedelta(days=35)), "include_release_dates_with_no_data": "true",
                                       "order_by": "release_date", "sort_order": "asc", "limit": 1000}, 3600)
+        seen, cnt = set(), {}
         for x in d.get("release_dates", []):
             zh = next((v for k, v in RELEASES.items() if k.lower() in (x.get("release_name") or "").lower()), None)
-            if zh and x["date"] >= str(today):
+            if zh and x["date"] >= str(today) and (x["date"], zh) not in seen and cnt.get(zh, 0) < 2:   # 去重;每类只列最近两次
+                seen.add((x["date"], zh)); cnt[zh] = cnt.get(zh, 0) + 1
                 cal.append({"date": x["date"], "name": zh})
     except Exception as e:
         DBG["fred_cal"] = f"{type(e).__name__}: {str(e)[:60]}"
