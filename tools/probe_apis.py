@@ -23,7 +23,7 @@ def js(t):
 def line(name, ok, info):
     print(f"{'✅' if ok else '❌'} {name:<34} {info}")
 
-av, fmp, sec = os.environ.get("ALPHAVANTAGE_KEY"), os.environ.get("FMP_KEY"), os.environ.get("SEC_CONTACT")
+av, fmp, sec = os.environ.get("ALPHAVANTAGE_KEY"), os.environ.get("FMP_KEY"), (os.environ.get("SEC_CONTACT") or "").strip().strip("\"'“”‘’ ") or None
 fred = os.environ.get("FRED_KEY")
 
 print("=== Alpha Vantage ===" if av else "=== Alpha Vantage(未设置 ALPHAVANTAGE_KEY,跳过) ===")
