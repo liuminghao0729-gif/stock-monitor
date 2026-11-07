@@ -185,6 +185,7 @@ def company(sym):
     # 目标价和机构评级变动:FMP 免费接口(需要 FMP_KEY)
     out["target"] = _fmp_target(sym)
     out["grades"] = _fmp_grades(sym)
+    out["backlog"] = _sec_backlog(sym)
     return out
 
 
@@ -215,6 +216,27 @@ def _fmp_grades(sym):
         d = _fmp("grades", {"symbol": sym, "limit": 30}, 3600) or []
         return [{"date": x.get("date"), "firm": x.get("gradingCompany"), "from": x.get("previousGrade"), "to": x.get("newGrade"),
                  "action": x.get("action")} for x in d[:12]]
+    except Exception:
+        return None
+
+
+def _sec_backlog(sym):
+    """在手订单(剩余履约义务 RPO):来自 SEC 官方财报数据。只有部分公司披露;查不到返回 None。需要环境变量 SEC_CONTACT(联系邮箱)。"""
+    contact = os.environ.get("SEC_CONTACT")
+    if not contact or sym in ALIAS:
+        return None
+    h = {"User-Agent": "StocksMonitor " + contact}
+    try:
+        tk = _get("https://www.sec.gov/files/company_tickers.json", 86400, h)
+        cik = next((v["cik_str"] for v in tk.values() if v["ticker"] == sym.replace("-", ".")), None)
+        if cik is None:
+            return None
+        d = _get(f"https://data.sec.gov/api/xbrl/companyconcept/CIK{int(cik):010d}/us-gaap/RevenueRemainingPerformanceObligation.json", 21600, h)
+        rows = {}
+        for x in d["units"].get("USD", []):
+            rows[x["end"]] = {"end": x["end"], "val": x["val"], "form": x.get("form")}
+        last = sorted(rows.values(), key=lambda r: r["end"])[-5:]
+        return last or None
     except Exception:
         return None
 
@@ -296,7 +318,7 @@ def route(name, q):
         if name == "detail":
             return 200, detail(q["symbol"].upper()), 15
         if name == "status":
-            return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY")), "fmp": bool(os.environ.get("FMP_KEY"))}, 0
+            return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY")), "fmp": bool(os.environ.get("FMP_KEY")), "sec": bool(os.environ.get("SEC_CONTACT"))}, 0
         return 404, {"error": "not found"}, 0
     except Exception as e:
         # 只返回错误类型和简短说明(urllib 的错误信息不含网址和密钥),方便排查

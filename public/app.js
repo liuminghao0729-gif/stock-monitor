@@ -192,6 +192,12 @@ function gradesHTML(c) {
   return `<table><thead><tr><th>日期</th><th>机构</th><th>评级变化</th><th class="r">动作</th></tr></thead><tbody>${g.map(x => { const a = GRADE_ACT[x.action] || [x.action || '', 'muted'];
     return `<tr><td class="muted small">${esc(x.date || '')}</td><td>${esc(x.firm || '')}</td><td>${x.from && x.from !== x.to ? esc(x.from) + ' → ' : ''}${esc(x.to || '')}</td><td class="r ${a[1]}">${a[0]}</td></tr>`; }).join('')}</tbody></table>`;
 }
+function backlogHTML(c) {
+  const b = c && Array.isArray(c.backlog) ? c.backlog : []; if (!b.length) return '';
+  const last = b[b.length - 1], prev = b.length > 1 ? b[b.length - 2] : null, g = prev && prev.val ? (last.val / prev.val - 1) * 100 : NaN;
+  return `<div class="backlog"><b>${(last.val / 1e9).toFixed(1)}B 美元</b> <span class="muted small">截至 ${esc(last.end)} · 财报披露的剩余履约义务(已签约、尚未确认收入)</span>${Number.isFinite(g) ? ` <span class="${cls(g)}">较上期 ${sgn(g, 1)}%</span>` : ''}
+    <div class="muted small">近几期:${b.map(x => esc(x.end.slice(0, 7)) + ' ' + (x.val / 1e9).toFixed(1) + 'B').join(' → ')}</div></div>`;
+}
 const list = a => `<ul class="clist">${(a || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
 function companyHTML(s, c) {
   const k = COMPANIES[s], p = (c && c.profile) || {}, q = Data.quote(s);
@@ -205,11 +211,12 @@ function companyHTML(s, c) {
   h += `<div class="csec"><h3>分析师评级</h3>${note && !(c && c.rec) ? `<div class="muted small">${note}</div>` : recHTML(c)}</div>`;
   h += `<div class="csec"><h3>分析师目标价</h3>${targetHTML(c)}</div><div class="csec"><h3>最近机构评级变动</h3>${gradesHTML(c)}</div>`;
   if (peers.length) h += `<div class="csec"><h3>竞争对手</h3><div class="chips">${chips}</div></div>`;
+  if (!k && backlogHTML(c)) h += `<div class="csec"><h3>在手订单</h3>${backlogHTML(c)}</div>`;
   if (k) {
     h += `<div class="csec"><h3>竞争优势</h3>${list(k.adv)}</div>
       <div class="csec"><h3>护城河</h3><div class="tags">${k.moat.tags.map(t => `<span class="mtag">${esc(t)}</span>`).join('')}</div><p>${esc(k.moat.text)}</p></div>
       <div class="csec"><h3>领先领域</h3>${list(k.lead)}</div>
-      <div class="csec"><h3>未来订单 / 需求能见度</h3><p>${esc(k.orders)}</p></div>
+      <div class="csec"><h3>未来订单 / 需求能见度</h3>${backlogHTML(c)}<p>${esc(k.orders)}</p></div>
       <div class="csec"><h3>主要风险</h3>${list(k.risks)}</div>`;
   }
   h += `<div class="csec"><h3>财报对比(近 4 个季度)</h3>${note && !(c && c.earn) ? `<div class="muted small">${note}</div>` : earnHTML(c)}</div>
