@@ -24,6 +24,7 @@ def line(name, ok, info):
     print(f"{'✅' if ok else '❌'} {name:<34} {info}")
 
 av, fmp, sec = os.environ.get("ALPHAVANTAGE_KEY"), os.environ.get("FMP_KEY"), os.environ.get("SEC_CONTACT")
+fred = os.environ.get("FRED_KEY")
 
 print("=== Alpha Vantage ===" if av else "=== Alpha Vantage(未设置 ALPHAVANTAGE_KEY,跳过) ===")
 if av:
@@ -58,4 +59,13 @@ if sec:
         line("甲骨文 剩余履约义务(RPO)", True, f"{last['end']} 约 {last['val']/1e9:.0f} 十亿美元")
     else:
         line("甲骨文 剩余履约义务(RPO)", False, f"HTTP {c} {t[:80]}")
+print("\n=== FRED(宏观数据) ===" if fred else "\n=== FRED(未设置 FRED_KEY,跳过) ===")
+if fred:
+    for name, sid in [("10年期美债收益率", "DGS10"), ("2年期美债收益率", "DGS2"), ("10年-2年利差", "T10Y2Y"), ("联邦基金利率", "FEDFUNDS"),
+                      ("CPI 通胀指数", "CPIAUCSL"), ("失业率", "UNRATE"), ("非农就业", "PAYEMS")]:
+        c, t = get(f"https://api.stlouisfed.org/fred/series/observations?series_id={sid}&api_key={fred}&file_type=json&sort_order=desc&limit=3"); d = js(t) or {}
+        obs = [o for o in d.get("observations", []) if o.get("value") not in (".", None)]
+        line(name, c == 200 and bool(obs), f"最新 {obs[0]['date']}: {obs[0]['value']}" if obs else f"HTTP {c} {t[:80]}")
+    c, t = get(f"https://api.stlouisfed.org/fred/releases/dates?api_key={fred}&file_type=json&include_release_dates_with_no_data=true&limit=5&sort_order=asc&realtime_start={__import__('datetime').date.today()}"); d = js(t) or {}
+    line("数据发布日历", c == 200 and bool(d.get("release_dates")), f"返回 {len(d.get('release_dates', []))} 条" if d.get("release_dates") else f"HTTP {c} {t[:80]}")
 print("\n完成。输出里没有任何 Key。")
