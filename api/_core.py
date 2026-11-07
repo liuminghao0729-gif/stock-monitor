@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 UA = {"User-Agent": "Mozilla/5.0"}
 _cache = {}
+DBG = {}          # 最近一次各功能的失败原因(只含错误类型和简短说明,不含网址和 Key),方便排查
 
 # 页面上的代码 -> Yahoo 代码
 ALIAS = {"SPX": "^GSPC", "IXIC": "^IXIC", "DJI": "^DJI", "GOLD": "GC=F", "VIX": "^VIX",
@@ -204,10 +205,12 @@ def _fmp_target(sym):
         c = c[0] if c else None
         m = m[0] if m else None
         if not c:
+            DBG["target"] = f"{sym}: 空结果 {str(c)[:60]}"
             return None
         return {"high": c.get("targetHigh"), "low": c.get("targetLow"), "avg": c.get("targetConsensus"), "median": c.get("targetMedian"),
                 "n": (m or {}).get("lastQuarterCount"), "avgQ": (m or {}).get("lastQuarterAvgPriceTarget")}
-    except Exception:
+    except Exception as e:
+        DBG["target"] = f"{sym}: {type(e).__name__}: {str(e)[:60]}"
         return None
 
 
@@ -216,20 +219,25 @@ def _fmp_grades(sym):
         d = _fmp("grades", {"symbol": sym, "limit": 30}, 3600) or []
         return [{"date": x.get("date"), "firm": x.get("gradingCompany"), "from": x.get("previousGrade"), "to": x.get("newGrade"),
                  "action": x.get("action")} for x in d[:12]]
-    except Exception:
+    except Exception as e:
+        DBG["grades"] = f"{sym}: {type(e).__name__}: {str(e)[:60]}"
         return None
 
 
 def _sec_backlog(sym):
     """在手订单(剩余履约义务 RPO):来自 SEC 官方财报数据。只有部分公司披露;查不到返回 None。需要环境变量 SEC_CONTACT(联系邮箱)。"""
-    contact = os.environ.get("SEC_CONTACT")
+    contact = (os.environ.get("SEC_CONTACT") or "").strip().strip("\"'“”‘’ ")      # 去掉粘贴时可能带进来的引号
     if not contact or sym in ALIAS:
+        return None
+    if not contact.isascii():
+        DBG["sec"] = "SEC_CONTACT 里有非英文字符,请用英文直引号重新设置"
         return None
     h = {"User-Agent": "StocksMonitor " + contact}
     try:
         tk = _get("https://www.sec.gov/files/company_tickers.json", 86400, h)
         cik = next((v["cik_str"] for v in tk.values() if v["ticker"] == sym.replace("-", ".")), None)
         if cik is None:
+            DBG["sec"] = f"{sym}: 在 SEC 代码表里找不到"
             return None
         d = _get(f"https://data.sec.gov/api/xbrl/companyconcept/CIK{int(cik):010d}/us-gaap/RevenueRemainingPerformanceObligation.json", 21600, h)
         rows = {}
@@ -237,7 +245,8 @@ def _sec_backlog(sym):
             rows[x["end"]] = {"end": x["end"], "val": x["val"], "form": x.get("form")}
         last = sorted(rows.values(), key=lambda r: r["end"])[-5:]
         return last or None
-    except Exception:
+    except Exception as e:
+        DBG["sec"] = f"{sym}: {type(e).__name__}: {str(e)[:60]}"
         return None
 
 
@@ -318,7 +327,7 @@ def route(name, q):
         if name == "detail":
             return 200, detail(q["symbol"].upper()), 15
         if name == "status":
-            return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY")), "fmp": bool(os.environ.get("FMP_KEY")), "sec": bool(os.environ.get("SEC_CONTACT"))}, 0
+            return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY")), "fmp": bool(os.environ.get("FMP_KEY")), "sec": bool(os.environ.get("SEC_CONTACT")), "dbg": DBG}, 0
         return 404, {"error": "not found"}, 0
     except Exception as e:
         # 只返回错误类型和简短说明(urllib 的错误信息不含网址和密钥),方便排查
