@@ -77,10 +77,11 @@ function marketStatus() {
   $('#mkt').textContent = '美股' + s[0]; $('#mkt').className = 'pill ' + s[1];
   $('#clock').textContent = `纽约 ${p.hour}:${p.minute}`;
 }
+const isIdx = s => Data.INDICES.some(i => i[0] === s);
 function renderIndices() {
   $('#indices').innerHTML = Data.INDICES.map(([s, n]) => {
     const q = Data.quote(s);
-    return `<div class="idx"><div class="n">${n}</div><div class="p">${fmt(q.price, q.price < 200 ? 2 : 0)}</div><div class="c ${cls(q.pct)}">${sgn(q.pct)}%</div></div>`;
+    return `<div class="idx ${s === state.sel ? 'on' : ''}" data-go="${s}" title="查看${n}图表"><div class="n">${n}</div><div class="p">${fmt(q.price, q.price < 200 ? 2 : 0)}</div><div class="c ${cls(q.pct)}">${sgn(q.pct)}%</div></div>`;
   }).join('');
 }
 
@@ -108,7 +109,8 @@ $('#addForm').addEventListener('submit', async e => {
   state.watch.push(s); store.set('watch', state.watch); msg.textContent = ''; $('#addInput').value = ''; renderWatch();
 });
 function selectStock(s) {
-  state.sel = s; state.hover = -1; switchTab('watch'); renderWatch(); renderDetail();
+  state.sel = s; state.hover = -1; if (isIdx(s)) state.dt = 'chart'; switchTab('watch'); renderWatch(); renderDetail(); renderIndices();
+  if (isIdx(s) && window.innerWidth < 860) setTimeout(() => $('#detail').scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
   Data.refreshQuotes([s]).then(() => { if (state.sel === s) { const h = $('#dhead'); if (h) h.innerHTML = headHTML(s); renderWatch(); } }).catch(() => { });   // 竞争对手等不在自选里的代码
 }
 
@@ -124,30 +126,35 @@ function headHTML(s) {
     [['最高', P(q.high), vs(q.high)], ['最低', P(q.low), vs(q.low)], ['市值', cn(d.mcap)], ['总股本', cn(d.shares)], ['振幅', pct(d.amp)], ['市盈率(TTM)', num(d.pe)]],
     [['今开', P(q.open), vs(q.open)], ['昨收', P(q.prev)], ['平均价', P(d.avg)], ['量比', num(d.volRatio)], ['历史最高', P(d.ath)], ['历史最低', P(d.atl)]]
   ];
-  const arrow = q.change >= 0 ? '↑' : '↓', open = store.get('statsOpen', true), show = open ? 6 : 2;
-  return `<div class="dh"><div><h2>${s} <span class="muted" style="font-size:14px;font-weight:400">${esc(q.name)}</span></h2></div>${state.watch.includes(s) ? '' : '<button class="tb on" data-act="addwatch">＋ 加入自选</button>'}</div>
+  const idx = isIdx(s);
+  if (idx) rows.splice(0, 3,   // 指数:没有市值、换手率等,只显示行情类数据
+    [['52周最高', P(d.wk52h)], ['52周最低', P(d.wk52l)], ['振幅', pct(d.amp)]],
+    [['最高', P(q.high), vs(q.high)], ['最低', P(q.low), vs(q.low)], ['今开', P(q.open), vs(q.open)]],
+    [['昨收', P(q.prev)], ['历史最高', P(d.ath)], ['历史最低', P(d.atl)]]);
+  const arrow = q.change >= 0 ? '↑' : '↓', open = store.get('statsOpen', true), show = idx ? 3 : open ? 6 : 2;
+  return `<div class="dh"><div><h2>${s} <span class="muted" style="font-size:14px;font-weight:400">${esc(q.name)}</span></h2></div>${state.watch.includes(s) || idx ? '' : '<button class="tb on" data-act="addwatch">＋ 加入自选</button>'}</div>
   <div class="px-big ${cls(q.change)}"><span class="big">${P(q.price)}</span><span class="arr">${Number.isFinite(q.price) ? arrow : ''}</span></div>
   <div class="${cls(q.change)} px-sub">${sgn(q.change, dec)} &nbsp; ${sgn(q.pct)}%</div>
   <div class="sgrid">${rows.map(col => `<div class="scol">${col.slice(0, show).map(([l, v, c]) => `<div class="srow"><span class="l">${l}</span><span class="v ${c || ''}">${v}</span></div>`).join('')}</div>`).join('')}</div>
-  <button class="sfold" data-act="stats" title="${open ? '收起' : '展开'}">${open ? '︿' : '﹀'}</button>`;
+  ${idx ? '' : `<button class="sfold" data-act="stats" title="${open ? '收起' : '展开'}">${open ? '︿' : '﹀'}</button>`}`;
 }
 async function renderDetail() {
   const s = state.sel; if (!s) { $('#detail').innerHTML = '<div class="muted">请先添加自选股</div>'; return; }
   V = null;
   $('#detail').innerHTML = `<div id="dhead">${headHTML(s)}</div>
-  <div class="dtabs" id="dtabs"><button data-dt="chart">图表</button><button data-dt="company">公司</button></div>
+  <div class="dtabs" id="dtabs"><button data-dt="chart">图表</button>${isIdx(s) ? '' : '<button data-dt="company">公司</button>'}</div>
   <div id="dchart">
     <div class="legend" id="legend"></div>
     <div class="chartwrap" id="cw"><canvas id="cv"></canvas><div id="cload" class="cload">图表加载中…</div></div>
     <div class="tbar" id="tb"></div>
-    <h3>${s} 相关新闻</h3>
+    <h3>${isIdx(s) ? '市场新闻' : s + ' 相关新闻'}</h3>
     <ul class="news" id="stockNews"><li class="muted">加载中…</li></ul>
   </div>
   <div id="dcompany" class="hidden"></div>`;
   bindChart(); renderToolbar(); loadChart(true); loadStats(s); showDT(state.dt);
   { const q = Data.quote(s); countUp($('.px-big .big'), q.price, Number.isFinite(q.price) ? decOf(q.price) : 2); }
   const stale = () => state.sel !== s || state.tab !== 'watch';
-  Data.loadNews(s).then(l => { if (!stale()) $('#stockNews').innerHTML = newsHTML(l); })
+  Data.loadNews(isIdx(s) ? '' : s).then(l => { if (!stale()) $('#stockNews').innerHTML = newsHTML(l); })
     .catch(() => { if (!stale()) $('#stockNews').innerHTML = '<li class="muted">新闻加载失败</li>'; });
 }
 function showDT(dt) {
@@ -318,7 +325,8 @@ function layout() {
   const cv = $('#cv'); if (!cv || !V) return;
   const W = cv.parentElement.clientWidth, dpr = window.devicePixelRatio || 1, mob = W < 520, I = state.ind, anyMA = I.ma.some(x => x);
   const maN = I.ma.filter(x => x).length, lines = (anyMA ? (mob ? Math.ceil(maN / 3) : 1) : 0) + (I.boll ? (mob ? 2 : 1) : 0), panels = [{ id: 'price', h: mob ? 260 : 340, head: 6 + lines * 16 }];
-  [['vol', I.vol], ['macd', I.macd], ['rsi', I.rsi]].forEach(([id, on]) => on && panels.push({ id, h: mob ? 80 : 96, head: 20 }));
+  V.hasVol = V.bars.some(b => b.v > 0);
+  [['vol', I.vol && V.hasVol], ['macd', I.macd], ['rsi', I.rsi]].forEach(([id, on]) => on && panels.push({ id, h: mob ? 80 : 96, head: 20 }));
   let y = 0; panels.forEach(p => { p.y = y; y += p.h; });
   const H = y + 22;
   cv.width = W * dpr; cv.height = H * dpr; cv.style.width = W + 'px'; cv.style.height = H + 'px';
@@ -371,7 +379,7 @@ function paint() {
       grid([0, 1, 2, 3, 4].map(k => lo + (hi - lo) * k / 4), p.fv);
       const last = B[n - 1].c, prev = n > 1 ? B[n - 2].c : B[n - 1].o;
       clipPlot(top, bot);
-      if (I.chip) {   // 筹码分布(估算),叠加在绘图区右侧
+      if (I.chip && V.hasVol) {   // 筹码分布(估算),叠加在绘图区右侧
         const c = chips(B, i0, i1); if (c) {
           const mx = Math.max(...c.arr), maxLen = Math.min(110, pw * .28), ref0 = B[i1].c;
           c.arr.forEach((v, k) => { const pr = c.lo + (k + .5) * c.step, y = Y(pr), bh = Math.max(Math.abs(Y(pr + c.step) - y), 1), len = v / mx * maxLen;
@@ -534,7 +542,7 @@ async function renderAlerts() {
 }
 const renderers = { sectors: renderSectors, earnings: renderEarnings, movers: renderMovers, alerts: renderAlerts };
 document.addEventListener('click', e => {
-  if (e.target.dataset.go) selectStock(e.target.dataset.go);
+  const go = e.target.closest('[data-go]'); if (go) selectStock(go.dataset.go);
   if (e.target.dataset.day !== undefined) { state.day = +e.target.dataset.day; renderEarnings(); }
 });
 

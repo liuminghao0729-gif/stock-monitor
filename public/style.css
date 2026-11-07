@@ -57,7 +57,11 @@ input[type=checkbox]{accent-color:var(--accent)}
 /* 指数条 */
 .strip{display:flex;gap:44px;overflow-x:auto;padding:4px 0 24px;border-bottom:1px solid var(--line);scrollbar-width:none}
 .strip::-webkit-scrollbar{display:none}
-.idx{flex:0 0 auto}
+.idx{flex:0 0 auto;cursor:pointer;position:relative;padding-bottom:6px;transition:transform .3s,opacity .3s;opacity:.92}
+.idx:hover{transform:translateY(-2px);opacity:1}
+.idx:hover .n,.idx.on .n{color:var(--accent)}
+.idx.on{opacity:1}
+.idx.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1.5px;background:var(--accent);border-radius:2px}
 .idx .n{font-size:11px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
 .idx .p{font-size:18px;font-weight:500;font-variant-numeric:tabular-nums;margin-top:2px}
 .idx .c{font-size:12px;font-variant-numeric:tabular-nums}

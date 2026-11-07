@@ -147,6 +147,8 @@ def detail(sym):
             out["ath"], out["atl"] = max(b["h"] for b in mb), min(b["l"] for b in mb)
     except Exception:
         pass
+    if sym in ALIAS:      # 指数、期货、加密货币没有公司资料
+        return out
     try:
         met = (_fh("stock/metric", {"symbol": sym, "metric": "all"}, 3600) or {}).get("metric", {})
         pro = _fh("stock/profile2", {"symbol": sym}, 3600) or {}
