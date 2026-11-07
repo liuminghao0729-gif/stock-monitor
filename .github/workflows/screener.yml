@@ -1,0 +1,45 @@
+name: 每日选股更新
+on:
+  schedule:
+    # 周一至周五 UTC 22:30(美股 16:00 收盘后至少 1.5 小时,夏令时和冬令时都已收盘)。GitHub 可能有几分钟延迟。
+    - cron: "30 22 * * 1-5"
+  workflow_dispatch:      # 允许在网页上手动运行
+
+# 只给这一个任务"写入仓库"的权限,用来把当天的结果提交回仓库;提交后 Vercel 会自动重新部署
+permissions:
+  contents: write
+
+concurrency:
+  group: screener
+  cancel-in-progress: false
+
+jobs:
+  screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: 运行每日选股(V2.0)
+        env:
+          FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+        run: python3 tools/screener_v2.py
+      - name: 检查结果文件
+        run: |
+          python3 - <<'PY'
+          import json
+          d = json.load(open("public/screener.json"))
+          assert d["version"] == 2 and d["presets"], "结果文件异常"
+          assert d["universe"] >= 500, f"扫描到的股票只有 {d['universe']} 只,数据源可能被限流,不提交"
+          print("行情日期", d["dataDate"], "| 扫描", d["universe"], "只 |", [(p["name"], p["confirmedTotal"]) for p in d["presets"]])
+          PY
+      - name: 有变化才提交
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/screener.json public/screener_history.json
+          if git diff --cached --quiet; then
+            echo "今天的结果没有变化,不提交"
+          else
+            git commit -m "每日选股更新 $(date -u +%Y-%m-%d)"
+            git push
+          fi
