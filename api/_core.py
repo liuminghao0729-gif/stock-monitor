@@ -192,6 +192,7 @@ def company(sym):
         out["target"] = out["target"] or (y or {}).get("target")
         out["grades"] = out["grades"] or (y or {}).get("grades")
     out["backlog"] = _sec_backlog(sym)
+    out["extra"] = _yh_extra(sym)
     return out
 
 
@@ -322,6 +323,93 @@ def _yh_summary(sym):
     return out
 
 
+def _yh_extra(sym):
+    """Yahoo:关键指标(做空/估值)、机构持仓、内部人交易、盈利预测、近期事件。ETF 等没有的部分为空。"""
+    hit = _cache.get("yx:" + sym)
+    if hit and time.time() - hit[0] < 3600:
+        return hit[1]
+    ms = "defaultKeyStatistics,majorHoldersBreakdown,institutionOwnership,insiderTransactions,earningsTrend,calendarEvents,netSharePurchaseActivity"
+    try:
+        r = _yh_open(f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{urllib.parse.quote(sym)}?modules={ms}")["quoteSummary"]["result"][0]
+        g = lambda d, k: ((d or {}).get(k) or {}).get("raw") if isinstance((d or {}).get(k), dict) else None
+        ks, mh = r.get("defaultKeyStatistics") or {}, r.get("majorHoldersBreakdown") or {}
+        stats = {k: g(ks, k) for k in ("shortPercentOfFloat", "sharesShort", "shortRatio", "forwardPE", "pegRatio", "profitMargins", "beta", "floatShares", "priceToBook", "trailingEps", "forwardEps")}
+        stats = stats if any(v is not None for v in stats.values()) else None
+        top = [{"org": x.get("organization"), "pct": g(x, "pctHeld"), "chg": g(x, "pctChange")} for x in ((r.get("institutionOwnership") or {}).get("ownershipList") or [])[:5]]
+        holders = {"insiders": g(mh, "insidersPercentHeld"), "inst": g(mh, "institutionsPercentHeld"), "count": g(mh, "institutionsCount"), "top": top} if (top or g(mh, "institutionsPercentHeld") is not None) else None
+        ns = r.get("netSharePurchaseActivity") or {}
+        tx = sorted((r.get("insiderTransactions") or {}).get("transactions") or [], key=lambda x: g(x, "startDate") or 0, reverse=True)[:8]
+        insiders = {"net": {"period": ns.get("period"), "buy": g(ns, "buyInfoShares"), "sell": g(ns, "sellInfoShares"), "buyN": g(ns, "buyInfoCount"), "sellN": g(ns, "sellInfoCount")} if ns else None,
+                    "list": [{"name": x.get("filerName"), "rel": x.get("filerRelation"), "text": x.get("transactionText"), "shares": g(x, "shares"), "value": g(x, "value"),
+                              "date": ((x.get("startDate") or {}).get("fmt"))} for x in tx]} if (tx or ns) else None
+        names = {"0q": "本季度", "+1q": "下季度", "0y": "本财年", "+1y": "下财年"}
+        trend = []
+        for t in (r.get("earningsTrend") or {}).get("trend") or []:
+            if t.get("period") in names:
+                e, v = t.get("earningsEstimate") or {}, t.get("revenueEstimate") or {}
+                trend.append({"label": names[t["period"]], "end": t.get("endDate"), "eps": g(e, "avg"), "epsLow": g(e, "low"), "epsHigh": g(e, "high"), "epsGrowth": g(e, "growth"),
+                              "rev": g(v, "avg"), "revGrowth": g(v, "growth"), "n": g(e, "numberOfAnalysts")})
+        ce = r.get("calendarEvents") or {}
+        ed = (ce.get("earnings") or {}).get("earningsDate") or []
+        events = {"earn": (ed[0] or {}).get("fmt") if ed else None, "earnEst": (ce.get("earnings") or {}).get("isEarningsDateEstimate"),
+                  "exDiv": (ce.get("exDividendDate") or {}).get("fmt"), "div": (ce.get("dividendDate") or {}).get("fmt")}
+        events = events if any(events.values()) else None
+        out = {"stats": stats, "holders": holders, "insiders": insiders, "trend": trend or None, "events": events}
+    except Exception as e:
+        DBG["yahoo_extra"] = f"{sym}: {type(e).__name__}: {str(e)[:60]}"
+        out = None
+    _cache["yx:" + sym] = (time.time(), out)
+    return out
+
+
+# FRED 宏观数据:(代码, 名称, 单位, 变换, 取多少期画走势)
+MACRO = [("DGS10", "10年期美债收益率", "%", None, 90), ("DGS2", "2年期美债收益率", "%", None, 90), ("T10Y2Y", "10年-2年利差", "%", None, 90),
+         ("FEDFUNDS", "联邦基金利率", "%", None, 24), ("CPIAUCSL", "CPI 通胀(同比)", "%", "pc1", 24), ("UNRATE", "失业率", "%", None, 24),
+         ("PAYEMS", "非农新增就业", "千人", "chg", 24)]
+RELEASES = {"Consumer Price Index": "CPI 通胀数据", "Employment Situation": "非农就业报告", "Gross Domestic Product": "GDP",
+            "Personal Income and Outlays": "PCE 通胀数据", "Producer Price Index": "PPI 生产者物价", "Advance Monthly Sales for Retail": "零售销售",
+            "FOMC Press Release": "FOMC 议息", "Job Openings and Labor Turnover": "JOLTS 职位空缺"}
+
+
+def _fred(path, params, ttl):
+    key = os.environ.get("FRED_KEY")
+    if not key:
+        return None
+    return _get("https://api.stlouisfed.org/fred/" + path + "?" + urllib.parse.urlencode(dict(params, api_key=key, file_type="json")), ttl)
+
+
+def macro():
+    if not os.environ.get("FRED_KEY"):
+        return {"error": "no_key"}
+
+    def one(m):
+        sid, name, unit, tr, n = m
+        try:
+            p = {"series_id": sid, "sort_order": "desc", "limit": n + 5}
+            if tr:
+                p["units"] = tr
+            obs = [o for o in _fred("series/observations", p, 3600)["observations"] if o["value"] != "."][:n]
+            vals = [float(o["value"]) for o in reversed(obs)]
+            return {"id": sid, "name": name, "unit": unit, "date": obs[0]["date"], "value": vals[-1], "prev": vals[-2] if len(vals) > 1 else None, "hist": vals}
+        except Exception as e:
+            DBG["fred_" + sid] = f"{type(e).__name__}: {str(e)[:60]}"
+            return None
+    with ThreadPoolExecutor(4) as ex:
+        items = [x for x in ex.map(one, MACRO) if x]
+    cal = []
+    try:
+        today = datetime.date.today()
+        d = _fred("releases/dates", {"realtime_start": str(today), "realtime_end": str(today + datetime.timedelta(days=35)), "include_release_dates_with_no_data": "true",
+                                      "order_by": "release_date", "sort_order": "asc", "limit": 1000}, 3600)
+        for x in d.get("release_dates", []):
+            zh = next((v for k, v in RELEASES.items() if k.lower() in (x.get("release_name") or "").lower()), None)
+            if zh and x["date"] >= str(today):
+                cal.append({"date": x["date"], "name": zh})
+    except Exception as e:
+        DBG["fred_cal"] = f"{type(e).__name__}: {str(e)[:60]}"
+    return {"items": items, "calendar": cal[:12]}
+
+
 def _sec_backlog(sym):
     """在手订单(剩余履约义务 RPO):来自 SEC 官方财报数据。只有部分公司披露;查不到返回 None。需要环境变量 SEC_CONTACT(联系邮箱)。"""
     contact = (os.environ.get("SEC_CONTACT") or "").strip().strip("\"'“”‘’ ")      # 去掉粘贴时可能带进来的引号
@@ -418,6 +506,8 @@ def route(name, q):
         if name == "earnings":
             datetime.date.fromisoformat(q["date"])      # 校验日期格式
             return 200, earnings(q["date"]), 600
+        if name == "macro":
+            return 200, macro(), 600
         if name == "movers":
             return 200, movers(), 120
         if name == "company":
@@ -425,7 +515,7 @@ def route(name, q):
         if name == "detail":
             return 200, detail(q["symbol"].upper()), 15
         if name == "status":
-            return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY")), "fmp": bool(os.environ.get("FMP_KEY")), "sec": bool(os.environ.get("SEC_CONTACT")), "dbg": DBG}, 0
+            return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY")), "fmp": bool(os.environ.get("FMP_KEY")), "sec": bool(os.environ.get("SEC_CONTACT")), "fred": bool(os.environ.get("FRED_KEY")), "dbg": DBG}, 0
         return 404, {"error": "not found"}, 0
     except Exception as e:
         # 只返回错误类型和简短说明(urllib 的错误信息不含网址和密钥),方便排查

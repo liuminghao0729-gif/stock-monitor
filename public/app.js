@@ -198,6 +198,21 @@ function backlogHTML(c) {
   return `<div class="backlog"><b>${(last.val / 1e9).toFixed(1)}B 美元</b> <span class="muted small">截至 ${esc(last.end)} · 财报披露的剩余履约义务(已签约、尚未确认收入)</span>${Number.isFinite(g) ? ` <span class="${cls(g)}">较上期 ${sgn(g, 1)}%</span>` : ''}
     <div class="muted small">近几期:${b.map(x => esc(x.end.slice(0, 7)) + ' ' + (x.val / 1e9).toFixed(1) + 'B').join(' → ')}</div></div>`;
 }
+const bigN = n => !Number.isFinite(n) ? '--' : Math.abs(n) >= 1e12 ? (n / 1e12).toFixed(2) + 'T' : Math.abs(n) >= 1e9 ? (n / 1e9).toFixed(2) + 'B' : Math.abs(n) >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : Math.abs(n) >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : String(n);
+const pcN = (n, d = 1) => Number.isFinite(n) ? (n * 100).toFixed(d) + '%' : '--';
+function extraHTML(c) {
+  const x = c && c.extra; if (!x) return '';
+  let h = '';
+  if (x.stats) { const t = x.stats, cell = (l, v) => `<div><span class="muted small">${l}</span><b>${v}</b></div>`;
+    h += `<div class="csec"><h3>关键指标</h3><div class="kv">${cell('空头占流通股', pcN(t.shortPercentOfFloat, 2))}${cell('空头回补天数', Number.isFinite(t.shortRatio) ? fmt(t.shortRatio, 1) : '--')}${cell('预期市盈率', fmt(t.forwardPE, 1))}${cell('PEG', fmt(t.pegRatio, 2))}${cell('净利率', pcN(t.profitMargins))}${cell('Beta', fmt(t.beta, 2))}${cell('流通股', bigN(t.floatShares))}${cell('预期每股收益', fmt(t.forwardEps, 2))}</div></div>`; }
+  if (x.events) { const e = x.events; h += `<div class="csec"><h3>近期事件</h3><div class="kv">${e.earn ? `<div><span class="muted small">下次财报${e.earnEst ? '(预估)' : ''}</span><b>${esc(e.earn)}</b></div>` : ''}${e.exDiv ? `<div><span class="muted small">除息日</span><b>${esc(e.exDiv)}</b></div>` : ''}${e.div ? `<div><span class="muted small">派息日</span><b>${esc(e.div)}</b></div>` : ''}</div></div>`; }
+  if (x.trend) h += `<div class="csec"><h3>分析师盈利预测</h3><table><thead><tr><th>期间</th><th class="r">EPS 预期</th><th class="r">区间</th><th class="r">EPS 同比</th><th class="r">营收预期</th><th class="r">机构数</th></tr></thead><tbody>${x.trend.map(t => `<tr><td>${esc(t.label)} <span class="muted small">${esc(t.end || '')}</span></td><td class="r">${fmt(t.eps)}</td><td class="r muted small">${fmt(t.epsLow)} – ${fmt(t.epsHigh)}</td><td class="r ${cls(t.epsGrowth)}">${Number.isFinite(t.epsGrowth) ? sgn(t.epsGrowth * 100, 1) + '%' : '--'}</td><td class="r">${bigN(t.rev)}</td><td class="r muted">${t.n || '--'}</td></tr>`).join('')}</tbody></table></div>`;
+  if (x.holders) { const o = x.holders; h += `<div class="csec"><h3>持股结构</h3><div class="kv"><div><span class="muted small">机构持股</span><b>${pcN(o.inst)}</b></div><div><span class="muted small">内部人持股</span><b>${pcN(o.insiders, 2)}</b></div><div><span class="muted small">机构数量</span><b>${o.count ? o.count.toLocaleString('en-US') : '--'}</b></div></div>
+    ${o.top.length ? `<table><thead><tr><th>前几大机构</th><th class="r">占比</th><th class="r">季度变化</th></tr></thead><tbody>${o.top.map(i => `<tr><td>${esc(i.org || '')}</td><td class="r">${pcN(i.pct, 2)}</td><td class="r ${cls(i.chg)}">${Number.isFinite(i.chg) ? (i.chg >= 0 ? '+' : '') + (i.chg * 100).toFixed(2) + '%' : '--'}</td></tr>`).join('')}</tbody></table>` : ''}</div>`; }
+  if (x.insiders) { const n = x.insiders.net, l = x.insiders.list; h += `<div class="csec"><h3>内部人交易</h3>${n ? `<div class="small" style="margin-bottom:8px">近 ${esc(n.period || '6m').replace('m', ' 个月')}:<span class="up">买入 ${n.buyN || 0} 笔 / ${bigN(n.buy)} 股</span> · <span class="down">卖出 ${n.sellN || 0} 笔 / ${bigN(n.sell)} 股</span></div>` : ''}
+    ${l.length ? `<table><thead><tr><th>日期</th><th>人员</th><th>说明</th><th class="r">金额</th></tr></thead><tbody>${l.map(i => `<tr><td class="muted small">${esc(i.date || '')}</td><td>${esc(i.name || '')} <span class="muted small">${esc(i.rel || '')}</span></td><td class="small">${esc(i.text || '')}</td><td class="r">${i.value ? '$' + bigN(i.value) : '--'}</td></tr>`).join('')}</tbody></table>` : ''}</div>`; }
+  return h;
+}
 const list = a => `<ul class="clist">${(a || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
 function companyHTML(s, c) {
   const k = COMPANIES[s], p = (c && c.profile) || {}, q = Data.quote(s);
@@ -213,6 +228,7 @@ function companyHTML(s, c) {
   if (c && c.target) h += `<div class="csec"><h3>分析师目标价</h3>${targetHTML(c)}</div>`;      // 没数据(如 ETF)就不显示这一栏
   if (c && Array.isArray(c.grades) && c.grades.length) h += `<div class="csec"><h3>最近机构评级变动</h3>${gradesHTML(c)}</div>`;
   if (peers.length) h += `<div class="csec"><h3>竞争对手</h3><div class="chips">${chips}</div></div>`;
+  h += extraHTML(c);
   if (!k && backlogHTML(c)) h += `<div class="csec"><h3>在手订单</h3>${backlogHTML(c)}</div>`;
   if (k) {
     h += `<div class="csec"><h3>竞争优势</h3>${list(k.adv)}</div>
@@ -646,6 +662,24 @@ async function renderMovers() {
   const byPct = [...all].sort((a, b) => b.pct - a.pct), byVol = [...all].sort((a, b) => b.volume * b.price - a.volume * a.price);
   el.innerHTML = `<div class="grid2">${top(byPct.slice(0, 10), '涨幅榜')}${top(byPct.slice(-10).reverse(), '跌幅榜')}${top(byVol.slice(0, 10), '成交额榜')}</div>`;
 }
+// ===== 宏观 =====
+function spark(v, w = 120, h = 34) {
+  if (!v || v.length < 2) return ''; const lo = Math.min(...v), hi = Math.max(...v), r = hi - lo || 1;
+  const pts = v.map((y, i) => (i / (v.length - 1) * w).toFixed(1) + ',' + (h - 3 - (y - lo) / r * (h - 6)).toFixed(1)).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+}
+async function renderMacro() {
+  const el = $('#view-macro'); loading(el);
+  let M = null; if (Data.loadMacro) { try { M = await Data.loadMacro(); } catch { } }
+  if (state.tab !== 'macro') return;
+  if (!M || !M.items.length) { el.innerHTML = '<div class="card muted">暂无宏观数据</div>'; return; }
+  const card = i => { const d = i.prev == null ? NaN : i.value - i.prev;
+    return `<div class="card mac"><div class="muted small">${esc(i.name)}</div><div class="mv"><b>${fmt(i.value, i.unit === '千人' ? 0 : 2)}</b><span class="muted small"> ${esc(i.unit)}</span></div>
+      <div class="mrow"><span class="${Number.isFinite(d) ? cls(d) : 'muted'} small">${Number.isFinite(d) ? '较上期 ' + sgn(d, i.unit === '千人' ? 0 : 2) : ''}</span><span class="spk">${spark(i.hist)}</span></div><div class="muted small">${esc(i.date)}</div></div>`; };
+  el.innerHTML = `<div class="grid3">${M.items.map(card).join('')}</div>
+    <div class="card"><h3 style="margin-top:0">未来一个月重要数据发布</h3>${M.calendar.length ? `<table><tbody>${M.calendar.map(x => `<tr><td class="muted">${esc(x.date)}</td><td>${esc(x.name)}</td></tr>`).join('')}</tbody></table>` : '<div class="muted small">暂无</div>'}</div>
+    <div class="muted small" style="padding:6px 4px">数据来自美联储圣路易斯分行 FRED,发布日期以官方为准。</div>`;
+}
 // ===== 推送提醒 =====
 async function renderAlerts() {
   const el = $('#view-alerts');
@@ -653,7 +687,7 @@ async function renderAlerts() {
   let l; try { l = await Data.loadNews(''); } catch { l = { error: '新闻加载失败' }; }
   if (state.tab === 'alerts') $('#macroNews').innerHTML = newsHTML(l);
 }
-const renderers = { sectors: renderSectors, earnings: renderEarnings, movers: renderMovers, alerts: renderAlerts };
+const renderers = { sectors: renderSectors, earnings: renderEarnings, movers: renderMovers, macro: renderMacro, alerts: renderAlerts };
 document.addEventListener('click', e => {
   const go = e.target.closest('[data-go]'); if (go) selectStock(go.dataset.go);
   if (e.target.dataset.day !== undefined) { state.day = +e.target.dataset.day; renderEarnings(); }
