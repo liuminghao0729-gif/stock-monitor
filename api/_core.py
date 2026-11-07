@@ -409,7 +409,7 @@ def macro():
                 cal.append({"date": x["date"], "name": zh})
     except Exception as e:
         DBG["fred_cal"] = f"{type(e).__name__}: {str(e)[:60]}"
-    return {"items": items, "calendar": cal[:12]}
+    return {"items": items, "calendar": cal[:12], "dbg": {k: v for k, v in DBG.items() if k.startswith("fred")}}
 
 
 def _sec_backlog(sym):
