@@ -716,6 +716,7 @@ async function renderMovers() {
   el.innerHTML = `<div class="grid2">${top(byPct.slice(0, 10), '涨幅榜')}${top(byPct.slice(-10).reverse(), '跌幅榜')}${top(byVol.slice(0, 10), '成交额榜')}</div>`;
 }
 const capStr = n => !n ? '--' : n >= 1e12 ? (n / 1e12).toFixed(2) + 'T' : (n / 1e9).toFixed(0) + 'B';
+const SESSION = { pre: '盘前', mid: '盘中(K 线未走完,收盘后会更新)', post: '盘后最终' };
 const ST_LABEL = { NEW: '新入选', STILL_VALID: '持续有效', WATCHING: '观察中', INVALIDATED: '已失效', DATA_INSUFFICIENT: '数据不足' };
 const REGIME = { BULL: '牛市(SPY 在 200 日线上,50 日线上升)', BEAR: '熊市(SPY 在 200 日线下,200 日线下降)', NEUTRAL: '中性' };
 const VAL_LABEL = { UNDERVALUED_RELATIVE_TO_PEERS: '同行相对低估', FAIR_VALUATION: '估值适中', EXPENSIVE_RELATIVE_TO_PEERS: '同行相对偏贵', NOT_MEANINGFUL: '估值不适用' };
@@ -740,7 +741,7 @@ async function renderPicks() {
   if (!P) { el.innerHTML = '<div class="card muted">暂无推荐数据。运行 python3 tools/screener_v2.py 生成,或等待每日自动更新。</div>'; return; }
   if (P.version !== 2) { el.innerHTML = '<div class="card muted">推荐数据版本过旧,请重新运行 python3 tools/screener_v2.py</div>'; return; }
   const cnt = c => `股票池 ${c.universe} → 财务安全 ${c.safety} → 形态 ${c.setup} → 观察 ${c.WATCHING} / 确认 ${c.CONFIRMED}${c.DATA_INSUFFICIENT ? ' · 数据不足 ' + c.DATA_INSUFFICIENT : ''}`;
-  el.innerHTML = `<div class="pnote"><b>每日选股 V2.0</b><span class="muted small"> 行情日期 ${esc(P.dataDate)} · 更新于 ${esc(P.asof)} · 扫描 ${P.universe} 只 · 市场环境:${esc(REGIME[P.regime] || P.regime)}</span></div>
+  el.innerHTML = `<div class="pnote"><b>每日选股 V2.0</b><span class="muted small"> ${P.session ? esc(SESSION[P.session] || '') + ' · ' : ''}行情日期 ${esc(P.dataDate)} · 更新于 ${esc(P.asof)} · 扫描 ${P.universe} 只 · 市场环境:${esc(REGIME[P.regime] || P.regime)}</span></div>
     <div class="grid3 picks">${P.presets.map(p => `<div class="card pcol"><h3 style="margin:0">${esc(p.name)}</h3><div class="muted small" style="margin:4px 0 8px;line-height:1.6">${esc(STRAT_LOGIC[p.id] || '')}</div><div class="muted small" style="margin-bottom:8px">${esc(cnt(p.counts))}</div>
       <div class="small"><b>已确认</b> ${p.confirmedTotal} 只${p.confirmedTotal > p.confirmed.length ? `(显示前 ${p.confirmed.length})` : ''}</div>
       ${p.confirmed.length ? p.confirmed.map((r, i) => pickRow2(r, i + 1)).join('') : '<div class="muted small" style="padding:8px 0">今天没有股票满足全部确认条件。不会为了凑数降低标准。</div>'}

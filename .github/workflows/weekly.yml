@@ -1,0 +1,44 @@
+name: 每周总结与前瞻
+on:
+  schedule:
+    # 周五美西 15:00 发本周总结(冬令时 UTC 23:00 / 夏令时 UTC 22:00)
+    - cron: "0 22,23 * * 5"
+    # 周日美西 17:00 发下周前瞻(冬令时 = 周一 UTC 01:00 / 夏令时 = 周一 UTC 00:00)
+    - cron: "0 0,1 * * 1"
+  workflow_dispatch:
+    inputs:
+      which:
+        description: "测试:立刻发哪一种(summary=本周总结,preview=下周前瞻,none=按时间自动判断)"
+        type: choice
+        options: [none, summary, preview]
+        default: none
+
+permissions:
+  contents: read
+
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: 判断周五总结该不该发
+        id: gs
+        run: python3 push/market_push.py gate weekly_summary
+      - name: 判断周日前瞻该不该发
+        id: gp
+        run: python3 push/market_push.py gate weekly_preview
+      - name: 发送本周总结
+        if: ${{ steps.gs.outputs.run == 'true' || inputs.which == 'summary' }}
+        env:
+          FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          FRED_KEY: ${{ secrets.FRED_KEY }}
+        run: python3 push/market_push.py weekly_summary ${{ inputs.which == 'summary' && '--force' || '' }}
+      - name: 发送下周前瞻
+        if: ${{ steps.gp.outputs.run == 'true' || inputs.which == 'preview' }}
+        env:
+          FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          FRED_KEY: ${{ secrets.FRED_KEY }}
+        run: python3 push/market_push.py weekly_preview ${{ inputs.which == 'preview' && '--force' || '' }}

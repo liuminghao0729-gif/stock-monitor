@@ -3,6 +3,8 @@ on:
   schedule:
     # 周一至周五,UTC 8:00-23:59(覆盖美股盘前到盘后),每 5 分钟一次。GitHub 可能有几分钟延迟。
     - cron: "*/5 8-23 * * 1-5"
+    # 周末:每 30 分钟检查一次,只推重大宏观新闻(不推自选股新闻、不推摘要)
+    - cron: "*/30 14-23 * * 0,6"
   workflow_dispatch:      # 允许在网页上手动运行
     inputs:
       test:
@@ -22,7 +24,9 @@ jobs:
       # 用缓存保存"已推送过的新闻",避免重复推送
       - uses: actions/cache@v4
         with:
-          path: push/sent.json
+          path: |
+            push/sent.json
+            push/state.json
           key: sent-${{ github.run_id }}
           restore-keys: sent-
       - name: 运行推送程序

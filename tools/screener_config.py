@@ -72,6 +72,7 @@ CONFIG = {
     "pool_min_group": 30,          # 行业样本不足 30,逐级用更大分类
     "winsor": (0.05, 0.95),        # 极端值截尾
     # ---- 输出 ----
+    "stickiness_margin": 5,        # 名单稳定性:已在名单里的股票排序时加 5 分,新候选必须明显更好才会替换(显示的分数不变)
     "max_confirmed": 5, "max_watching": 5, "invalidated_keep_days": 5,
     "risk": {"gm_drop": -0.05, "high_debt_eq": 2.0, "high_atr_pct": 0.06},
 }

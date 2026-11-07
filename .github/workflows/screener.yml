@@ -1,7 +1,7 @@
 name: 每日选股更新
 on:
   schedule:
-    # 周一至周五 UTC 22:30(美股 16:00 收盘后至少 1.5 小时,夏令时和冬令时都已收盘)。GitHub 可能有几分钟延迟。
+    # 周一至周五 UTC 22:30(美西 14:30 或 15:30,美股 13:00 收盘后)。休市日由脚本判断并跳过。GitHub 可能有几分钟延迟。
     - cron: "30 22 * * 1-5"
   workflow_dispatch:      # 允许在网页上手动运行
     inputs:
@@ -24,16 +24,20 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: 记录上一次的行情日期(用来判断今天有没有新行情)
+      - name: 判断今天是不是交易日
+        id: gate
         if: ${{ !inputs.notify_only }}
-        run: echo "PREV_DATA_DATE=$(python3 -c "import json;print(json.load(open('public/screener.json')).get('dataDate',''))")" >> "$GITHUB_ENV"
-      - name: 运行每日选股(V2.0)
-        if: ${{ !inputs.notify_only }}
+        run: python3 push/market_push.py gate post
+      - name: 保存上一份结果(用来对比有没有变化)
+        if: ${{ !inputs.notify_only && steps.gate.outputs.run == 'true' }}
+        run: cp public/screener.json /tmp/prev_screener.json
+      - name: 运行每日选股(V2.0,盘后最终结果)
+        if: ${{ !inputs.notify_only && steps.gate.outputs.run == 'true' }}
         env:
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
-        run: python3 tools/screener_v2.py
+        run: python3 tools/screener_v2.py --session post --history rw
       - name: 检查结果文件
-        if: ${{ !inputs.notify_only }}
+        if: ${{ !inputs.notify_only && steps.gate.outputs.run == 'true' }}
         run: |
           python3 - <<'PY'
           import json
@@ -43,7 +47,7 @@ jobs:
           print("行情日期", d["dataDate"], "| 扫描", d["universe"], "只 |", [(p["name"], p["confirmedTotal"]) for p in d["presets"]])
           PY
       - name: 有变化才提交
-        if: ${{ !inputs.notify_only }}
+        if: ${{ !inputs.notify_only && steps.gate.outputs.run == 'true' }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -52,10 +56,13 @@ jobs:
             echo "今天的结果没有变化,不提交"
           else
             git commit -m "每日选股更新 $(date -u +%Y-%m-%d)"
+            git pull --rebase -q
             git push
           fi
-      - name: 手机推送摘要(失败不影响更新)
+      - name: 手机推送盘后选股(失败不影响更新)
+        if: ${{ inputs.notify_only || steps.gate.outputs.run == 'true' }}
         continue-on-error: true
         env:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
-        run: python3 tools/notify_screener.py ${{ inputs.notify_only && '--force' || '' }}
+          PREV_SCREENER: /tmp/prev_screener.json
+        run: python3 push/market_push.py post --force

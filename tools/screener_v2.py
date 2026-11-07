@@ -632,9 +632,11 @@ def val_label(s, pool):
     return "NOT_MEANINGFUL" if p is None else ("UNDERVALUED_RELATIVE_TO_PEERS" if p <= 1 / 3 else ("EXPENSIVE_RELATIVE_TO_PEERS" if p >= 2 / 3 else "FAIR_VALUATION"))
 
 
-def top_rows(rows, n):
-    """只取确认状态的股票,按评分从高到低,最多 n 只;不足 n 只就只显示这么多,不凑数。"""
-    return sorted([r for r in rows if r["status"] in ("NEW", "STILL_VALID")], key=lambda r: r["score"] or 0, reverse=True)[:n]
+def top_rows(rows, n, margin=0.0):
+    """只取确认状态的股票,按评分从高到低,最多 n 只;不足 n 只就只显示这么多,不凑数。
+    margin:已经在名单里(STILL_VALID)的股票排序时加分,避免因为微小分数差天天换名单。显示的分数不变。"""
+    conf = [r for r in rows if r["status"] in ("NEW", "STILL_VALID")]
+    return sorted(conf, key=lambda r: (r["score"] or 0) + (margin if r["status"] == "STILL_VALID" else 0), reverse=True)[:n]
 
 
 def tier(cap):
@@ -711,7 +713,7 @@ def make_row(strat, s, T, F, ev, sc, cov, detail, hist_status, regime):
 
 
 # =============================== 主流程 ===============================
-def run(limit=0, out_path=None, use_history=True):
+def run(limit=0, out_path=None, history="rw", session="post"):
     t0 = time.time()
     stats = {"universe_raw": 0, "bars_ok": 0, "history_short": 0, "unsupported_sector": 0, "no_fundamentals": 0, "adv_fail": 0}
     print("1/5 股票池…")
@@ -815,6 +817,7 @@ def run(limit=0, out_path=None, use_history=True):
             s.setdefault("_r", {})[k] = (ev, sc, cov, det, st)
     date = max(s["T"]["date"] for s in work)
     hist_path = os.path.join(ROOT, "public", "screener_history.json")
+    use_history = history in ("rw", "ro")                 # rw:读写历史(盘后);ro:只读不写(盘中,K 线未走完);off:不用
     hist = {}
     if use_history and os.path.exists(hist_path):
         try:
@@ -842,17 +845,17 @@ def run(limit=0, out_path=None, use_history=True):
                 (watch if hs == "WATCHING" else conf).append(row)
         watch.sort(key=lambda r: r["score"] or 0, reverse=True)
         counts[k]["CONFIRMED"] = len(conf)
-        presets.append({"id": k, "name": NAMES[k], "counts": counts[k], "confirmed": top_rows(conf, CFG["max_confirmed"]), "confirmedTotal": len(conf),
+        presets.append({"id": k, "name": NAMES[k], "counts": counts[k], "confirmed": top_rows(conf, CFG["max_confirmed"], CFG["stickiness_margin"]), "confirmedTotal": len(conf),
                         "watching": watch[:CFG["max_watching"]], "watchingTotal": len(watch), "invalidated": inval[:5],
                         "topFailures": sorted(fails[k].items(), key=lambda x: -x[1])[:5]})
-    out = {"version": 2, "asof": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), "dataDate": date, "regime": regime, "stats": stats,
+    out = {"version": 2, "session": session, "intraday": session == "mid", "asof": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), "dataDate": date, "regime": regime, "stats": stats,
            "universe": len(work), "presets": presets, "dataLimits": ["免费数据只有最近 5 个季度:G1-B 路径(需前一季度同比)已关闭;FCF 率同比为单季度口径",
                                                                   "TTM 营收同比依赖 Finnhub(可选);未设置时强势回调/超跌反转标记为 DATA_INSUFFICIENT",
                                                                   "财报只有季度截止日,没有公告日期,因此不能做严格的历史回测",
                                                                   "无法检测债务到期、持续经营风险等事件"]}
     out_path = out_path or os.path.join(ROOT, "public", "screener.json")
     json.dump(out, open(out_path, "w"), ensure_ascii=False)
-    if use_history:
+    if history == "rw":
         json.dump({"records": new_hist, "updated": date}, open(hist_path, "w"), ensure_ascii=False)
     for p in presets:
         c = p["counts"]
@@ -867,9 +870,11 @@ if __name__ == "__main__":
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--out", default=None)
     ap.add_argument("--no-history", action="store_true")
+    ap.add_argument("--history", choices=["rw", "ro", "off"], default=None)
+    ap.add_argument("--session", choices=["pre", "mid", "post"], default="post")
     ap.add_argument("--probe-finnhub", action="store_true")
     a = ap.parse_args()
     if a.probe_finnhub:
         print("AAPL TTM 营收同比(Finnhub):", finnhub_ttm_yoy("AAPL"))
     else:
-        run(a.limit, a.out, not a.no_history)
+        run(a.limit, a.out, a.history or ("off" if a.no_history else "rw"), a.session)

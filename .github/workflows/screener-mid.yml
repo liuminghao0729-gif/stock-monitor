@@ -1,0 +1,68 @@
+name: 盘中选股更新
+on:
+  schedule:
+    # 美西 10:30。冬令时 = UTC 18:30,夏令时 = UTC 17:30;脚本用美西时间判断哪个有效
+    - cron: "30 17,18 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "忽略时间检查,立刻跑一次(测试;会提交结果)"
+        type: boolean
+        default: false
+
+# 只给这个任务"写入仓库"的权限,用来把盘中结果提交回仓库
+permissions:
+  contents: write
+
+concurrency:
+  group: screener
+  cancel-in-progress: false
+
+jobs:
+  mid:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: 判断现在该不该跑
+        id: gate
+        run: python3 push/market_push.py gate mid
+      - name: 保存上一份结果(用来对比有没有变化)
+        if: ${{ steps.gate.outputs.run == 'true' || inputs.test }}
+        run: cp public/screener.json /tmp/prev_screener.json
+      - name: 运行选股(盘中:K 线未走完,不写入历史记录)
+        if: ${{ steps.gate.outputs.run == 'true' || inputs.test }}
+        env:
+          FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+        run: python3 tools/screener_v2.py --session mid --history ro
+      - name: 检查结果文件
+        if: ${{ steps.gate.outputs.run == 'true' || inputs.test }}
+        run: |
+          python3 - <<'PY'
+          import json
+          d = json.load(open("public/screener.json"))
+          assert d["version"] == 2 and d["presets"], "结果文件异常"
+          assert d["universe"] >= 500, f"扫描到的股票只有 {d['universe']} 只,数据源可能被限流,不提交"
+          print("行情日期", d["dataDate"], "| 扫描", d["universe"], "只 |", [(p["name"], p["confirmedTotal"]) for p in d["presets"]])
+          PY
+      - name: 有变化才提交
+        if: ${{ steps.gate.outputs.run == 'true' || inputs.test }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/screener.json
+          if git diff --cached --quiet; then
+            echo "没有变化,不提交"
+          else
+            git commit -m "盘中选股更新 $(date -u +%Y-%m-%dT%H:%MZ)"
+            git pull --rebase -q
+            git push
+          fi
+      - name: 发送盘中摘要和选股更新
+        if: ${{ steps.gate.outputs.run == 'true' || inputs.test }}
+        continue-on-error: true
+        env:
+          FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          PREV_SCREENER: /tmp/prev_screener.json
+        run: python3 push/market_push.py mid --force

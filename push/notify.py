@@ -6,11 +6,14 @@
 用法:python3 push/notify.py            正常运行
       python3 push/notify.py --selftest  用样例新闻测试判断逻辑(不联网)
 """
-import json, os, sys, time, urllib.request, urllib.parse
+import datetime, json, os, sys, time, urllib.request, urllib.parse
+from zoneinfo import ZoneInfo
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.path.join(HERE, "config.json"), encoding="utf-8"))
 STATE = os.path.join(HERE, "sent.json")
+COUNT_STATE = os.path.join(HERE, "state.json")      # 每天已推送条数(按美西日期)
+PT = ZoneInfo("America/Los_Angeles")
 MAX_PER_RUN = CFG.get("max_per_run", 5)
 
 
@@ -56,6 +59,41 @@ def send(title, message, click="", priority=3):
     urllib.request.urlopen(urllib.request.Request("https://ntfy.sh/", data=body, headers={"Content-Type": "application/json"}), timeout=20).read()
 
 
+def in_quiet(t, cfg=CFG):
+    """夜间静音:美西 quiet_start 到 quiet_end(跨午夜)。"""
+    hm = lambda x: int(x[:2]) * 60 + int(x[3:])
+    m = t.hour * 60 + t.minute
+    a, b = hm(cfg["quiet_start"]), hm(cfg["quiet_end"])
+    return (m >= a or m < b) if a > b else (a <= m < b)
+
+
+def select(cand, now_ts, state, cfg=CFG, now=None):
+    """从候选里选出这次要推送的:周末只推重大宏观;静音时段不推;只推最近 fresh_minutes 分钟内的新闻;
+    每天最多 daily_max 条,其中非自选股的宏观新闻最多 macro_daily_max 条(给自选股留名额)。返回 (要推送的列表, 新状态)。"""
+    t = now or datetime.datetime.fromtimestamp(now_ts, PT)
+    day = t.strftime("%Y-%m-%d")
+    st = dict(state) if state.get("date") == day else {"date": day, "total": 0, "macro": 0}
+    if in_quiet(t, cfg):
+        return [], st
+    weekend = t.weekday() >= 5
+    out = []
+    for sc, tag, a in cand:
+        if a["datetime"] < now_ts - cfg["fresh_minutes"] * 60:
+            continue
+        if weekend and not (tag == "宏观" and sc - 1 >= cfg["weekend_macro_min_score"]):
+            continue
+        if st["total"] >= cfg["daily_max"]:
+            break
+        if tag == "宏观" and st["macro"] >= cfg["macro_daily_max"]:
+            continue
+        out.append((sc, tag, a))
+        st["total"] += 1
+        st["macro"] += tag == "宏观"
+        if len(out) >= MAX_PER_RUN:
+            break
+    return out, st
+
+
 def main():
     seen = set(json.load(open(STATE))) if os.path.exists(STATE) else None
     first = seen is None
@@ -73,9 +111,12 @@ def main():
         send("美股推送已启动", "之后只会推送新出现的重要新闻。")
         print("首次运行,已记录", len(all_ids), "条现有新闻")
     else:
-        for sc, tag, a in cand[:MAX_PER_RUN]:
+        state = json.load(open(COUNT_STATE)) if os.path.exists(COUNT_STATE) else {}
+        chosen, state = select(cand, time.time(), state)
+        for sc, tag, a in chosen:
             send(f"[{tag}] {a['headline'][:90]}", (a.get("summary") or a["headline"])[:200], a.get("url", ""), 4 if sc >= 3 else 3)
-        print("推送", min(len(cand), MAX_PER_RUN), "条,候选", len(cand))
+        json.dump(state, open(COUNT_STATE, "w"))
+        print("推送", len(chosen), "条,候选", len(cand), "| 今天已推", state["total"], "/", CFG["daily_max"])
     seen |= all_ids
     json.dump(sorted(seen)[-5000:], open(STATE, "w"))
 

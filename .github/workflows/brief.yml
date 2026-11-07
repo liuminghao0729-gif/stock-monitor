@@ -1,0 +1,31 @@
+name: 盘前早报
+on:
+  schedule:
+    # 美西 6:00。冬令时 = UTC 14:00,夏令时 = UTC 13:00;两个都触发,脚本用美西时间判断哪个有效(另一个会自动跳过)
+    - cron: "0 13,14 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "忽略时间检查,立刻发一条(测试)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: 判断现在该不该发
+        id: gate
+        run: python3 push/market_push.py gate brief
+      - name: 发送盘前早报
+        if: ${{ steps.gate.outputs.run == 'true' || inputs.test }}
+        env:
+          FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          FRED_KEY: ${{ secrets.FRED_KEY }}
+        run: python3 push/market_push.py brief ${{ inputs.test && '--force' || '' }}

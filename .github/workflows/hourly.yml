@@ -1,0 +1,31 @@
+name: 盘中每小时摘要
+on:
+  schedule:
+    # 美西 7:30–12:30 每小时一次(10:30 那次由"盘中选股"任务合并发送)。
+    # UTC 14:30–20:30 覆盖冬令时和夏令时,脚本用美西时间判断该不该发。
+    - cron: "30 14-20 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: "忽略时间检查,立刻发一条(测试)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  hourly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: 判断现在该不该发
+        id: gate
+        run: python3 push/market_push.py gate hourly
+      - name: 发送盘中摘要
+        if: ${{ steps.gate.outputs.run == 'true' || inputs.test }}
+        env:
+          FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+        run: python3 push/market_push.py hourly ${{ inputs.test && '--force' || '' }}
