@@ -642,8 +642,9 @@ async function renderEarnings() {
   let E; try { E = await Data.loadEarnings(d); } catch { E = { error: '财报数据加载失败' }; }
   if (state.tab !== 'earnings' || state.day !== idx) return;
   if (E.error) { el.innerHTML = tabs + `<div class="card muted">${E.error}</div>`; return; }
-  el.innerHTML = tabs + `<div class="grid2">${['盘前', '盘中', '盘后'].map(k => `<div class="card sess"><h4>${k}发布 · ${E[k].length} 家</h4>
-    ${E[k].length ? `<table><thead><tr><th>公司</th><th class="r">预期EPS</th><th class="r">预期营收</th></tr></thead><tbody>${E[k].map(e => `<tr><td><span class="sym" data-go="${esc(e.sym)}">${esc(e.sym)}</span> <span class="muted small">${esc(e.name)}</span></td><td class="r">${e.eps}${e.cur ? ' <span class="muted small">' + esc(e.cur) + '</span>' : ''}</td><td class="r">${e.rev}</td></tr>`).join('')}</tbody></table>` : '<div class="muted small">暂无</div>'}</div>`).join('')}</div>`;
+  const logo = sym => `<img class="clogo" src="https://static2.finnhub.io/file/publicdatany/finnhubimage/stock_logo/${encodeURIComponent(sym)}.png" alt="${esc(sym[0])}" loading="lazy" onerror="this.outerHTML='<span class=clogo-fb>'+this.alt+'</span>'">`;
+  el.innerHTML = tabs + `<div class="grid2">${['盘前', '盘后'].map(k => `<div class="card sess"><h4>${k}发布 · ${E[k].length} 家 <span class="muted small">市值 > 50 亿美元</span></h4>
+    ${E[k].length ? `<table><thead><tr><th>公司</th><th class="r">预期EPS</th><th class="r">预期营收</th></tr></thead><tbody>${E[k].map(e => `<tr><td class="cname">${logo(e.sym)}<div><span class="sym" data-go="${esc(e.sym)}">${esc(e.sym)}</span><span class="muted small cfull">${esc(e.name)}</span></div></td><td class="r">${e.eps}${e.cur ? ' <span class="muted small">' + esc(e.cur) + '</span>' : ''}</td><td class="r">${e.rev}</td></tr>`).join('')}</tbody></table>` : '<div class="muted small">暂无</div>'}</div>`).join('')}</div>`;
 }
 // ===== 涨跌幅榜 =====
 async function renderMovers() {

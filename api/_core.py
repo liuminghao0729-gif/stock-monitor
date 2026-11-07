@@ -473,22 +473,47 @@ def news(sym):
     return {"items": [{"title": x["headline"], "src": x.get("source", ""), "ts": x["datetime"], "url": x.get("url", "")} for x in d[:10]]}
 
 
+def _yh_caps(symbols):
+    """Yahoo 批量报价(每次最多 50 只):市值、公司全名、财报币种。结果缓存 6 小时。"""
+    out, todo = {}, []
+    for sym in symbols:
+        hit = _cache.get("cap:" + sym)
+        if hit and time.time() - hit[0] < 21600:
+            out[sym] = hit[1]
+        else:
+            todo.append(sym)
+    for i in range(0, len(todo), 50):
+        chunk = todo[i:i + 50]
+        try:
+            r = _yh_open("https://query2.finance.yahoo.com/v7/finance/quote?symbols=" + ",".join(urllib.parse.quote(x.replace(".", "-")) for x in chunk))
+            got = {q["symbol"]: q for q in r["quoteResponse"]["result"]}
+        except Exception as e:
+            DBG["earn_caps"] = f"{type(e).__name__}: {str(e)[:60]}"
+            continue
+        for sym in chunk:
+            q = got.get(sym.replace(".", "-"))
+            info = {"cap": q.get("marketCap") or 0, "name": q.get("longName") or q.get("shortName") or sym,
+                    "cur": q.get("financialCurrency") or q.get("currency") or "USD"} if q else {"cap": 0, "name": sym, "cur": "USD"}
+            _cache["cap:" + sym] = (time.time(), info)
+            out[sym] = info
+    return out
+
+
+EARN_MIN_CAP = 5e9          # 只列市值超过 50 亿美元的公司
+
+
 def earnings(date):
     d = _fh("calendar/earnings", {"from": date, "to": date}, 600)
     if d is None:
         return {"error": "no_key", "items": []}
-    rows = sorted(d.get("earningsCalendar", []), key=lambda x: x.get("revenueEstimate") or 0, reverse=True)[:45]
-
-    def cur(sym):       # 公司的财报币种(Finnhub 公司资料里的 currency),查不到就当作美元
-        try:
-            return (_fh("stock/profile2", {"symbol": sym}, 86400) or {}).get("currency") or "USD"
-        except Exception:
-            return "USD"
-    with ThreadPoolExecutor(6) as ex:
-        curs = list(ex.map(cur, [x["symbol"] for x in rows]))
-    hour = {"bmo": "盘前", "amc": "盘后", "dmh": "盘中"}
-    return {"items": [{"sym": x["symbol"], "when": hour.get(x.get("hour"), "盘后"), "eps": x.get("epsEstimate"),
-                       "rev": x.get("revenueEstimate"), "cur": c} for x, c in zip(rows, curs)]}
+    rows = [x for x in d.get("earningsCalendar", []) if x.get("hour") != "dmh"]       # 盘中几乎不发财报,不显示
+    caps = _yh_caps([x["symbol"] for x in rows])
+    if rows and not any(v["cap"] for v in caps.values()):
+        return {"error": "no_cap", "items": []}                                       # 拿不到市值就没法过滤,不乱显示
+    keep = sorted((x for x in rows if caps.get(x["symbol"], {}).get("cap", 0) >= EARN_MIN_CAP), key=lambda x: caps[x["symbol"]]["cap"], reverse=True)[:60]
+    hour = {"bmo": "盘前", "amc": "盘后"}
+    return {"items": [{"sym": x["symbol"], "name": caps[x["symbol"]]["name"], "when": hour.get(x.get("hour"), "盘后"), "eps": x.get("epsEstimate"),
+                       "rev": x.get("revenueEstimate"), "cur": caps[x["symbol"]]["cur"], "cap": caps[x["symbol"]]["cap"]} for x in keep]}
 
 
 # ---- 路由:本地服务器和 Vercel 共用 ----

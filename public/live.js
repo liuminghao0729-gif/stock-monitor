@@ -26,9 +26,9 @@ const LiveData = (() => {
     },
     async loadEarnings(d) {
       const ds = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-      const r = await api('/api/earnings?date=' + ds), out = { 盘前: [], 盘中: [], 盘后: [] };
-      if (r.error === 'no_key') return { error: '暂无数据' };
-      r.items.forEach(x => out[x.when].push({ sym: x.sym, name: (M.info[x.sym] || {}).name || '', eps: x.eps == null ? '--' : x.eps.toFixed(2), rev: x.rev ? (x.rev / 1e9).toFixed(1) + 'B' + (x.cur && x.cur !== 'USD' ? ' ' + x.cur : '') : '--', cur: x.cur && x.cur !== 'USD' ? x.cur : '' }));
+      const r = await api('/api/earnings?date=' + ds), out = { 盘前: [], 盘后: [] };
+      if (r.error) return { error: '暂无数据' };
+      r.items.forEach(x => { if (out[x.when]) out[x.when].push({ sym: x.sym, name: x.name || (M.info[x.sym] || {}).name || '', eps: x.eps == null ? '--' : x.eps.toFixed(2), rev: x.rev ? (x.rev / 1e9).toFixed(1) + 'B' + (x.cur && x.cur !== 'USD' ? ' ' + x.cur : '') : '--', cur: x.cur && x.cur !== 'USD' ? x.cur : '', cap: x.cap }); });
       return out;
     },
     async validate(sym) { await this.refreshQuotes([sym]); return !!qc[sym]; }
