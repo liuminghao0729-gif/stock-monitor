@@ -25,6 +25,14 @@ class H(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def end_headers(self):          # 本地预览不缓存网页文件,改完代码刷新就能看到
+        if "Cache-Control" not in self._headers_buffer_str():
+            self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
+    def _headers_buffer_str(self):
+        return b"".join(getattr(self, "_headers_buffer", [])).decode("latin-1")
+
     def log_message(self, *a):
         pass
 
