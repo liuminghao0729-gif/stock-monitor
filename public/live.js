@@ -15,6 +15,7 @@ const LiveData = (() => {
     async loadBars(sym, period) { bc[sym + '|' + period] = await api(`/api/bars?symbol=${encodeURIComponent(sym)}&period=${period}`); },
     detail: sym => dc[sym],
     async loadDetail(sym) { dc[sym] = await api('/api/detail?symbol=' + encodeURIComponent(sym)); },
+    async loadCompany(sym) { return api('/api/company?symbol=' + encodeURIComponent(sym)); },
     async loadNews(sym) {
       const r = await api('/api/news?symbol=' + encodeURIComponent(sym || ''));
       if (r.error === 'no_key') return { error: '未设置 Finnhub Key,新闻暂不可用' };

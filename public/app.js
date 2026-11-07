@@ -26,7 +26,7 @@ const state = {
   sel: null,
   period: store.get('period', 'D'), minute: store.get('minute', '1m'), type: store.get('ctype', 'candle'),
   ind: store.get('ind2', { ma: [1, 1, 1, 1, 0, 0], boll: 0, chip: 1, vol: 1, macd: 1, rsi: 1 }),
-  hover: -1, tab: 'watch', day: 0
+  hover: -1, tab: 'watch', day: 0, dt: 'chart'
 };
 if (!(state.period in PERIODS) && !(state.period in MINUTES)) state.period = 'D';
 if (!(state.minute in MINUTES)) state.minute = '1m';
@@ -107,7 +107,10 @@ $('#addForm').addEventListener('submit', async e => {
   if (!ok) { msg.textContent = Data.mode === 'mock' ? `模拟模式只支持内置股票;启动后台后可添加任意代码。` : `找不到代码 ${s},请检查拼写。`; return; }
   state.watch.push(s); store.set('watch', state.watch); msg.textContent = ''; $('#addInput').value = ''; renderWatch();
 });
-function selectStock(s) { state.sel = s; state.hover = -1; switchTab('watch'); renderWatch(); renderDetail(); }
+function selectStock(s) {
+  state.sel = s; state.hover = -1; switchTab('watch'); renderWatch(); renderDetail();
+  Data.refreshQuotes([s]).then(() => { if (state.sel === s) { const h = $('#dhead'); if (h) h.innerHTML = headHTML(s); renderWatch(); } }).catch(() => { });   // 竞争对手等不在自选里的代码
+}
 
 
 // ===== 个股详情 =====
@@ -122,7 +125,7 @@ function headHTML(s) {
     [['今开', P(q.open), vs(q.open)], ['昨收', P(q.prev)], ['平均价', P(d.avg)], ['量比(估算)', num(d.volRatio)], ['历史最高', P(d.ath)], ['历史最低', P(d.atl)]]
   ];
   const arrow = q.change >= 0 ? '↑' : '↓', open = store.get('statsOpen', true), show = open ? 6 : 2;
-  return `<div class="dh"><div><h2>${s} <span class="muted" style="font-size:14px;font-weight:400">${esc(q.name)}</span></h2></div></div>
+  return `<div class="dh"><div><h2>${s} <span class="muted" style="font-size:14px;font-weight:400">${esc(q.name)}</span></h2></div>${state.watch.includes(s) ? '' : '<button class="tb on" data-act="addwatch">＋ 加入自选</button>'}</div>
   <div class="px-big ${cls(q.change)}"><span class="big">${P(q.price)}</span><span class="arr">${Number.isFinite(q.price) ? arrow : ''}</span></div>
   <div class="${cls(q.change)} px-sub">${sgn(q.change, dec)} &nbsp; ${sgn(q.pct)}%</div>
   <div class="sgrid">${rows.map(col => `<div class="scol">${col.slice(0, show).map(([l, v, c]) => `<div class="srow"><span class="l">${l}</span><span class="v ${c || ''}">${v}</span></div>`).join('')}</div>`).join('')}</div>
@@ -132,15 +135,67 @@ async function renderDetail() {
   const s = state.sel; if (!s) { $('#detail').innerHTML = '<div class="muted">请先添加自选股</div>'; return; }
   V = null;
   $('#detail').innerHTML = `<div id="dhead">${headHTML(s)}</div>
-  <div class="legend" id="legend"></div>
-  <div class="chartwrap" id="cw"><canvas id="cv"></canvas><div id="cload" class="cload">图表加载中…</div></div>
-  <div class="tbar" id="tb"></div>
-  <h3>${s} 相关新闻 ${Data.mode === 'mock' ? '<span class="badge">模拟</span>' : ''}</h3>
-  <ul class="news" id="stockNews"><li class="muted">加载中…</li></ul>`;
-  bindChart(); renderToolbar(); loadChart(true); loadStats(s);
+  <div class="dtabs" id="dtabs"><button data-dt="chart">图表</button><button data-dt="company">公司</button></div>
+  <div id="dchart">
+    <div class="legend" id="legend"></div>
+    <div class="chartwrap" id="cw"><canvas id="cv"></canvas><div id="cload" class="cload">图表加载中…</div></div>
+    <div class="tbar" id="tb"></div>
+    <h3>${s} 相关新闻 ${Data.mode === 'mock' ? '<span class="badge">模拟</span>' : ''}</h3>
+    <ul class="news" id="stockNews"><li class="muted">加载中…</li></ul>
+  </div>
+  <div id="dcompany" class="hidden"></div>`;
+  bindChart(); renderToolbar(); loadChart(true); loadStats(s); showDT(state.dt);
   const stale = () => state.sel !== s || state.tab !== 'watch';
   Data.loadNews(s).then(l => { if (!stale()) $('#stockNews').innerHTML = newsHTML(l); })
     .catch(() => { if (!stale()) $('#stockNews').innerHTML = '<li class="muted">新闻加载失败</li>'; });
+}
+function showDT(dt) {
+  state.dt = dt;
+  document.querySelectorAll('#dtabs button').forEach(b => b.classList.toggle('on', b.dataset.dt === dt));
+  $('#dchart').classList.toggle('hidden', dt !== 'chart'); $('#dcompany').classList.toggle('hidden', dt !== 'company');
+  if (dt === 'chart') drawCharts(); else renderCompany();
+}
+const REC_COLORS = ['#1f9d6b', '#26c281', '#8b949e', '#f08a4b', '#ef4444'], REC_NAMES = ['强烈买入', '买入', '持有', '卖出', '强烈卖出'];
+function recHTML(c) {
+  const r = c && Array.isArray(c.rec) && c.rec[0]; if (!r) return '<div class="muted small">暂无分析师评级数据</div>';
+  const v = [r.strongBuy, r.buy, r.hold, r.sell, r.strongSell].map(x => x || 0), tot = v.reduce((a, b) => a + b, 0); if (!tot) return '<div class="muted small">暂无分析师评级数据</div>';
+  const score = (5 * v[0] + 4 * v[1] + 3 * v[2] + 2 * v[3] + v[4]) / tot, label = score >= 4.5 ? '强力推荐' : score >= 3.5 ? '买入' : score >= 2.5 ? '持有' : score >= 1.5 ? '卖出' : '强力卖出';
+  return `<div class="rec-h"><b>${tot} 位分析师综合评级</b> <span class="${score >= 3.5 ? 'up' : score >= 2.5 ? '' : 'down'}">${label}</span> <span class="muted small">更新:${esc(r.period || '')}</span></div>
+    <div class="recbar">${v.map((n, i) => n ? `<span style="flex:${n};background:${REC_COLORS[i]}" title="${REC_NAMES[i]} ${n}">${n}</span>` : '').join('')}</div>
+    <div class="reclegend">${REC_NAMES.map((nm, i) => `<span><i style="background:${REC_COLORS[i]}"></i>${nm} ${v[i]}</span>`).join('')}</div>`;
+}
+function earnHTML(c) {
+  const e = c && Array.isArray(c.earn) ? c.earn.filter(x => x && x.actual != null) : []; if (!e.length) return '<div class="muted small">暂无财报数据</div>';
+  return `<table><thead><tr><th>季度</th><th class="r">预期EPS</th><th class="r">实际EPS</th><th class="r">超预期</th></tr></thead><tbody>${e.map(x => { const sp = x.surprisePercent; return `<tr><td>${esc(x.period || '')}</td><td class="r">${x.estimate == null ? '--' : fmt(x.estimate)}</td><td class="r">${fmt(x.actual)}</td><td class="r ${sp >= 0 ? 'up' : 'down'}">${Number.isFinite(sp) ? sgn(sp) + '%' : '--'}</td></tr>`; }).join('')}</tbody></table>`;
+}
+const list = a => `<ul class="clist">${(a || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
+function companyHTML(s, c) {
+  const k = COMPANIES[s], p = (c && c.profile) || {}, q = Data.quote(s);
+  const meta = [p.finnhubIndustry, p.exchange, p.ipo ? '上市 ' + p.ipo : '', p.country].filter(Boolean).map(esc).join(' · ');
+  const web = /^https?:\/\//.test(p.weburl || '') ? ` · <a href="${p.weburl}" target="_blank" rel="noopener noreferrer">官网</a>` : '';
+  const peers = (k && k.comp) || (c && c.peers ? c.peers.filter(x => x !== s).slice(0, 8) : []);
+  const chips = peers.map(x => /^[A-Z.]{1,6}$/.test(x) ? `<button class="chip" data-go="${x}">${x}</button>` : `<span class="chip plain">${esc(x)}</span>`).join('');
+  const note = c && c.error === 'no_key' ? '未设置 Finnhub Key,自动数据(评级、财报)暂不可用' : c && c.error === 'mock' ? '模拟模式下没有评级与财报数据' : '';
+  let h = `<div class="csec"><h3>${esc(k ? k.n : q.name)} <span class="muted small">${meta}${web}</span></h3>${k ? `<p class="intro">${esc(k.intro)}</p>` : '<p class="muted">这只股票还没有手写的公司分析,下面只显示自动数据。</p>'}</div>`;
+  if (k) h += `<div class="csec"><h3>主营业务</h3>${list(k.segs)}</div>`;
+  h += `<div class="csec"><h3>分析师评级 ${Data.mode === 'mock' ? '<span class="badge">模拟</span>' : ''}</h3>${note && !(c && c.rec) ? `<div class="muted small">${note}</div>` : recHTML(c)}<div class="muted small" style="margin-top:6px">只显示评级人数分布。免费数据里没有各家机构的目标价与评级变动。</div></div>`;
+  if (peers.length) h += `<div class="csec"><h3>竞争对手</h3><div class="chips">${chips}</div></div>`;
+  if (k) {
+    h += `<div class="csec"><h3>竞争优势</h3>${list(k.adv)}</div>
+      <div class="csec"><h3>护城河</h3><div class="tags">${k.moat.tags.map(t => `<span class="mtag">${esc(t)}</span>`).join('')}</div><p>${esc(k.moat.text)}</p></div>
+      <div class="csec"><h3>领先领域</h3>${list(k.lead)}</div>
+      <div class="csec"><h3>未来订单 / 需求能见度</h3><p>${esc(k.orders)}</p></div>
+      <div class="csec"><h3>主要风险</h3>${list(k.risks)}</div>`;
+  }
+  h += `<div class="csec"><h3>财报对比(近 4 个季度)</h3>${note && !(c && c.earn) ? `<div class="muted small">${note}</div>` : earnHTML(c)}</div>
+    <div class="muted small cfoot">${k ? `业务、竞争优势、护城河、订单等为手写内容,撰写于 ${COMPANY_ASOF},基于公开信息,可能已过时,订单数字请以公司最新财报为准。` : ''}评级与财报来自 Finnhub。以上不构成投资建议。</div>`;
+  return h;
+}
+async function renderCompany() {
+  const s = state.sel, box = $('#dcompany'); if (!box) return;
+  box.innerHTML = companyHTML(s, null);
+  let c; try { c = await Data.loadCompany(s); } catch { c = { error: 'fail' }; }
+  if (state.sel === s && state.dt === 'company' && $('#dcompany')) $('#dcompany').innerHTML = companyHTML(s, c);
 }
 function loadStats(s) { if (Data.loadDetail) Data.loadDetail(s).then(() => { if (state.sel === s && state.tab === 'watch' && $('#dhead')) $('#dhead').innerHTML = headHTML(s); }).catch(() => { }); }
 function newsHTML(list) {
@@ -174,7 +229,9 @@ function setPeriod(p) {
   state.hover = -1; renderToolbar(); loadChart(true);
 }
 $('#detail').addEventListener('click', e => {
+  const dt = e.target.closest('[data-dt]'); if (dt) return showDT(dt.dataset.dt);
   const t = e.target.closest('[data-p],[data-act]'); if (!t) return;
+  if (t.dataset.act === 'addwatch') { if (!state.watch.includes(state.sel)) { state.watch.push(state.sel); store.set('watch', state.watch); } $('#dhead').innerHTML = headHTML(state.sel); renderWatch(); return; }
   if (t.dataset.p) return setPeriod(t.dataset.p);
   const a = t.dataset.act, pop = t.parentElement.querySelector('.pop');
   if (a === 'minmenu' || a === 'indmenu') { const was = pop.classList.contains('hidden'); closePops(); pop.classList.toggle('hidden', !was); e.stopPropagation(); return; }

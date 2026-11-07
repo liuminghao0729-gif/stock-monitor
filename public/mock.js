@@ -133,6 +133,7 @@ const MockData = (() => {
         amp: (q.high - q.low) / q.prev * 100, avg, turnover: avg * l.v, volume: l.v };
     },
     async loadDetail() { },
+    async loadCompany() { return { error: 'mock' }; },
     async loadNews(sym) { return this.news(sym); },
     async loadEarnings(d) { return this.earnings(Math.round((d - new Date()) / 864e5)); },
     async validate(sym) { return !!info[sym]; }

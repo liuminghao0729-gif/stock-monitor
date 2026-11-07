@@ -95,3 +95,24 @@ footer{padding:16px;text-align:center}
 .srow .v{font-weight:600}
 .sfold{display:block;margin:2px auto 6px;border:0;background:none;color:var(--muted);padding:0 20px;font-size:14px}
 @media(max-width:620px){.sgrid{grid-template-columns:repeat(2,1fr);gap:0 16px}.px-big .big{font-size:32px}}
+
+/* ===== 个股子标签 + 公司页 ===== */
+.dtabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:6px 0 10px}
+.dtabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;color:var(--muted);padding:8px 14px;font-size:15px}
+.dtabs button.on{color:var(--text);border-color:var(--accent)}
+.csec{padding:12px 0;border-bottom:1px solid var(--line)}
+.csec h3{margin:0 0 8px}
+.csec .intro{margin:0;line-height:1.7}
+.csec p{margin:6px 0;line-height:1.7}
+.clist{margin:0;padding-left:20px;line-height:1.8}
+.chips,.tags{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:#1b2028;border-radius:99px;padding:3px 12px;font-size:13px;color:var(--text)}
+button.chip:hover{border-color:var(--accent)}
+.chip.plain{color:var(--muted);cursor:default}
+.mtag{background:#12382b;color:var(--up);border-radius:6px;padding:2px 10px;font-size:13px}
+.recbar{display:flex;height:26px;border-radius:6px;overflow:hidden;margin:8px 0}
+.recbar span{display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;min-width:22px}
+.reclegend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.reclegend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.cfoot{padding-top:12px;line-height:1.6}
+a{color:var(--accent)}

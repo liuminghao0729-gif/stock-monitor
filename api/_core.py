@@ -169,6 +169,20 @@ def detail(sym):
     return out
 
 
+def company(sym):
+    """公司资料、竞争对手、分析师评级分布、财报对比(Finnhub 免费接口,需要 Key)。部分接口失败时对应字段为 None。"""
+    if not os.environ.get("FINNHUB_KEY"):
+        return {"error": "no_key"}
+    out = {}
+    for key, path, params in [("profile", "stock/profile2", {"symbol": sym}), ("peers", "stock/peers", {"symbol": sym}),
+                              ("rec", "stock/recommendation", {"symbol": sym}), ("earn", "stock/earnings", {"symbol": sym, "limit": 4})]:
+        try:
+            out[key] = _fh(path, params, 3600)
+        except Exception:
+            out[key] = None
+    return out
+
+
 def _fh(path, params, ttl):
     key = os.environ.get("FINNHUB_KEY")
     if not key:
@@ -215,6 +229,8 @@ def route(name, q):
         if name == "earnings":
             datetime.date.fromisoformat(q["date"])      # 校验日期格式
             return 200, earnings(q["date"]), 600
+        if name == "company":
+            return 200, company(q["symbol"].upper()), 600
         if name == "detail":
             return 200, detail(q["symbol"].upper()), 15
         if name == "status":
