@@ -246,6 +246,25 @@ def _yh_open(url):
     return json.load(_yh["op"].open(url + "&crumb=" + urllib.parse.quote(_yh["crumb"]), timeout=15))
 
 
+def _zh(text):
+    """英译中(Google 翻译的非官方免费接口,不需要 Key;失败返回 None,页面会显示英文原文)。"""
+    try:
+        parts, cur = [], ""
+        for sent in text.replace("\n", " ").split(". "):
+            if len(cur) + len(sent) > 1200 and cur:
+                parts.append(cur); cur = ""
+            cur += sent + ". "
+        parts.append(cur)
+        out = []
+        for part in parts:
+            u = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=zh-CN&dt=t&q=" + urllib.parse.quote(part)
+            out.append("".join(x[0] for x in _get(u, 86400)[0]))
+        return "".join(out)
+    except Exception as e:
+        DBG["translate"] = f"{type(e).__name__}: {str(e)[:60]}"
+        return None
+
+
 def _yh_summary(sym):
     """Yahoo 的分析师目标价和评级变动(非官方接口,可能随时变动)。ETF 或没人覆盖的股票返回 None。"""
     hit = _cache.get("yh:" + sym)
@@ -266,7 +285,7 @@ def _yh_summary(sym):
                    "to": x.get("toGrade"), "action": act.get(x.get("action"), x.get("action"))} for x in h] or None
         ap = r.get("assetProfile") or {}
         about = {"summary": ap.get("longBusinessSummary"), "sector": ap.get("sector"), "industry": ap.get("industry"),
-                 "employees": ap.get("fullTimeEmployees")} if ap.get("longBusinessSummary") else None
+                 "employees": ap.get("fullTimeEmployees"), "zh": _zh(ap.get("longBusinessSummary") or "")} if ap.get("longBusinessSummary") else None
         out = {"target": target, "grades": grades, "about": about}
     except Exception as e:
         DBG["yahoo"] = f"{sym}: {type(e).__name__}: {str(e)[:60]}"

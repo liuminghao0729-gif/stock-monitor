@@ -208,7 +208,7 @@ function companyHTML(s, c) {
   const note = c && c.error ? '暂无数据' : '';
   let h = `<div class="csec"><h3>${esc(k ? k.n : q.name)} <span class="muted small">${meta}${web}</span></h3>${k ? `<p class="intro">${esc(k.intro)}</p>` : c && c.about ? '' : '<p class="muted">暂无这家公司的详细分析</p>'}</div>`;
   if (k) h += `<div class="csec"><h3>主营业务</h3>${list(k.segs)}</div>`;
-  else if (c && c.about) h += `<div class="csec"><h3>公司简介 <span class="muted small">${[c.about.sector, c.about.industry, c.about.employees ? c.about.employees.toLocaleString('en-US') + ' 名员工' : ''].filter(Boolean).map(esc).join(' · ')}</span></h3><p class="intro">${esc(c.about.summary)}</p><div class="muted small">英文原文,来自 Yahoo;这只股票暂无中文分析</div></div>`;
+  else if (c && c.about) h += `<div class="csec"><h3>公司简介 <span class="muted small">${[c.about.sector, c.about.industry, c.about.employees ? c.about.employees.toLocaleString('en-US') + ' 名员工' : ''].filter(Boolean).map(esc).join(' · ')}</span></h3><p class="intro">${esc(c.about.zh || c.about.summary)}</p><div class="muted small">${c.about.zh ? '机器翻译自 Yahoo 的英文简介,仅供参考;' : '英文原文,来自 Yahoo;'}这只股票暂无深度中文分析</div></div>`;
   h += `<div class="csec"><h3>分析师评级</h3>${note && !(c && c.rec) ? `<div class="muted small">${note}</div>` : recHTML(c)}</div>`;
   if (c && c.target) h += `<div class="csec"><h3>分析师目标价</h3>${targetHTML(c)}</div>`;      // 没数据(如 ETF)就不显示这一栏
   if (c && Array.isArray(c.grades) && c.grades.length) h += `<div class="csec"><h3>最近机构评级变动</h3>${gradesHTML(c)}</div>`;
