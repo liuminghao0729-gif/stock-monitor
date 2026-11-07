@@ -525,7 +525,10 @@ def update_history(hist, today, date, keep_days=5):
         prev = h.get("latest_status")
         status = t["status"]
         if status == "CONFIRMED":
-            status = "STILL_VALID" if prev in LIVE else "NEW"
+            if prev in LIVE and h.get("last_updated_date") == date:
+                status = prev                                  # 同一个数据日重跑:保持原状态,不把 NEW 变成 STILL_VALID
+            else:
+                status = "STILL_VALID" if prev in LIVE else "NEW"
         if status in ("NEW", "STILL_VALID", "WATCHING", "DATA_INSUFFICIENT"):
             h.setdefault("first_detected_date", date)
             if status in ("NEW", "STILL_VALID"):
@@ -605,6 +608,21 @@ def market_regime(spy):
 
 
 # =============================== 输出行 ===============================
+def extra_risks(strat, row):
+    """确认条件满足不等于当前价格适合买入:价格已离回调低点/波段低点很远,或距 20 日高点空间不足,单独提示。"""
+    out, px = [], row.get("price")
+    low, rr, inv = row.get("pullbackLow"), row.get("rr"), row.get("invalidBelow")
+    if strat == "pullback" and low and px and px / low - 1 > 0.10:
+        out.append(f"价格已较回调低点上涨 {(px / low - 1) * 100:.0f}%,反弹可能已走完一段")
+    if strat == "pullback" and rr is not None and rr < 1:
+        out.append(f"估计收益风险比仅 {rr}(到 20 日高点的空间小于到回调低点的风险)")
+    if strat == "reversal" and inv and px and px / inv - 1 > 0.25:
+        out.append(f"价格已较确认低点上涨 {(px / inv - 1) * 100:.0f}%,反转可能已经走了很远")
+    if row.get("rsi") is not None and row["rsi"] >= 70:
+        out.append(f"RSI {row['rsi']:.0f} 已进入偏热区间")
+    return out
+
+
 def val_label(s, pool):
     """估值标签:用 EV/Revenue 在同行业(样本不足则板块/全体)里的百分位判断;不适用就标 NOT_MEANINGFUL。"""
     ev = s["M"].get("ev_rev")
@@ -819,6 +837,7 @@ def run(limit=0, out_path=None, use_history=True):
             if hs in ("NEW", "STILL_VALID", "WATCHING"):
                 row = make_row(k, s, s["T"], s["F"], ev, sc, cov, det, hs, regime)
                 row["valuation"]["label"] = val_label(s, pool)
+                row["risks"] = extra_risks(k, row) + row["risks"]
                 (watch if hs == "WATCHING" else conf).append(row)
         watch.sort(key=lambda r: r["score"] or 0, reverse=True)
         counts[k]["CONFIRMED"] = len(conf)

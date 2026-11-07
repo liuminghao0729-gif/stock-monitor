@@ -127,6 +127,18 @@ class Rules(unittest.TestCase):
         h4, s4 = S.update_history(h3, {"BBB|growth": {"status": "CONFIRMED", "score": 71, "px": 11}}, "2026-11-06")
         self.assertEqual((s3["BBB|growth"], s4["BBB|growth"]), ("NEW", "STILL_VALID"))
 
+    def test_16_same_day_rerun_keeps_new(self):
+        t = {"BBB|growth": {"status": "CONFIRMED", "score": 70, "px": 10}}
+        h1, s1 = S.update_history({}, t, "2026-11-06")
+        h2, s2 = S.update_history(h1, t, "2026-11-06")                                           # 同一个数据日重跑
+        h3, s3 = S.update_history(h2, t, "2026-11-09")                                           # 下一个交易日
+        self.assertEqual((s1["BBB|growth"], s2["BBB|growth"], s3["BBB|growth"]), ("NEW", "NEW", "STILL_VALID"))
+
+    def test_17_extra_risks_flag_late_entries(self):
+        r = S.extra_risks("pullback", {"price": 120.0, "pullbackLow": 100.0, "rr": 0.2, "rsi": 72})
+        self.assertEqual(len(r), 3)
+        self.assertEqual(S.extra_risks("reversal", {"price": 130.0, "invalidBelow": 100.0, "rsi": 50}), ["价格已较确认低点上涨 30%,反转可能已经走了很远"])
+
     def test_14_capex_sign_not_double_subtracted(self):
         base = lambda cap: {"series": {"quarterlyTotalRevenue": [("d", 100.0)] * 5, "quarterlyOperatingCashFlow": [("d", 30.0)] * 5, "quarterlyCapitalExpenditure": [("d", cap)] * 5}, "qs": {}}
         neg, pos = S.derive(base(-5.0)), S.derive(base(5.0))                                     # CAPEX 记为负数或正数,结果一致:30-5=25 每季
