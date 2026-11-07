@@ -182,6 +182,12 @@ def company(sym):
             out[key] = _fh(path, params, 3600)
         except Exception:
             out[key] = None
+    # 试探:目标价、机构评级变动(Finnhub 免费版通常没有权限)。失败时返回错误原因,方便确认能不能用
+    for key, path, params in [("target", "stock/price-target", {"symbol": sym}), ("ud", "stock/upgrade-downgrade", {"symbol": sym})]:
+        try:
+            out[key] = _fh(path, params, 3600)
+        except Exception as e:
+            out[key] = {"error": f"{type(e).__name__}: {str(e)[:60]}"}
     return out
 
 
