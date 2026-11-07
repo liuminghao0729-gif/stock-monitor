@@ -265,6 +265,34 @@ def _zh(text):
         return None
 
 
+def _head(t, n=450):
+    """只取英文简介开头一小段(在句子结尾处截断),避免翻译又长又慢。"""
+    t = t.replace("\n", " ")
+    if len(t) <= n:
+        return t
+    i = t.rfind(". ", 0, n)
+    return t[:i + 1] if i > 100 else t[:n]
+
+
+def _brief(zh, lo=50, hi=110):
+    """把中文简介压缩到一两句话(和手写的那 36 家风格一致)。"""
+    if not zh:
+        return None
+    out = ""
+    for sent in zh.replace("。 ", "。").split("。"):
+        if not sent.strip():
+            continue
+        if out and len(out) + len(sent) > hi:
+            break
+        out += sent + "。"
+        if len(out) >= lo:
+            break
+    if len(out) > hi + 30:           # 第一句本身就太长:在逗号处截断
+        cut = max(out.rfind("，", 0, hi), out.rfind(",", 0, hi))
+        out = (out[:cut] if cut > 30 else out[:hi]) + "。"
+    return out
+
+
 def _yh_summary(sym):
     """Yahoo 的分析师目标价和评级变动(非官方接口,可能随时变动)。ETF 或没人覆盖的股票返回 None。"""
     hit = _cache.get("yh:" + sym)
@@ -285,7 +313,7 @@ def _yh_summary(sym):
                    "to": x.get("toGrade"), "action": act.get(x.get("action"), x.get("action"))} for x in h] or None
         ap = r.get("assetProfile") or {}
         about = {"summary": ap.get("longBusinessSummary"), "sector": ap.get("sector"), "industry": ap.get("industry"),
-                 "employees": ap.get("fullTimeEmployees"), "zh": _zh(ap.get("longBusinessSummary") or "")} if ap.get("longBusinessSummary") else None
+                 "employees": ap.get("fullTimeEmployees"), "zh": _brief(_zh(_head(ap.get("longBusinessSummary") or "")))} if ap.get("longBusinessSummary") else None
         out = {"target": target, "grades": grades, "about": about}
     except Exception as e:
         DBG["yahoo"] = f"{sym}: {type(e).__name__}: {str(e)[:60]}"
