@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.join(ROOT, "api"))
 import _core as core
 
 # ---------- 筛选范围(用户设定) ----------
-MIN_CAP = 5e9            # 市值 ≥ 50 亿美元
+MIN_CAP = 10e9           # 市值 ≥ 100 亿美元
 MIN_DOLLAR_VOL = 10e6    # 日均成交额 ≥ 1000 万美元
 MIN_PRICE = 10.0         # 股价 ≥ 10 美元
 PICKS = 5                # 每种组合每天 5 只
@@ -139,6 +139,7 @@ def fundamentals(sym):
             g = lambda blk, k: ((r.get(blk) or {}).get(k) or {}).get("raw") if isinstance((r.get(blk) or {}).get(k), dict) else None
             return {"revG": g("financialData", "revenueGrowth"), "earnG": g("financialData", "earningsGrowth"), "gm": g("financialData", "grossMargins"),
                     "roe": g("financialData", "returnOnEquity"), "roa": g("financialData", "returnOnAssets"), "ocf": g("financialData", "operatingCashflow"),
+                    "fcf": g("financialData", "freeCashflow"), "rev": g("financialData", "totalRevenue"),
                     "fpe": g("defaultKeyStatistics", "forwardPE"), "peg": g("defaultKeyStatistics", "pegRatio"), "pb": g("defaultKeyStatistics", "priceToBook"),
                     "tpe": g("summaryDetail", "trailingPE"), "sector": (r.get("assetProfile") or {}).get("sector")}
         except Exception as e:
@@ -175,14 +176,14 @@ def technicals(h, l, c, v, spy6m):
 
 # ---------- 三种组合 ----------
 def growth_checks(f):
-    """A4 成长:营收同比 ≥ 20%;净利润同比 ≥ 15% 或营收 ≥ 30%(允许暂时亏损);毛利率 ≥ 40%(科技)/ 30%(其他)。"""
+    """A4 成长(阈值比初版各上调 5 个百分点):营收同比 ≥ 25%;净利润同比 ≥ 20% 或营收 ≥ 35%(允许暂时亏损);毛利率 ≥ 45%(科技)/ 35%(其他)。"""
     if not f:
-        return [("营收同比 ≥ 20%", None), ("利润同比 ≥ 15% 或营收 ≥ 30%", None), ("毛利率达标", None)]
+        return [("营收同比 ≥ 25%", None), ("净利润同比 ≥ 20% 或营收 ≥ 35%", None), ("毛利率达标", None)]
     tech = f.get("sector") == "Technology"
     rg, eg, gm = f.get("revG"), f.get("earnG"), f.get("gm")
-    return [("营收同比 ≥ 20%", None if rg is None else rg >= 0.20),
-            ("净利润同比 ≥ 15% 或营收 ≥ 30%", None if rg is None else ((eg or -1) >= 0.15 or rg >= 0.30)),
-            (f"毛利率 ≥ {40 if tech else 30}%", None if gm is None else gm >= (0.40 if tech else 0.30))]
+    return [("营收同比 ≥ 25%", None if rg is None else rg >= 0.25),
+            ("净利润同比 ≥ 20% 或营收 ≥ 35%", None if rg is None else ((eg or -1) >= 0.20 or rg >= 0.35)),
+            (f"毛利率 ≥ {45 if tech else 35}%", None if gm is None else gm >= (0.45 if tech else 0.35))]
 
 def evaluate(t, f):
     """返回三个组合各自的 (条件列表, 分数)。条件为 (文字, True/False/None);None 表示没有数据。"""
@@ -212,6 +213,24 @@ def evaluate(t, f):
     score = sum(25 for _, ok in rc if ok) + max(0, 40 - (t["rsi"] or 40)) + max(0, 25 - t["pctile"])
     out["reversal"] = (rc, score, {})
     return out
+
+def pct_rank(vals, v, cap=None):
+    """v 在 vals 中的百分位(0 到 1)。None 当作最差。"""
+    if v is None:
+        return 0.0
+    vals = [min(x, cap) if cap is not None else x for x in vals if x is not None]
+    v = min(v, cap) if cap is not None else v
+    return sum(1 for x in vals if x <= v) / len(vals) if vals else 0.0
+
+def quality(rows):
+    """给一组股票算"公司质量分"(0 到 100):增长、现金流、ROE、毛利、信号强度,按这一组内的百分位排名,避免被极端数字带偏。"""
+    col = lambda k: [r["m"].get(k) for r in rows]
+    parts = {"revG": 0.22, "earnG": 0.12, "fcfM": 0.24, "roe": 0.16, "gm": 0.10, "sig": 0.16}
+    caps = {"revG": 2.0, "earnG": 2.0}
+    for r in rows:
+        q = sum(w * pct_rank(col(k), r["m"].get(k), caps.get(k)) for k, w in parts.items())
+        r["quality"] = round(q * 100, 1)
+    return rows
 
 PRESETS = [("growth", "激进成长", "高增长公司 + 趋势向上,偏顺势", True),
            ("pullback", "强势回调", "高增长公司在上升趋势中的回调", True),
@@ -254,18 +273,32 @@ def main():
                 continue                                  # 成长类必须有基本面数据
             ok_all = all(ok for _, ok in conds if ok is not None) and all(ok is not None for _, ok in conds[:3] if pid != "reversal")
             hits = [c for c, ok in conds if ok]; miss = [c for c, ok in conds if ok is False]; nodata = [c for c, ok in conds if ok is None]
+            if pid == "growth":
+                sig = min(t["r2"] or 0, 1) * 0.5 + (((t["px"] >= t["hi52"] * 0.90) + (t["ret6m"] >= 0.30) + (t["rel6m"] > 0)) / 3) * 0.5
+            elif pid == "pullback":
+                sig = max(0, min((40 - (t["rsi"] or 40)) / 20, 1))
+            else:
+                sig = 0.5 * max(0, (25 - t["pctile"]) / 25) + 0.5 * min(t["volr"] / 2, 1)
+            fcfM = (f["fcf"] / f["rev"]) if f and f.get("fcf") is not None and f.get("rev") else None
+            ocfM = (f["ocf"] / f["rev"]) if f and f.get("ocf") is not None and f.get("rev") else None
             rows.append({"sym": u["sym"], "name": u["name"], "price": round(t["px"], 2), "cap": u["cap"], "day": round(t["day"] * 100, 2),
                          "sector": (f or {}).get("sector"), "strict": bool(ok_all), "score": round(score, 1), "hits": hits, "misses": miss, "nodata": nodata,
-                         "m": {"revG": (f or {}).get("revG"), "earnG": (f or {}).get("earnG"), "gm": (f or {}).get("gm"), "roe": (f or {}).get("roe"),
+                         "m": {"fcfM": fcfM, "ocfM": ocfM, "sig": round(sig, 3), "revG": (f or {}).get("revG"), "earnG": (f or {}).get("earnG"), "gm": (f or {}).get("gm"), "roe": (f or {}).get("roe"),
                                "rsi": round(t["rsi"], 1) if t["rsi"] is not None else None, "adx": round(t["adx"], 1) if t["adx"] else None,
                                "pctile": round(t["pctile"]), "ret6m": round(t["ret6m"] * 100, 1), "volr": round(t["volr"], 2),
                                "fpe": (f or {}).get("fpe"), "peg": (f or {}).get("peg"), "pb": (f or {}).get("pb"),
                                "roeOk": bool(f and f.get("roe") is not None and f["roe"] >= 0.10 and (f.get("roa") or 0) >= 0.03),
                                "valOk": bool(f and f.get("tpe") is not None and f["tpe"] <= 25 and (f.get("pb") or 99) <= 3 and (f.get("peg") or 99) <= 1.5)}})
-        rows.sort(key=lambda r: (r["strict"], r["score"]), reverse=True)
-        res.append({"id": pid, "name": name, "desc": desc, "strictCount": sum(r["strict"] for r in rows), "picks": rows[:PICKS]})
+        strict = quality([r for r in rows if r["strict"]])        # 先在"完全符合条件"的股票里,按公司质量从好到差排序
+        loose = quality([r for r in rows if not r["strict"]])     # 不足 5 只时,才用"部分符合"的补
+        strict.sort(key=lambda r: r["quality"], reverse=True)
+        loose.sort(key=lambda r: (r["score"], r["quality"]), reverse=True)
+        picks = (strict + loose)[:PICKS]
+        for i, r in enumerate(picks, 1):
+            r["rank"] = i
+        res.append({"id": pid, "name": name, "desc": desc, "strictCount": len(strict), "picks": picks})
     out = {"asof": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"), "universe": len(uni), "scanned": len(scanned),
-           "rules": {"cap": "市值 ≥ 50 亿美元", "vol": "日均成交额 ≥ 1000 万美元", "price": "股价 ≥ 10 美元"}, "presets": res}
+           "rules": {"cap": "市值 ≥ 100 亿美元", "vol": "日均成交额 ≥ 1000 万美元", "price": "股价 ≥ 10 美元"}, "presets": res}
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
     with open(a.out, "w") as fh:
         json.dump(out, fh, ensure_ascii=False)

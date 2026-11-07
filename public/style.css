@@ -194,3 +194,4 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 .ptags{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}.ptag{font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
 .ptag.ok{color:var(--up);border-color:rgba(126,211,164,.45)}.ptag.part{color:var(--accent);border-color:rgba(207,167,108,.45)}
 .prow details summary{cursor:pointer;list-style:none}.prow details ul{margin:6px 0 0}
+.prank{display:inline-flex;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#1a1409;font-size:12px;font-weight:700;align-items:center;justify-content:center;margin-right:2px}
