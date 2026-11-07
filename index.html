@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>美股盯盘助手</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">美股盯盘助手 <span class="badge" id="dataMode">模拟数据</span></div>
+  <div class="status">
+    <span id="mkt" class="pill">--</span>
+    <span id="clock" class="muted"></span>
+    <span class="muted">· <span id="countdown">--</span>s 后刷新</span>
+  </div>
+</header>
+
+<section id="indices" class="strip"></section>
+
+<nav id="tabs" class="tabs">
+  <button data-tab="watch" class="on">看盘</button>
+  <button data-tab="sectors">板块</button>
+  <button data-tab="earnings">财报日历</button>
+  <button data-tab="movers">涨跌幅榜</button>
+  <button data-tab="alerts">推送提醒</button>
+</nav>
+
+<main>
+  <div id="view-watch" class="view">
+    <aside class="card" id="watchPanel">
+      <form id="addForm" class="addrow">
+        <input id="addInput" placeholder="输入代码,如 TSLA" maxlength="8" autocomplete="off">
+        <button type="submit">添加</button>
+      </form>
+      <div id="addMsg" class="muted small"></div>
+      <div id="watchList"></div>
+    </aside>
+    <section class="card" id="detail"></section>
+  </div>
+  <div id="view-sectors" class="view hidden"></div>
+  <div id="view-earnings" class="view hidden"></div>
+  <div id="view-movers" class="view hidden"></div>
+  <div id="view-alerts" class="view hidden"></div>
+</main>
+
+<footer class="muted small">仅供学习参考,不构成投资建议。当前为模拟数据。</footer>
+<script src="mock.js"></script>
+<script src="live.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

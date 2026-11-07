@@ -1,0 +1,63 @@
+:root{
+  --bg:#0d1117;--card:#161b22;--line:#262d38;--text:#e6edf3;--muted:#8b949e;
+  --up:#26c281;--down:#ef4444;--accent:#4c8dff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,"PingFang SC","Helvetica Neue",Arial,sans-serif}
+.muted{color:var(--muted)}.small{font-size:12px}
+.up{color:var(--up)}.down{color:var(--down)}
+.hidden{display:none!important}
+button{background:#222a35;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:5px 12px;cursor:pointer;font:inherit}
+button:hover{border-color:var(--accent)}
+input{background:#0d1117;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font:inherit}
+.top{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap;gap:6px}
+.brand{font-size:17px;font-weight:700}
+.badge{font-size:11px;background:#5a3b00;color:#ffc14d;border-radius:4px;padding:1px 6px;margin-left:6px;font-weight:400}
+.pill{padding:2px 10px;border-radius:99px;background:#222a35;font-size:12px}
+.pill.open{background:#12382b;color:var(--up)}.pill.pre,.pill.post{background:#3a3010;color:#ffc14d}
+.strip{display:flex;gap:8px;overflow-x:auto;padding:10px 16px}
+.idx{min-width:128px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;flex:0 0 auto}
+.idx .n{font-size:12px;color:var(--muted)}.idx .p{font-size:16px;font-weight:600}.idx .c{font-size:12px}
+.tabs{display:flex;gap:4px;padding:0 16px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none;padding:10px 14px;color:var(--muted);white-space:nowrap}
+.tabs button.on{color:var(--text);border-color:var(--accent)}
+main{padding:12px 16px}
+#view-watch{display:grid;grid-template-columns:300px 1fr;gap:12px}
+@media(max-width:860px){#view-watch{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;min-width:0}
+.addrow{display:flex;gap:6px}.addrow input{flex:1;min-width:0}
+.wrow{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:8px 6px;border-bottom:1px solid var(--line);cursor:pointer;border-radius:6px}
+.wrow:hover,.wrow.sel{background:#1d2530}
+.wrow .s{font-weight:600}.wrow .nm{font-size:12px;color:var(--muted)}
+.wrow .px{text-align:right;font-variant-numeric:tabular-nums}
+.chg{min-width:68px;text-align:right;padding:2px 6px;border-radius:5px;font-variant-numeric:tabular-nums;font-size:13px}
+.chg.up{background:rgba(38,194,129,.15)}.chg.down{background:rgba(239,68,68,.15)}
+.wrow .x{color:var(--muted);border:0;background:none;padding:0 4px}
+.dh{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:8px}
+.dh h2{margin:0;font-size:20px}.dh .big{font-size:28px;font-weight:700}
+.ctrl{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0;align-items:center}
+.ctrl button.on{background:var(--accent);border-color:var(--accent)}
+.ctrl label{font-size:12px;display:inline-flex;align-items:center;gap:3px;cursor:pointer}
+.chartwrap{position:relative}
+.chartrow{display:flex}.chartrow canvas{display:block}
+.legend{font-size:12px;min-height:18px;margin:4px 0;font-variant-numeric:tabular-nums}
+.sub{margin-top:2px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin:12px 0}
+.stat{background:#10151c;border-radius:8px;padding:6px 10px}.stat .l{font-size:12px;color:var(--muted)}
+h3{margin:16px 0 8px;font-size:15px}
+.news{list-style:none;padding:0;margin:0}
+.news li{padding:8px 0;border-bottom:1px solid var(--line);display:flex;gap:10px}
+.tag{font-size:11px;padding:0 6px;border-radius:4px;background:#222a35;color:var(--muted);height:18px;flex:0 0 auto}
+.tag.hot{background:#4a1d1d;color:#ff8a8a}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:7px 8px;text-align:left;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:400;font-size:12px}
+td.r,th.r{text-align:right}
+.sess{margin-bottom:14px}.sess h4{margin:0 0 6px;font-size:13px;color:var(--muted)}
+.daytabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.daytabs button.on{background:var(--accent);border-color:var(--accent)}
+.sym{cursor:pointer;font-weight:600}.sym:hover{color:var(--accent)}
+footer{padding:16px;text-align:center}
+.todo{border:1px dashed var(--line);border-radius:8px;padding:12px;margin:8px 0}
+.badge.live{background:#12382b;color:#26c281}

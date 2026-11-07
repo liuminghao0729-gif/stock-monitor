@@ -1,0 +1,6 @@
+.env
+*.key
+push/sent.json
+__pycache__/
+.claude/
+.DS_Store

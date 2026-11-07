@@ -1,0 +1,16 @@
+{
+  "watchlist": ["AAPL", "NVDA", "VOO", "QQQ"],
+  "max_per_run": 5,
+  "macro_min_score": 2,
+  "macro_keywords": [
+    "Federal Reserve", "Fed ", "FOMC", "Powell", "rate cut", "rate hike", "interest rate", "CPI", "inflation", "PPI",
+    "jobs report", "nonfarm", "payrolls", "unemployment", "GDP", "recession", "Treasury yield", "tariff", "trade war",
+    "OPEC", "oil price", "government shutdown", "debt ceiling", "sanction", "ceasefire", "China", "Trump", "stocks plunge",
+    "stocks surge", "market selloff", "Wall Street", "gold price", "bond market"
+  ],
+  "stock_keywords": [
+    "earnings", "guidance", "upgrade", "downgrade", "price target", "SEC", "probe", "investigation", "lawsuit", "antitrust",
+    "acquire", "acquisition", "merger", "recall", "layoff", "buyback", "dividend", "FDA", "plunge", "soar", "surge",
+    "tumble", "beats", "misses", "forecast", "export", "ban", "partnership", "deal"
+  ]
+}

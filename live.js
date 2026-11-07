@@ -1,0 +1,30 @@
+// 真实数据层:通过本站的 /api 后台取数据(Key 只在后台,网页里没有任何密钥)
+const LiveData = (() => {
+  const M = MockData, qc = {}, bc = {};
+  const api = async p => { const r = await fetch(p); if (!r.ok) throw new Error('API ' + r.status); return r.json(); };
+  const blank = sym => ({ sym, name: (M.info[sym] || {}).name || sym, price: NaN, prev: NaN, change: 0, pct: 0, high: NaN, low: NaN, open: NaN, volume: 0 });
+  const WHEN = ['盘前', '盘中', '盘后'];
+  return {
+    mode: 'live', info: M.info, U: M.U, SECTORS: M.SECTORS, INDICES: M.INDICES,
+    quote: sym => qc[sym] || blank(sym),
+    async refreshQuotes(syms) {
+      const list = await api('/api/quotes?symbols=' + encodeURIComponent([...new Set(syms)].join(',')));
+      list.forEach(q => { if (M.info[q.sym]) q.name = M.info[q.sym].name; qc[q.sym] = q; });
+    },
+    bars: (sym, range) => bc[sym + '|' + range],
+    async loadBars(sym, range) { bc[sym + '|' + range] = await api(`/api/bars?symbol=${encodeURIComponent(sym)}&range=${range}`); },
+    async loadNews(sym) {
+      const r = await api('/api/news?symbol=' + encodeURIComponent(sym || ''));
+      if (r.error === 'no_key') return { error: '未设置 Finnhub Key,新闻暂不可用' };
+      return r.items.map(x => ({ title: x.title, src: x.src, url: x.url, minsAgo: Math.max(1, Math.round((Date.now() / 1000 - x.ts) / 60)), hot: false }));
+    },
+    async loadEarnings(d) {
+      const ds = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      const r = await api('/api/earnings?date=' + ds), out = { 盘前: [], 盘中: [], 盘后: [] };
+      if (r.error === 'no_key') return { error: '未设置 Finnhub Key,财报日历暂不可用' };
+      r.items.forEach(x => out[x.when].push({ sym: x.sym, name: (M.info[x.sym] || {}).name || '', eps: x.eps == null ? '--' : x.eps.toFixed(2), rev: x.rev ? (x.rev / 1e9).toFixed(1) + 'B' : '--' }));
+      return out;
+    },
+    async validate(sym) { await this.refreshQuotes([sym]); return !!qc[sym]; }
+  };
+})();
