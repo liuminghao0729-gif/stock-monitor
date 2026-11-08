@@ -99,7 +99,7 @@ $('#watchList').addEventListener('click', e => {
   if (del) { state.watch = state.watch.filter(x => x !== del); store.set('watch', state.watch); if (state.sel === del) state.sel = state.watch[0]; renderWatch(); renderDetail(); return; }
   const row = e.target.closest('.wrow'); if (row) selectStock(row.dataset.s);
 });
-// ----- 搜索联想:输入代码或公司名(中文也行),下面列出相关股票/ETF,点一下即加入自选并打开 -----
+// ----- 搜索联想:输入代码或公司名(中文也行),下面列出相关股票/ETF,点一下打开查看,点右边 ＋ 才加入自选 -----
 const ZH_ALIAS = { 甲骨文: 'ORCL', 特斯拉: 'TSLA', 亚马逊: 'AMZN', 谷歌: 'GOOGL', 脸书: 'META', 奈飞: 'NFLX', 台积电: 'TSM', 美光: 'MU', 英特尔: 'INTC', 高通: 'QCOM', 博通: 'AVGO', 伯克希尔: 'BRK-B', 可口可乐: 'KO', 迪士尼: 'DIS', 波音: 'BA', 摩根大通: 'JPM', 沃尔玛: 'WMT', 好市多: 'COST', 阿里巴巴: 'BABA', 拼多多: 'PDD', 英伟达: 'NVDA', 苹果: 'AAPL', 微软: 'MSFT', 超微: 'AMD', 帕兰提尔: 'PLTR', 奥多比: 'ADBE', 星巴克: 'SBUX', 耐克: 'NKE', 麦当劳: 'MCD', 辉瑞: 'PFE', 礼来: 'LLY', 联合健康: 'UNH', 埃克森美孚: 'XOM', 赛富时: 'CRM', 优步: 'UBER', 戴尔: 'DELL', 美国银行: 'BAC', 高盛: 'GS', 百事: 'PEP', 宝洁: 'PG', 强生: 'JNJ', 英特尔公司: 'INTC', 瑞幸: 'LKNCY', 蔚来: 'NIO', 小鹏: 'XPEV', 理想: 'LI', 百度: 'BIDU', 京东: 'JD', 网易: 'NTES', 哔哩哔哩: 'BILI', 苹果公司: 'AAPL' };
 const zhName = s => (COMPANIES[s] && COMPANIES[s].n) || Object.keys(ZH_ALIAS).find(k => ZH_ALIAS[k] === s) || '';
 let suggSeq = 0, suggItems = [], suggOn = -1, suggTimer = 0;
@@ -107,7 +107,7 @@ const hideSugg = () => { $('#sugg').classList.add('hidden'); suggItems = []; sug
 function paintSugg() {
   const box = $('#sugg');
   if (!suggItems.length) { box.classList.add('hidden'); return; }
-  box.innerHTML = suggItems.map((x, i) => `<div class="sg ${i === suggOn ? 'on' : ''}" data-i="${i}"><b>${esc(x.sym)}</b><span class="nm">${esc(zhName(x.sym) ? zhName(x.sym) + ' · ' : '')}${esc(x.name)}</span><span>${state.watch.includes(x.sym) ? '<span class="in">已在自选</span>' : `<span class="tg">${x.type === 'ETF' ? 'ETF' : '股票'}</span>`}</span></div>`).join('');
+  box.innerHTML = suggItems.map((x, i) => `<div class="sg ${i === suggOn ? 'on' : ''}" data-i="${i}"><b>${esc(x.sym)}</b><span class="nm">${esc(zhName(x.sym) ? zhName(x.sym) + ' · ' : '')}${esc(x.name)}</span><span class="sgr"><span class="tg">${x.type === 'ETF' ? 'ETF' : '股票'}</span>${state.watch.includes(x.sym) ? '<span class="in">✓ 已在自选</span>' : `<button type="button" class="sgadd" data-add="${i}" title="加入自选股">＋</button>`}</span></div>`).join('');
   box.classList.remove('hidden');
 }
 async function runSearch(q) {
@@ -121,12 +121,14 @@ async function runSearch(q) {
   if (zh) items = [...seeds.map(s => items.find(x => x.sym === s) || { sym: s, name: s, type: 'EQUITY' }), ...items.filter(x => !seeds.includes(x.sym))];
   suggItems = items.slice(0, 8); suggOn = -1; $('#addMsg').textContent = suggItems.length ? '' : '没有找到,试试英文代码或英文公司名'; paintSugg();
 }
-async function addPick(s) {
-  hideSugg(); $('#addInput').value = ''; $('#addMsg').textContent = '';
-  let isNew = !state.watch.includes(s);
-  if (isNew) { let ok = false; try { ok = await Data.validate(s); } catch { } if (!ok) { $('#addMsg').textContent = `暂时拿不到 ${s} 的行情`; return; } state.watch.push(s); store.set('watch', state.watch); }
-  selectStock(s);
-  $('#addMsg').textContent = isNew ? `已把 ${s} 加入「自选股」` : `${s} 已在自选股中`; setTimeout(() => { if ($('#addMsg').textContent.includes(s)) $('#addMsg').textContent = ''; }, 3000);
+function viewPick(s) { hideSugg(); $('#addInput').value = ''; $('#addMsg').textContent = ''; selectStock(s); }      // 只打开查看,不加入自选
+async function addToWatch(s) {
+  if (state.watch.includes(s)) return;
+  let ok = false; try { ok = await Data.validate(s); } catch { }
+  if (!ok) { $('#addMsg').textContent = `暂时拿不到 ${s} 的行情`; return; }
+  state.watch.push(s); store.set('watch', state.watch); renderWatch(); paintSugg();
+  const h = $('#dhead'); if (h && state.sel === s) h.innerHTML = headHTML(s);
+  $('#addMsg').textContent = `已把 ${s} 加入「自选股」`; setTimeout(() => { if ($('#addMsg').textContent.includes(s)) $('#addMsg').textContent = ''; }, 3000);
 }
 $('#addInput').addEventListener('input', e => { clearTimeout(suggTimer); suggTimer = setTimeout(() => runSearch(e.target.value), 220); });
 $('#addInput').addEventListener('keydown', e => {
@@ -135,15 +137,15 @@ $('#addInput').addEventListener('keydown', e => {
   else if (e.key === 'ArrowUp') { e.preventDefault(); suggOn = (suggOn - 1 + suggItems.length) % suggItems.length; paintSugg(); }
   else if (e.key === 'Escape') hideSugg();
 });
-$('#sugg').addEventListener('mousedown', e => { e.preventDefault(); const r = e.target.closest('.sg'); if (r) addPick(suggItems[+r.dataset.i].sym); });
+$('#sugg').addEventListener('mousedown', e => { e.preventDefault(); const add = e.target.closest('.sgadd'); if (add) { addToWatch(suggItems[+add.dataset.add].sym); return; } const r = e.target.closest('.sg'); if (r) viewPick(suggItems[+r.dataset.i].sym); });
 document.addEventListener('click', e => { if (!e.target.closest('#searchBox')) hideSugg(); });
 $('#addForm').addEventListener('submit', async e => {
   e.preventDefault();
   const raw = $('#addInput').value.trim(), s = raw.toUpperCase(); if (!raw) return;
-  if (suggOn >= 0) return addPick(suggItems[suggOn].sym);
-  const exact = suggItems.find(x => x.sym === s); if (exact) return addPick(exact.sym);
-  if (suggItems.length) return addPick(suggItems[0].sym);             // 没选就取第一条最相关的
-  if (/^[A-Z.\-]{1,8}$/.test(s)) return addPick(s);                    // 联想没出来时按代码直接试
+  if (suggOn >= 0) return viewPick(suggItems[suggOn].sym);
+  const exact = suggItems.find(x => x.sym === s); if (exact) return viewPick(exact.sym);
+  if (suggItems.length) return viewPick(suggItems[0].sym);             // 没选就取第一条最相关的
+  if (/^[A-Z.\-]{1,8}$/.test(s)) return viewPick(s);                   // 联想没出来时按代码直接试
   $('#addMsg').textContent = '没有找到,试试英文代码或英文公司名';
 });
 function selectStock(s) {
