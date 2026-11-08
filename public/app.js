@@ -715,52 +715,47 @@ async function renderMovers() {
   const byPct = [...all].sort((a, b) => b.pct - a.pct), byVol = [...all].sort((a, b) => b.volume * b.price - a.volume * a.price);
   el.innerHTML = `<div class="grid2">${top(byPct.slice(0, 10), '涨幅榜')}${top(byPct.slice(-10).reverse(), '跌幅榜')}${top(byVol.slice(0, 10), '成交额榜')}</div>`;
 }
+// ===== 股票推荐(只有一个组合:强趋势龙头,中期)=====
 const capStr = n => !n ? '--' : n >= 1e12 ? (n / 1e12).toFixed(2) + 'T' : (n / 1e9).toFixed(0) + 'B';
 const SESSION = { pre: '盘前', mid: '盘中(K 线未走完,收盘后会更新)', post: '盘后最终' };
-const ST_LABEL = { NEW: '新入选', STILL_VALID: '持续有效', WATCHING: '观察中', INVALIDATED: '已失效', DATA_INSUFFICIENT: '数据不足' };
+const ST_LABEL = { NEW: '新入选', STILL_VALID: '持续在名单' };
 const REGIME = { BULL: '牛市(SPY 在 200 日线上,50 日线上升)', BEAR: '熊市(SPY 在 200 日线下,200 日线下降)', NEUTRAL: '中性' };
-const VAL_LABEL = { UNDERVALUED_RELATIVE_TO_PEERS: '同行相对低估', FAIR_VALUATION: '估值适中', EXPENSIVE_RELATIVE_TO_PEERS: '同行相对偏贵', NOT_MEANINGFUL: '估值不适用' };
-const STRAT_LOGIC = { growth: '基本面高速增长 + 趋势健康 + 相对强度领先。不追求低估值,寻找增长有证据的公司。', pullback: '基本面健康、长期趋势未破坏,近期合理回调后出现止跌确认。回调不等于深度超卖。', reversal: '经历明显下跌但仍有存续能力,下跌动量衰竭并出现价格反转证据。风险最高。' };
-function pickRow2(r, i) {
-  const pctS = v => Number.isFinite(v) ? (v * 100).toFixed(0) + '%' : '--', v = r.valuation || {};
-  const tags = [`<span class="ptag ${r.status === 'WATCHING' ? 'part' : 'ok'}">${ST_LABEL[r.status]}</span>`, r.path ? `<span class="ptag">${esc(r.path)}</span>` : '', ...(r.flags || []).map(f => `<span class="ptag warn">${esc(f)}</span>`), v.label ? `<span class="ptag">${esc(VAL_LABEL[v.label] || v.label)}</span>` : '', `<span class="ptag">研究优先级:${esc(r.priority)}</span>`].join('');
-  const li = (a, c) => (a || []).map(x => `<li class="${c}">${esc(x)}</li>`).join('');
-  return `<div class="prow"><div class="ph">${i ? `<span class="prank">${i}</span>` : ''}<span class="sym" data-go="${esc(r.sym)}">${esc(r.sym)}</span> <span class="muted small">${esc(r.name)}</span><span class="r pday">${r.score ?? '--'} 分</span></div>
-    <div class="pm"><b>${fmt(r.price)}</b> <span class="muted small">${esc(r.tier)} · 市值 ${capStr(r.cap)} · ${esc(r.sector || '')}${r.industry ? ' / ' + esc(r.industry) : ''}</span></div>
-    <div class="muted small" style="line-height:1.6">营收同比 ${pctS(r.revYoY)} · TTM 自由现金流 ${Number.isFinite(r.ttmFCF) ? '$' + bigN(r.ttmFCF) : '--'}(${pctS(r.fcfMargin)})<br>RSI ${r.rsi} · ADX ${r.adx ?? '--'} · 均线 ${r.sma.join(' / ')} · 相对 SPY(63日) ${sgn(r.rs63 * 100, 1)}%<br>量比 ${r.volRatio ?? '--'}${r.macdDiv ? ' · MACD 底背离' : ''} · EV/营收 ${fmt(v.evRev, 1)} · 预期PE ${fmt(v.fpe, 1)} · PEG ${fmt(v.peg, 2)}${r.rr ? ' · 估计收益风险比 ' + r.rr : ''}</div>
-    ${(r.warn || []).length ? `<div class="pwarn">⚠ ${r.warn.map(esc).join(';')}</div>` : ''}
-    <div class="ptags">${tags}</div>
-    <details><summary class="muted small">为什么入选 / 证据 / 风险 / 何时失效</summary><div class="small pdet"><p><b>入选原因</b>:${esc(r.why)}</p>${r.bullish.length ? `<p><b>利多证据</b>:${r.bullish.map(esc).join(';')}</p>` : ''}<p><b>主要风险</b></p><ul class="clist small">${li(r.risks, '')}</ul><p><b>什么会使信号失效</b>:${esc(r.invalidate)}</p>
-      <p class="muted">信号日期 ${esc(r.signalDate)} · 财报季度截止 ${esc(r.fundDate || '--')} · 评分覆盖度 ${(r.coverage * 100).toFixed(0)}%</p>
-      <p><b>通过</b></p><ul class="clist small">${li(r.passed, 'up')}</ul>${r.failed.length ? `<p><b>未通过</b></p><ul class="clist small">${li(r.failed, 'down')}</ul>` : ''}${r.pending.length ? `<p><b>待确认/无数据</b></p><ul class="clist small">${li(r.pending, 'muted')}</ul>` : ''}</div></details></div>`;
+function pickRow3(r, i) {
+  const p = (v, d = 0) => Number.isFinite(v) ? (v * 100).toFixed(d) + '%' : '--', rk = r.ranks || {};
+  return `<div class="prow"><div class="ph"><span class="prank">${i}</span><span class="sym" data-go="${esc(r.sym)}">${esc(r.sym)}</span> <span class="muted small">${esc(r.name)}</span><span class="r ${cls(r.day)} pday">${sgn(r.day)}%</span></div>
+    <div class="pm"><b>${fmt(r.price)}</b> <span class="muted small">市值 ${capStr(r.cap)} · 入选于 ${esc(r.since)}</span></div>
+    <div class="muted small" style="line-height:1.7">离 200 日线 <b>${sgn(r.dist200 * 100, 0)}%</b>(同类前 ${(100 - (rk.dist200 || 0) * 100).toFixed(0)}%) · 3 个月 ${sgn(r.mom63 * 100, 0)}% · 6 个月 ${sgn(r.mom126 * 100, 0)}%<br>日波动 ATR ${p(r.atrp, 1)} · beta ${r.beta} · RSI ${r.rsi} · 离 52 周高点回撤 ${p(r.dd52)}</div>
+    <div class="ptags"><span class="ptag ${r.status === 'NEW' ? 'ok' : ''}">${ST_LABEL[r.status] || r.status}</span>${r.beta >= 1.5 ? '<span class="ptag warn">高 beta</span>' : ''}${r.atrp >= 0.05 ? '<span class="ptag warn">日波动大</span>' : ''}${r.rsi >= 75 ? '<span class="ptag warn">RSI 偏热</span>' : ''}</div></div>`;
 }
 async function renderPicks() {
   const el = $('#view-picks'); loading(el);
   let P = null; if (Data.loadPicks) { try { P = await Data.loadPicks(); } catch { } }
   if (state.tab !== 'picks') return;
-  if (!P) { el.innerHTML = '<div class="card muted">暂无推荐数据。运行 python3 tools/screener_v2.py 生成,或等待每日自动更新。</div>'; return; }
-  if (P.version !== 2) { el.innerHTML = '<div class="card muted">推荐数据版本过旧,请重新运行 python3 tools/screener_v2.py</div>'; return; }
-  const cnt = c => `股票池 ${c.universe} → 财务安全 ${c.safety} → 形态 ${c.setup} → 观察 ${c.WATCHING} / 确认 ${c.CONFIRMED}${c.DATA_INSUFFICIENT ? ' · 数据不足 ' + c.DATA_INSUFFICIENT : ''}`;
-  el.innerHTML = `<div class="pnote"><b>每日选股 V2.0</b><span class="muted small"> ${P.session ? esc(SESSION[P.session] || '') + ' · ' : ''}行情日期 ${esc(P.dataDate)} · 更新于 ${esc(P.asof)} · 扫描 ${P.universe} 只 · 市场环境:${esc(REGIME[P.regime] || P.regime)}</span></div>
-    <div class="grid3 picks">${P.presets.map(p => `<div class="card pcol"><h3 style="margin:0">${esc(p.name)}</h3><div class="muted small" style="margin:4px 0 8px;line-height:1.6">${esc(STRAT_LOGIC[p.id] || '')}</div><div class="muted small" style="margin-bottom:8px">${esc(cnt(p.counts))}</div>
-      <div class="small"><b>已确认</b> ${p.confirmedTotal} 只${p.confirmedTotal > p.confirmed.length ? `(显示前 ${p.confirmed.length})` : ''}</div>
-      ${p.confirmed.length ? p.confirmed.map((r, i) => pickRow2(r, i + 1)).join('') : '<div class="muted small" style="padding:8px 0">今天没有股票满足全部确认条件。不会为了凑数降低标准。</div>'}
-      ${p.watching.length ? `<div class="small" style="margin-top:12px"><b>观察列表</b> <span class="muted">(形态初步符合,尚未确认,不计入确认数量)共 ${p.watchingTotal} 只</span></div>${p.watching.map(r => pickRow2(r, 0)).join('')}` : ''}
-      ${p.invalidated.length ? `<div class="small" style="margin-top:12px"><b>已失效</b></div>${p.invalidated.map(x => `<div class="muted small"><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> ${esc(x.reason)}(${esc(x.date)})</div>`).join('')}` : ''}</div>`).join('')}</div>
+  if (!P) { el.innerHTML = '<div class="card muted">暂无推荐数据。运行 python3 tools/picks.py 生成,或等待每日自动更新。</div>'; return; }
+  if (P.version !== 3) { el.innerHTML = '<div class="card muted">推荐数据版本过旧,请重新运行 python3 tools/picks.py</div>'; return; }
+  const t = P.presets[0], ru = P.rules || { entry: {}, stay: {} };
+  const top = k => `前 ${((1 - ru.entry[k]) * 100).toFixed(0)}%`;
+  el.innerHTML = `<div class="pnote"><b>每日推荐 · 强趋势龙头(中期)</b><span class="muted small"> ${P.session ? esc(SESSION[P.session] || '') + ' · ' : ''}行情日期 ${esc(P.dataDate)} · 更新于 ${esc(P.asof)} · 合格股票 ${P.universe} 只 · 市场环境:${esc(REGIME[P.regime] || P.regime)}</span></div>
+    <div class="card small" style="line-height:1.8"><b>这个组合选什么</b>
+      <p style="margin:6px 0">在市值 ≥ 50 亿美元、成交额靠前的一半股票里,同时满足:<b>离 200 日线的距离 ${top('dist200')}</b>、<b>日波动(ATR%)${top('atrp')}</b>、<b>3 个月涨幅 ${top('mom63')}</b>——也就是已经走出强趋势、而且波动较大的领涨龙头。适合的参考持有期是 <b>30 到 120 天</b>,不适合短线。已在名单里的股票,只要仍满足放宽后的条件就继续保留,名单不会天天换。</p>
+      <p class="muted" style="margin:0"><b>要先知道:</b>这是高 beta 的趋势押注。回测里组合的 beta 约 1.8,最大回撤约 -37%(标普 -19%),收益集中在少数年份和主题(AI、存储、加密龙头)。不是稳赢,也不构成投资建议。</p></div>
+    <div class="picks" style="display:grid;grid-template-columns:minmax(300px,520px);gap:18px"><div class="card pcol"><h3 style="margin:0">${esc(t.name)}</h3><div class="muted small" style="margin:4px 0 8px">当前名单 ${t.confirmedTotal} 只${t.confirmedTotal > t.confirmed.length ? `,显示离 200 日线最远的前 ${t.confirmed.length} 只` : ''}</div>
+      ${t.confirmed.length ? t.confirmed.map((r, i) => pickRow3(r, i + 1)).join('') : '<div class="muted small" style="padding:8px 0">今天没有股票满足条件。不会为了凑数降低标准。</div>'}
+      ${t.others && t.others.length ? `<div class="small" style="margin-top:12px"><b>名单里的其他股票</b> <span class="muted">(共 ${t.others.length} 只)</span><div class="chips" style="margin-top:6px">${t.others.map(x => `<button class="chip" data-go="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>` : ''}
+      ${t.invalidated && t.invalidated.length ? `<div class="small" style="margin-top:12px"><b>最近失效(跌出放宽后的条件)</b></div>${t.invalidated.map(x => `<div class="muted small"><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> ${esc(x.name)}(${esc(x.date)})</div>`).join('')}` : ''}</div></div>
     <div class="card small" style="line-height:1.8"><b>回测结论(如实披露)</b>
-      <p style="margin:6px 0">用约 1200 只股票、10 年日线回测过这些技术条件(次日开盘价入场,含交易成本)。<b>没有发现稳定的、按风险调整后能超过标普 500 的优势。</b>所以这里的名单是「条件筛选和提醒」,不是跑赢指数的信号。</p>
+      <p style="margin:6px 0">用约 1200 只股票、10 年日线回测:这类条件在样本内外都有正的超额收益,但<b>不是稳赢</b>。</p>
       <details><summary class="muted">查看依据和限制</summary>
         <ul class="clist">
-          <li>选股池本身没有溢价:同一批股票随便哪天买,60 天平均 +4.0%,同期标普 +3.7%。</li>
-          <li>现有技术条件在样本外(2023 年起)60 天平均相对标普:激进成长 -0.5%,强势回调 +0.1%,超跌反转 +0.5%(只有 67 个事件,样本很小)。差距都在统计噪声范围内。</li>
-          <li>调参后样本内最好的条件,样本外基本失效(例如超跌反转样本内 +6.0%,样本外 -1.3%)——典型的过拟合。</li>
-          <li>看起来收益更高的方案,多是因为承担了更高的波动:例如只选相对强度前 20% 的激进成长,年化多约 5 个点,但 beta 1.21、最大回撤 -27%(标普 -19%)、夏普更低,扣掉市场风险后 alpha 只有约 +1.8%。</li>
-          <li>超跌反转的结果可能受幸存者偏差影响:回测股票池只含活到今天的公司,退市的不在里面。</li>
+          <li>每笔交易(60 天,样本外 2023 年起):扣掉 beta 后超额 +4.0%、原始超标普 +7.4%(按月 t=2.0);120 天组合扣 beta 超额 +8.3%。阈值周围的 96% 到 100% 组合样本外都为正,不是单个尖峰。</li>
+          <li>但等权组合的 beta 约 1.8 到 1.95:样本外年化 +34% 到 +47%,最大回撤约 -37%,标普是 +20% / -19%。和「同 beta 的杠杆标普」比,30、60 天组合多约 6 到 9 个百分点,<b>120 天组合没有跑赢</b>;夏普都低于杠杆标普。样本内的优势(+30% 对 +10%)比样本外大得多,优势在衰减。</li>
+          <li>收益集中:2020 年和 2025 年贡献最大,2021 年、2026 年为负;样本外贡献最大的 10 只(LITE、WDC、MU、STX、PLTR、BE、APP、CIEN、VST、MSTR 等)占正贡献的 60% 到 70%。</li>
+          <li>幸存者偏差去不掉(回测股票池里没有退市的公司),这类「强趋势、高波动」的选股方法对它最敏感;用「当时估计市值」筛选后结果几乎不变,说明不只是「今天才变大」的前视偏差。</li>
+          <li>我们也测过其他条件(趋势+基本面、强势回调、超跌反转、短线「超跌-企稳-放量反弹」形态、短线 1 到 10 天的各种变量),样本外没有稳定优势,已不再使用。</li>
         </ul>
-        <div class="muted">限制:只测了技术条件(营收、自由现金流等基本面条件没有历史时点数据,无法回测);用今天的市值筛选范围;样本外 2023 年起基本是牛市;试了很多参数组合,样本内最好的几乎一定带运气成分。完整报告在代码仓库的 tools/tune_report.md 和 tools/backtest_report.md。</div>
+        <div class="muted">限制:只测了技术条件;样本外 2023 年起基本是牛市;试了很多参数组合,有运气成分。完整报告在代码仓库的 tools/signal_report.md、signal_validation.md、signal_validation2.md。</div>
       </details></div>
-    <div class="card small muted" style="line-height:1.8"><b>数据限制</b><ul class="clist">${(P.dataLimits || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
-    <div class="muted small" style="padding:8px 4px;line-height:1.7">评分只用于通过硬门槛之后的排序,评分高不等于出现买入信号。仅为条件筛选,不是买卖建议,不构成投资建议。回测显示这些技术条件没有稳定跑赢标普 500(见上方说明);技术形态没有被证明有预测能力。基本面数据来自 Yahoo 免费接口,可能有延迟或错误。</div>`;
+    <div class="muted small" style="padding:8px 4px;line-height:1.7">仅为条件筛选,不是买卖建议,不构成投资建议。市场数据来自 Yahoo 免费接口,可能有延迟或错误。</div>`;
 }
 // ===== 宏观 =====
 function spark(v, w = 120, h = 34) {

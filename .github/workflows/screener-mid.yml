@@ -30,20 +30,20 @@ jobs:
       - name: 保存上一份结果(用来对比有没有变化)
         if: ${{ steps.gate.outputs.run == 'true' || inputs.test }}
         run: cp public/screener.json /tmp/prev_screener.json
-      - name: 运行选股(盘中:K 线未走完,不写入历史记录)
+      - name: 运行推荐(盘中:K 线未走完,不写入历史记录)
         if: ${{ steps.gate.outputs.run == 'true' || inputs.test }}
         env:
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
-        run: python3 tools/screener_v2.py --session mid --history ro
+        run: python3 tools/picks.py --session mid --history ro
       - name: 检查结果文件
         if: ${{ steps.gate.outputs.run == 'true' || inputs.test }}
         run: |
           python3 - <<'PY'
           import json
           d = json.load(open("public/screener.json"))
-          assert d["version"] == 2 and d["presets"], "结果文件异常"
+          assert d["version"] == 3 and d["presets"], "结果文件异常"
           assert d["universe"] >= 500, f"扫描到的股票只有 {d['universe']} 只,数据源可能被限流,不提交"
-          print("行情日期", d["dataDate"], "| 扫描", d["universe"], "只 |", [(p["name"], p["confirmedTotal"]) for p in d["presets"]])
+          print("行情日期", d["dataDate"], "| 合格股票", d["universe"], "只 |", [(p["name"], p["confirmedTotal"]) for p in d["presets"]])
           PY
       - name: 有变化才提交
         if: ${{ steps.gate.outputs.run == 'true' || inputs.test }}

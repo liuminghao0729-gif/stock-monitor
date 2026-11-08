@@ -202,7 +202,7 @@ def load_picks(path=None):
 
 
 def picks_section(P, prev=None, title="选股"):
-    if not P or P.get("version") != 2:
+    if not P or P.get("version") not in (2, 3):
         return [f"【{title}】暂无数据"]
     lines = [f"【{title}】行情日期 {P['dataDate']},市场环境 {P['regime']}"]
     prev_syms = {p["id"]: [r["sym"] for r in p["confirmed"]] for p in (prev or {}).get("presets", [])} if prev else None
@@ -309,22 +309,17 @@ def earnings_surprises(dates, min_cap=5e9, top=6):
 
 
 def history_changes(monday, path=None):
+    """本周「强趋势龙头」名单的变化:本周新入选的、本周失效的。"""
     try:
-        recs = json.load(open(path or os.path.join(ROOT, "public", "screener_history.json")))["records"]
+        recs = json.load(open(path or os.path.join(ROOT, "public", "picks_history.json")))["records"]
     except Exception:
         return {}
-    out = {}
-    for k, v in recs.items():
-        sym, strat = k.split("|")
-        d = out.setdefault(strat, {"new": [], "inv": []})
-        if v.get("first_confirmed_date") and v["first_confirmed_date"] >= str(monday) and v.get("latest_status") in ("NEW", "STILL_VALID"):
-            d["new"].append(sym)
-        if v.get("latest_status") == "INVALIDATED" and v.get("last_updated_date", "") >= str(monday):
-            d["inv"].append(sym)
-    return out
+    new = [k for k, v in recs.items() if v.get("first_date", "") >= str(monday) and v.get("status") in ("NEW", "STILL_VALID")]
+    inv = [k for k, v in recs.items() if v.get("status") == "INVALIDATED" and v.get("last_date", "") >= str(monday)]
+    return {"trend": {"new": new, "inv": inv}}
 
 
-NAMES = {"growth": "激进成长", "pullback": "强势回调", "reversal": "超跌反转"}
+NAMES = {"trend": "强趋势龙头", "growth": "激进成长", "pullback": "强势回调", "reversal": "超跌反转"}
 
 
 def build_weekly_summary(friday, ctx):
