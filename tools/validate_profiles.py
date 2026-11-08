@@ -1,5 +1,5 @@
 """检查 public/profiles_gen.json:格式必须完整,否则页面上所有自动写的解读都会读不出来。写完解读、提交之前必须跑一遍。"""
-import json, os, sys
+import json, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIELDS = {"one": str, "money": list, "strong": str, "choke": str, "orders": str, "risk": list, "watch": str, "grade": str, "note": str, "date": str, "by": str}
@@ -18,6 +18,11 @@ def check(path=os.path.join(ROOT, "public", "profiles_gen.json")):
             errs.append(f"{sym}.by 必须是 chat 或 night")
         if isinstance(p.get("one"), str) and len(p["one"]) > 80:
             errs.append(f"{sym}.one 太长(要一句话,80 字内)")
+        text = json.dumps(p, ensure_ascii=False)
+        if p.get("by") == "night" and "未核实" not in text and "资料不足" not in text:
+            errs.append(f"{sym} 夜间条目至少要有一处「未核实」或「资料不足」标注(没有 SEC 素材时数字都必须标)")
+        if re.search(r"建议买入|建议卖出|值得买入|应该买入|应该卖出|强烈推荐", text):
+            errs.append(f"{sym} 含有买卖建议措辞,不允许")
         if len(p.get("risk") or []) > 5 or len(p.get("money") or []) > 5:
             errs.append(f"{sym}.money/risk 最多 5 条")
     return d, errs

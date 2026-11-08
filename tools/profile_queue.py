@@ -57,12 +57,28 @@ def refresh():
     print(f"标普成分股 {len(cs)} 只,排好队 {len(rows)} 只,没查到市值 {len(missing)} 只: {missing[:10]}")
 
 
+ALIAS = {"GOOG": "GOOGL", "BRK-A": "BRK-B", "FOX": "FOXA", "NWS": "NWSA"}   # 和页面上 PROF_ALIAS 一致:第二类股份共用主代码
+
+
+def priority():
+    """用户指定的优先清单(tools/profile_priority.txt),按文件里的顺序。"""
+    try:
+        return [x.strip().upper().replace(".", "-") for x in open(os.path.join(ROOT, "tools", "profile_priority.txt"), encoding="utf8") if x.strip() and not x.startswith("#")]
+    except Exception:
+        return []
+
+
 def next_n(n):
     q = json.load(open(QUEUE, encoding="utf8"))["queue"]
     d = done_set()
-    todo = [x for x in q if x["sym"] not in d]
-    print(f"已写 {len([x for x in q if x['sym'] in d])} 只,还剩 {len(todo)} 只。接下来 {n} 只:")
-    for x in todo[:n]:
+    isdone = lambda s: s in d or ALIAS.get(s) in d
+    pri = [s for s in dict.fromkeys(priority()) if not isdone(s)]
+    print(f"优先清单还剩 {len(pri)} 只(先写这些,按顺序)。")
+    rest = [x for x in q if not isdone(x["sym"]) and x["sym"] not in pri]
+    print(f"标普 500 队列另有 {len(rest)} 只,优先清单写完后按市值接着写。接下来 {n} 只:")
+    for s in pri[:n]:
+        print(f"  {s:7s} (优先清单)")
+    for x in rest[:max(0, n - len(pri))]:
         print(f"  {x['sym']:7s} {x['cap'] / 1e9:8.0f}B  {x['name']}")
 
 
