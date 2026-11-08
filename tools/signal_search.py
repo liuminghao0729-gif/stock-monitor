@@ -118,14 +118,19 @@ class Search:
         k, dr, x = c[:3]
         return f"{NAMES[k]}({DESC[NAMES[k]]}){'最高' if dr == 'high' else '最低'}{int(x * 100)}%"
 
-    def run(self, h, adj=None, ex=None, max_conds=3, min_obs=3000, verbose=False):
+    def run(self, h, adj=None, ex=None, max_conds=3, min_obs=3000, verbose=False, seed=None, exclude=()):
         """贪心:每一步加入"样本内扣 beta 后超额"提升最大的条件,最后对每个阈值做微调。"""
-        chosen, cur, best_is = [], self.full, -9.0
+        base0 = seed if seed is not None else self.full
+        chosen, cur, best_is = [], base0, -9.0
         stages = []
+        if seed is not None:
+            r0 = self.ev(seed, h, "is", adj, ex)
+            if r0 and r0["n"] >= min_obs:
+                best_is = r0["adj"]
         for step in range(max_conds):
             best = None
             for c in self.cands:
-                if any(c[0] == z[0] for z in chosen):
+                if any(c[0] == z[0] for z in chosen) or c[0] in exclude:
                     continue
                 r = self.ev(cur & c[3], h, "is", adj, ex)
                 if r and r["n"] >= min_obs and (best is None or r["adj"] > best[1]["adj"]):
@@ -136,7 +141,7 @@ class Search:
             stages.append(self._snap(chosen, cur, h, adj, ex))
         for _ in range(2):          # 微调:逐个条件尝试所有阈值(其他条件不变)
             for i in range(len(chosen)):
-                others = self.full
+                others = base0
                 for j, z in enumerate(chosen):
                     if j != i:
                         others &= z[3]
@@ -147,7 +152,7 @@ class Search:
                         if r and r["n"] >= min_obs and (best[1] is None or r["adj"] > best[1]["adj"]):
                             best = (c, r)
                 chosen[i] = best[0]
-        cur = self.full
+        cur = base0
         for z in chosen:
             cur &= z[3]
         final = self._snap(chosen, cur, h, adj, ex)
