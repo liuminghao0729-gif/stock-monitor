@@ -284,18 +284,19 @@ SECTOR_DEFS = [("科技", "sector", "Technology"), ("通信与传媒", "sector",
                ("电商零售", "industry", "Internet Retail"), ("投行与券商", "industry", "Capital Markets"), ("医疗器械", "industry", "Medical Devices")]
 
 
-def sectors(n=15):
-    """每个板块取市值最大的 n 只美股(含在美上市的 ADR)。"""
+def sectors(n=10, only=None, ttl=600):
+    """每个板块取市值最大的 n 只美股(含在美上市的 ADR)。only 指定板块名时只取这一个(详情页用)。"""
+    defs = [d for d in SECTOR_DEFS if only is None or d[0] == only]
     def one(d):
         name, field, val = d
         try:
-            rows = _yh_screen([{"operator": "eq", "operands": [field, val]}, {"operator": "gt", "operands": ["intradaymarketcap", 2e9]}], "intradaymarketcap", True, n, 600)
+            rows = _yh_screen([{"operator": "eq", "operands": [field, val]}, {"operator": "gt", "operands": ["intradaymarketcap", 2e9]}], "intradaymarketcap", True, n, ttl)
         except Exception as e:
             DBG["sectors"] = f"{name}: {type(e).__name__}"
             rows = []
         return {"name": name, "items": rows}
     with ThreadPoolExecutor(6) as ex:
-        res = list(ex.map(one, SECTOR_DEFS))
+        res = list(ex.map(one, defs))
     return {"sectors": res}
 
 
@@ -605,7 +606,7 @@ def route(name, q):
         if name == "macro":
             return 200, macro(), 600
         if name == "movers":
-            return 200, (sectors() if q.get("part") == "sectors" else movers()), 120
+            return 200, (sectors(10) if q.get("part") == "sectors" else sectors(50, q.get("name", "")) if q.get("part") == "sector" else movers()), 120
         if name == "company":
             return 200, company(q["symbol"].upper()), 600
         if name == "fin":

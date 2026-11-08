@@ -19,6 +19,7 @@ const LiveData = (() => {
     async loadFin(sym) { return api('/api/fin?symbol=' + encodeURIComponent(sym)); },
     async loadSeg(sym) { return api('/api/fin?part=seg&symbol=' + encodeURIComponent(sym)); },
     async loadSectors() { const r = await api('/api/movers?part=sectors'); if (!r.sectors) throw new Error('x'); return r; },
+    async loadSector(name) { const r = await api('/api/movers?part=sector&name=' + encodeURIComponent(name)); if (!r.sectors || !r.sectors.length) throw new Error('x'); return r.sectors[0]; },
     async loadMovers() { const r = await api('/api/movers'); if (r.error) throw new Error(r.error); return r; },
     async loadPicks() { const r = await fetch('/screener.json?t=' + Math.floor(Date.now() / 600000)); if (!r.ok) throw new Error('none'); return r.json(); },
     async loadMacro() { const r = await api('/api/macro'); if (r.error) throw new Error(r.error); return r; },

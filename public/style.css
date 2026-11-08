@@ -228,3 +228,5 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 .sg .in{font-size:11px;color:var(--accent)}
 #view-mylist .card{max-width:560px}
 .sgr{display:flex;gap:8px;align-items:center}.sgadd{width:26px;height:26px;border-radius:50%;border:1px solid var(--accent);color:var(--accent);padding:0;line-height:1;font-size:16px}.sgadd:hover{background:var(--accent);color:#000}
+.secgo{color:var(--accent);padding:2px 6px;font-size:13px}.secmore{display:block;width:100%;margin-top:8px;padding:10px;color:var(--accent);border-top:1px solid var(--line);border-radius:0;text-align:center;font-size:13px}
+.secback{display:flex;gap:12px;align-items:center;margin-bottom:14px}.secback button{color:var(--accent);padding:4px 8px}

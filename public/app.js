@@ -853,6 +853,7 @@ const universe = () => Object.keys(Data.U);
 const loading = el => { if (!el.innerHTML.trim()) el.innerHTML = '<div class="muted" style="padding:20px">加载中…</div>'; };
 function qrow(s) { const q = Data.quote(s); return `<tr><td><span class="sym" data-go="${s}">${s}</span> <span class="muted small">${esc(q.name)}</span></td><td class="r">${fmt(q.price)}</td><td class="r ${cls(q.pct)}">${sgn(q.pct)}%</td></tr>`; }
 async function renderSectors() {
+  if (state.secView) return renderSectorDetail(state.secView);
   const el = $('#view-sectors'); loading(el);
   if (Data.loadSectors) {                      // 实时模式:20 个板块,每个板块市值最大的 15 只
     let S = null; try { S = await Data.loadSectors(); } catch { }
@@ -860,7 +861,7 @@ async function renderSectors() {
     if (S) {
       const ok = S.sectors.filter(x => x.items.length), row = x => `<tr><td><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> <span class="muted small">${esc(x.name)}</span></td><td class="r">${fmt(x.price)}</td><td class="r ${cls(x.pct)}">${sgn(x.pct)}%</td><td class="r muted small">${capStr(x.cap)}</td></tr>`;
       el.innerHTML = '<div class="grid2">' + ok.map(sc => { const v = sc.items.filter(x => Number.isFinite(x.pct)), avg = v.reduce((a, x) => a + x.pct, 0) / (v.length || 1);
-        return `<div class="card"><div class="dh"><h3 style="margin:0">${esc(sc.name)} <span class="muted small">市值前 ${sc.items.length}</span></h3><span class="${cls(avg)}">均值 ${sgn(avg)}%</span></div><table><tbody>${sc.items.map(row).join('')}</tbody></table></div>`; }).join('') + '</div><div class="muted small" style="padding:10px 4px">每个板块按市值从大到小排列,含在美上市的外国公司(ADR);数据来自 Yahoo,可能有延迟。</div>';
+        return `<div class="card"><div class="dh"><h3 style="margin:0">${esc(sc.name)} <span class="muted small">市值前 ${sc.items.length}</span></h3><span><span class="${cls(avg)}">均值 ${sgn(avg)}%</span> <button class="secgo" data-sec="${esc(sc.name)}" title="查看整个板块">更多 ›</button></span></div><table><tbody>${sc.items.map(row).join('')}</tbody></table><button class="secmore" data-sec="${esc(sc.name)}">查看整个板块(前 50 只) ›</button></div>`; }).join('') + '</div><div class="muted small" style="padding:10px 4px">每个板块先列市值最大的 10 只,点「更多」看前 50 只;含在美上市的外国公司(ADR);数据来自 Yahoo,可能有延迟。</div>';
       return;
     }
   }
@@ -872,6 +873,16 @@ async function renderSectors() {
       <table><tbody>${[...list].sort((a, b) => (Data.quote(b).pct || 0) - (Data.quote(a).pct || 0)).map(qrow).join('')}</tbody></table></div>`;
   }).join('') + '</div>';
 }
+async function renderSectorDetail(name) {
+  state.secView = name; const el = $('#view-sectors'); if (!el.querySelector('.secback')) el.innerHTML = `<div class="secback"><button data-secback="1">‹ 返回板块</button> <b>${esc(name)}</b> <span class="muted small">加载中…</span></div>`;
+  let S = null; try { S = await Data.loadSector(name); } catch { }
+  if (state.tab !== 'sectors') return;
+  if (!S) { el.innerHTML = `<div class="secback"><button data-secback="1">‹ 返回板块</button></div><div class="card muted">这个板块暂时加载失败,稍后再试。</div>`; return; }
+  const v = S.items.filter(x => Number.isFinite(x.pct)), avg = v.reduce((a, x) => a + x.pct, 0) / (v.length || 1), up = v.filter(x => x.pct > 0).length;
+  el.innerHTML = `<div class="secback"><button data-secback="1">‹ 返回板块</button> <b>${esc(name)}</b> <span class="muted small">市值前 ${S.items.length} 只 · 均值 <span class="${cls(avg)}">${sgn(avg)}%</span> · 上涨 ${up} / 下跌 ${v.length - up}</span></div>
+    <div class="card"><table><thead><tr><th>#</th><th>股票</th><th class="r">现价</th><th class="r">涨跌</th><th class="r">市值</th></tr></thead><tbody>${S.items.map((x, i) => `<tr><td class="muted">${i + 1}</td><td><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> <span class="muted small">${esc(x.name)}</span></td><td class="r">${fmt(x.price)}</td><td class="r ${cls(x.pct)}">${sgn(x.pct)}%</td><td class="r muted small">${capStr(x.cap)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-sec]'); if (b) { window.scrollTo({ top: 0 }); renderSectorDetail(b.dataset.sec); return; } if (e.target.closest('[data-secback]')) { state.secView = null; renderSectors(); } });
 // ===== 财报日历 =====
 async function renderEarnings() {
   const el = $('#view-earnings'), days = [...Array(7)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() + i); return d; }).filter(d => d.getDay() % 6);
