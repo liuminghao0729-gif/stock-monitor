@@ -10,7 +10,7 @@
   python3 push/market_push.py weekly_summary                 周五总结(美西 15:00 左右)
   python3 push/market_push.py weekly_preview                 周日晚前瞻(美西 17:00 左右)
   加 --dry 只打印不发送;加 --force 忽略时间和休市日检查。
-仅为信息摘要,不构成投资建议。期权"异常"只是按成交量/未平仓量/金额的粗略规则筛出,不代表方向或内幕。
+模型信号与信息摘要,不保证收益,请自行判断风险。期权"异常"只是按成交量/未平仓量/金额的粗略规则筛出,不代表方向或内幕。
 """
 import datetime, json, os, sys, urllib.request, urllib.parse
 from zoneinfo import ZoneInfo
@@ -244,7 +244,7 @@ def build_brief(d, ctx):
     for tag, a in picked[:5]:
         lines.append(f"· {tag}:{zh(a['headline'])[:56]}")
     lines += picks_section(ctx["picks"], title="今日选股(昨日收盘后更新)")
-    lines.append("仅为信息摘要,不构成投资建议")
+    lines.append("模型信号与信息摘要,不保证收益,请自行判断风险")
     return f"盘前早报 {d.strftime('%m/%d')}", "\n".join(lines)
 
 
@@ -261,14 +261,14 @@ def build_hourly(t, ctx, with_picks=False):
         lines += [f"· [{tag}] {zh(a['headline'])[:56]}" for sc, tag, a in n]
     if with_picks:
         lines += picks_section(ctx["picks"], ctx.get("prev_picks"), title="选股更新(盘中,未收盘)")
-    lines.append("期权异常为按成交量/未平仓量/金额的粗略筛选,不代表方向;不构成投资建议")
+    lines.append("期权异常为按成交量/未平仓量/金额的粗略筛选,不代表方向;请自行判断风险")
     return f"盘中摘要 {t.strftime('%H:%M')}" + ("·选股" if with_picks else ""), "\n".join(lines)
 
 
 def build_post(ctx):
     P = ctx["picks"]
     lines = picks_section(P, ctx.get("prev_picks"), title="盘后最终选股")
-    lines.append("仅为条件筛选,不构成投资建议")
+    lines.append("模型信号,不保证收益,请自行判断风险")
     return f"盘后选股 {P['dataDate'] if P else ''}", "\n".join(lines)
 
 
@@ -344,7 +344,7 @@ def build_weekly_summary(friday, ctx):
         lst = lambda a: ("、".join(a[:5]) + (f" 等{len(a)}只" if len(a) > 5 else "")) if a else "无"
         lines.append("【本周选股变化】" + ";".join(f"{NAMES.get(k, k)}:新入选 {lst(v['new'])} / 失效 {lst(v['inv'])}" for k, v in ch.items()))
     lines += picks_section(ctx["picks"], title="当前选股 Top5")
-    lines.append("仅为信息总结,不构成投资建议")
+    lines.append("模型信号与信息总结,不保证收益,请自行判断风险")
     return f"本周总结 {friday.strftime('%m/%d')}", "\n".join(lines)
 
 
@@ -380,7 +380,7 @@ def build_weekly_preview(sunday, ctx):
     notes.append("提前收盘日(感恩节次日、平安夜)请自行留意")
     lines.append("【需要注意】" + ";".join(notes))
     lines += picks_section(ctx["picks"], title="当前选股(上周五收盘后)")
-    lines.append("仅为信息前瞻,不构成投资建议")
+    lines.append("模型信号与信息前瞻,不保证收益,请自行判断风险")
     return f"下周前瞻 {ds[0].strftime('%m/%d')}", "\n".join(lines)
 
 

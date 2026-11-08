@@ -3,7 +3,7 @@
   入选:离 200 日线的距离 排名前 5%,且 ATR% 排名前 30%,且 3 个月涨幅 排名前 50%。
   保留(防止名单天天换):已经在名单里的股票,只要仍满足放宽后的条件(前 10% / 前 40% / 前 60%)就继续留着。
 回测结论(如实):该类条件在样本内外都有正的超额,但组合 beta 约 1.8–1.95,最大回撤约 -37%(标普 -19%),夏普低于同 beta 的杠杆标普;
-收益集中在少数年份和主题;幸存者偏差去不掉。不是「稳赢」。仅为条件筛选,不构成投资建议。
+收益集中在少数年份和主题;幸存者偏差去不掉。不是「稳赢」。模型信号,不保证收益,请自行判断风险。
 用法:python3 tools/picks.py [--session pre|mid|post] [--history rw|ro|off] [--limit N] [--out 文件]"""
 import argparse, datetime, json, math, os, sys, time
 from concurrent.futures import ThreadPoolExecutor

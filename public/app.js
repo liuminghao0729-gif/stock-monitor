@@ -738,7 +738,7 @@ async function renderPicks() {
   el.innerHTML = `<div class="pnote"><b>每日推荐 · 强趋势龙头(中期)</b><span class="muted small"> ${P.session ? esc(SESSION[P.session] || '') + ' · ' : ''}行情日期 ${esc(P.dataDate)} · 更新于 ${esc(P.asof)} · 合格股票 ${P.universe} 只 · 市场环境:${esc(REGIME[P.regime] || P.regime)}</span></div>
     <div class="card small" style="line-height:1.8"><b>这个组合选什么</b>
       <p style="margin:6px 0">在市值 ≥ 50 亿美元、成交额靠前的一半股票里,同时满足:<b>离 200 日线的距离 ${top('dist200')}</b>、<b>日波动(ATR%)${top('atrp')}</b>、<b>3 个月涨幅 ${top('mom63')}</b>——也就是已经走出强趋势、而且波动较大的领涨龙头。适合的参考持有期是 <b>30 到 120 天</b>,不适合短线。已在名单里的股票,只要仍满足放宽后的条件就继续保留,名单不会天天换。</p>
-      <p class="muted" style="margin:0"><b>要先知道:</b>这是高 beta 的趋势押注。回测里组合的 beta 约 1.8,最大回撤约 -37%(标普 -19%),收益集中在少数年份和主题(AI、存储、加密龙头)。不是稳赢,也不构成投资建议。</p></div>
+      <p class="muted" style="margin:0"><b>要先知道:</b>这是高 beta 的趋势押注。回测里组合的 beta 约 1.8,最大回撤约 -37%(标普 -19%),收益集中在少数年份和主题(AI、存储、加密龙头)。不是稳赢,不保证收益,可能亏损,请自行判断风险。</p></div>
     <div class="picks" style="display:grid;grid-template-columns:minmax(300px,520px);gap:18px"><div class="card pcol"><h3 style="margin:0">${esc(t.name)}</h3><div class="muted small" style="margin:4px 0 8px">当前名单 ${t.confirmedTotal} 只${t.confirmedTotal > t.confirmed.length ? `,显示离 200 日线最远的前 ${t.confirmed.length} 只` : ''}</div>
       ${t.confirmed.length ? t.confirmed.map((r, i) => pickRow3(r, i + 1)).join('') : '<div class="muted small" style="padding:8px 0">今天没有股票满足条件。不会为了凑数降低标准。</div>'}
       ${t.others && t.others.length ? `<div class="small" style="margin-top:12px"><b>名单里的其他股票</b> <span class="muted">(共 ${t.others.length} 只)</span><div class="chips" style="margin-top:6px">${t.others.map(x => `<button class="chip" data-go="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>` : ''}
@@ -755,7 +755,7 @@ async function renderPicks() {
         </ul>
         <div class="muted">限制:只测了技术条件;样本外 2023 年起基本是牛市;试了很多参数组合,有运气成分。完整报告在代码仓库的 tools/signal_report.md、signal_validation.md、signal_validation2.md。</div>
       </details></div>
-    <div class="muted small" style="padding:8px 4px;line-height:1.7">仅为条件筛选,不是买卖建议,不构成投资建议。市场数据来自 Yahoo 免费接口,可能有延迟或错误。</div>`;
+    <div class="muted small" style="padding:8px 4px;line-height:1.7">这是模型按事先写好的条件给出的信号,不保证收益,可能亏损,请自行判断风险。市场数据来自 Yahoo 免费接口,可能有延迟或错误。</div>`;
 }
 // ===== 宏观 =====
 function spark(v, w = 120, h = 34) {
