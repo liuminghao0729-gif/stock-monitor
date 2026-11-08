@@ -28,6 +28,7 @@
 
 <nav id="tabs" class="tabs">
   <button data-tab="watch" class="on">看盘</button>
+  <button data-tab="mylist">自选股</button>
   <button data-tab="sectors">板块</button>
   <button data-tab="earnings">财报日历</button>
   <button data-tab="movers">涨跌幅榜</button>
@@ -38,16 +39,17 @@
 
 <main>
   <div id="view-watch" class="view">
-    <aside class="card" id="watchPanel">
+    <div id="searchBox">
       <form id="addForm" class="addrow">
-        <input id="addInput" placeholder="添加代码,如 TSLA" maxlength="8" autocomplete="off">
+        <input id="addInput" placeholder="搜索代码或公司名,如 TSLA、甲骨文" maxlength="30" autocomplete="off">
         <button type="submit">添加</button>
       </form>
+      <div id="sugg" class="sugg hidden"></div>
       <div id="addMsg" class="muted small"></div>
-      <div id="watchList"></div>
-    </aside>
+    </div>
     <section class="card" id="detail"></section>
   </div>
+  <div id="view-mylist" class="view hidden"><div class="card" id="watchPanel"><div id="watchList"></div></div></div>
   <div id="view-sectors" class="view hidden"></div>
   <div id="view-earnings" class="view hidden"></div>
   <div id="view-movers" class="view hidden"></div>

@@ -18,6 +18,7 @@ const LiveData = (() => {
     async loadCompany(sym) { return api('/api/company?symbol=' + encodeURIComponent(sym)); },
     async loadFin(sym) { return api('/api/fin?symbol=' + encodeURIComponent(sym)); },
     async loadSeg(sym) { return api('/api/fin?part=seg&symbol=' + encodeURIComponent(sym)); },
+    async loadSectors() { const r = await api('/api/movers?part=sectors'); if (!r.sectors) throw new Error('x'); return r; },
     async loadMovers() { const r = await api('/api/movers'); if (r.error) throw new Error(r.error); return r; },
     async loadPicks() { const r = await fetch('/screener.json?t=' + Math.floor(Date.now() / 600000)); if (!r.ok) throw new Error('none'); return r.json(); },
     async loadMacro() { const r = await api('/api/macro'); if (r.error) throw new Error(r.error); return r; },
@@ -33,6 +34,7 @@ const LiveData = (() => {
       r.items.forEach(x => { if (out[x.when]) out[x.when].push({ sym: x.sym, name: x.name || (M.info[x.sym] || {}).name || '', eps: x.eps == null ? '--' : x.eps.toFixed(2), rev: x.rev ? (x.rev / 1e9).toFixed(1) + 'B' + (x.cur && x.cur !== 'USD' ? ' ' + x.cur : '') : '--', cur: x.cur && x.cur !== 'USD' ? x.cur : '', cap: x.cap }); });
       return out;
     },
+    async search(q) { return api('/api/search?q=' + encodeURIComponent(q)); },
     async validate(sym) { await this.refreshQuotes([sym]); return !!qc[sym]; }
   };
 })();

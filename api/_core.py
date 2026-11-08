@@ -2,7 +2,7 @@
 - 行情/K线:Yahoo 财经(非官方接口,不需要 Key)
 - 新闻/财报日历:Finnhub(环境变量 FINNHUB_KEY);目标价/评级变动/涨跌榜:FMP(环境变量 FMP_KEY)。Key 只在终端或 Vercel 环境变量里设置,不写入任何文件
 """
-import json, os, time, datetime, urllib.request, urllib.parse
+import re, json, os, time, datetime, urllib.request, urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 
 UA = {"User-Agent": "Mozilla/5.0"}
@@ -232,7 +232,7 @@ def _fmp_grades(sym):
 _yh = {"op": None, "crumb": None, "t": 0}
 
 
-def _yh_open(url):
+def _yh_session():
     import http.cookiejar
     if not _yh["op"] or time.time() - _yh["t"] > 3000:        # Yahoo 需要先拿一个临时的 crumb
         op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
@@ -243,7 +243,73 @@ def _yh_open(url):
             pass
         _yh["crumb"] = op.open("https://query2.finance.yahoo.com/v1/test/getcrumb", timeout=10).read().decode()
         _yh["op"], _yh["t"] = op, time.time()
-    return json.load(_yh["op"].open(url + "&crumb=" + urllib.parse.quote(_yh["crumb"]), timeout=15))
+    return _yh["op"], _yh["crumb"]
+
+
+def _yh_open(url):
+    op, crumb = _yh_session()
+    return json.load(op.open(url + "&crumb=" + urllib.parse.quote(crumb), timeout=15))
+
+
+US_EX = ("NMS", "NYQ", "NGM", "NCM", "ASE", "PCX")
+
+
+def _yh_screen(conds, sort, desc=True, size=30, ttl=240):
+    """Yahoo 股票筛选器(美股、按条件排序)。conds 是额外条件;返回精简后的行情列表。"""
+    key = "scr:" + json.dumps([conds, sort, desc, size], sort_keys=True)
+    hit = _cache.get(key)
+    if hit and time.time() - hit[0] < ttl:
+        return hit[1]
+    ops = [{"operator": "eq", "operands": ["region", "us"]}, {"operator": "or", "operands": [{"operator": "eq", "operands": ["exchange", e]} for e in US_EX]}] + conds
+    body = {"size": size, "offset": 0, "sortField": sort, "sortType": "DESC" if desc else "ASC", "quoteType": "EQUITY", "topOperator": "AND",
+            "query": {"operator": "AND", "operands": ops}, "userId": "", "userIdType": "guid"}
+    op, crumb = _yh_session()
+    req = urllib.request.Request("https://query1.finance.yahoo.com/v1/finance/screener?lang=en-US&region=US&formatted=false&crumb=" + urllib.parse.quote(crumb),
+                                 data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
+    q = json.load(op.open(req, timeout=15))["finance"]["result"][0]
+    out = [{"sym": x["symbol"], "name": x.get("shortName") or x.get("longName") or x["symbol"], "price": x.get("regularMarketPrice"),
+            "pct": x.get("regularMarketChangePercent"), "vol": x.get("regularMarketVolume"), "cap": x.get("marketCap")} for x in q.get("quotes", []) if not re.search(r"-P[A-Z]?$", x["symbol"])]      # 去掉优先股
+    _cache[key] = (time.time(), out)
+    return out
+
+
+# 20 个板块:前 11 个是 Yahoo 的行业大类(sector),后 9 个是细分行业(industry)
+SECTOR_DEFS = [("科技", "sector", "Technology"), ("通信与传媒", "sector", "Communication Services"), ("可选消费", "sector", "Consumer Cyclical"),
+               ("必需消费", "sector", "Consumer Defensive"), ("医疗健康", "sector", "Healthcare"), ("金融", "sector", "Financial Services"),
+               ("工业", "sector", "Industrials"), ("能源", "sector", "Energy"), ("公用事业", "sector", "Utilities"), ("房地产", "sector", "Real Estate"),
+               ("基础材料", "sector", "Basic Materials"),
+               ("半导体", "industry", "Semiconductors"), ("半导体设备", "industry", "Semiconductor Equipment & Materials"), ("AI 硬件/存储", "industry", "Computer Hardware"),
+               ("生物科技", "industry", "Biotechnology"), ("航空航天与国防", "industry", "Aerospace & Defense"), ("汽车整车", "industry", "Auto Manufacturers"),
+               ("电商零售", "industry", "Internet Retail"), ("投行与券商", "industry", "Capital Markets"), ("医疗器械", "industry", "Medical Devices")]
+
+
+def sectors(n=15):
+    """每个板块取市值最大的 n 只美股(含在美上市的 ADR)。"""
+    def one(d):
+        name, field, val = d
+        try:
+            rows = _yh_screen([{"operator": "eq", "operands": [field, val]}, {"operator": "gt", "operands": ["intradaymarketcap", 2e9]}], "intradaymarketcap", True, n, 600)
+        except Exception as e:
+            DBG["sectors"] = f"{name}: {type(e).__name__}"
+            rows = []
+        return {"name": name, "items": rows}
+    with ThreadPoolExecutor(6) as ex:
+        res = list(ex.map(one, SECTOR_DEFS))
+    return {"sectors": res}
+
+
+def movers():
+    """全市场涨幅榜 / 跌幅榜 / 成交最活跃,各 30 只(Yahoo 筛选器,不需要 Key)。过滤掉市值低于 20 亿美元或股价低于 5 美元的小票。"""
+    base = [{"operator": "gt", "operands": ["intradaymarketcap", 2e9]}, {"operator": "gt", "operands": ["intradayprice", 5]}]
+    out = {}
+    for key, sort, desc in [("gainers", "percentchange", True), ("losers", "percentchange", False), ("actives", "dayvolume", True)]:
+        try:
+            rows = _yh_screen(base, sort, desc, 30, 120)
+        except Exception as e:
+            DBG["movers"] = f"{key}: {type(e).__name__}"
+            rows = []
+        out[key] = {"items": rows}
+    return out
 
 
 def _zh(text):
@@ -439,22 +505,6 @@ def _sec_backlog(sym):
         return None
 
 
-def movers():
-    """全市场涨幅榜 / 跌幅榜 / 成交最活跃(FMP)。过滤掉股价低于 5 美元的小壳股和非美股交易所。"""
-    if not os.environ.get("FMP_KEY"):
-        return {"error": "no_key"}
-    out = {}
-    for key, path in [("gainers", "biggest-gainers"), ("losers", "biggest-losers"), ("actives", "most-actives")]:
-        try:
-            d = _fmp(path, {}, 120) or []
-        except Exception:
-            d = []
-        rows = [x for x in d if (x.get("price") or 0) >= 5 and x.get("exchange") in ("NASDAQ", "NYSE", "AMEX")]
-        out[key] = {"total": len(d), "items": [{"sym": x["symbol"], "name": x.get("name", ""), "price": x["price"], "pct": x.get("changesPercentage"),
-                                                 "change": x.get("change")} for x in rows[:10]]}
-    return out
-
-
 def _fh(path, params, ttl):
     key = os.environ.get("FINNHUB_KEY")
     if not key:
@@ -517,6 +567,21 @@ def earnings(date):
                        "rev": x.get("revenueEstimate"), "cur": caps[x["symbol"]]["cur"], "cap": caps[x["symbol"]]["cap"]} for x in keep]}
 
 
+def search(q):
+    """搜索联想:按代码或公司名,返回相关的美股和 ETF(含杠杆/做空 ETF)。来自 Yahoo 的搜索接口,不需要 Key。"""
+    q = (q or "").strip()[:30]
+    if not q:
+        return {"items": []}
+    d = _get("https://query2.finance.yahoo.com/v1/finance/search?" + urllib.parse.urlencode({"q": q, "quotesCount": 10, "newsCount": 0, "listsCount": 0}), 60)
+    us = {"NMS", "NYQ", "NGM", "NCM", "PCX", "BTS", "ASE", "NAS", "NYS", "BATS", "CBOE"}
+    items = []
+    for x in d.get("quotes", []):
+        if x.get("quoteType") not in ("EQUITY", "ETF") or x.get("exchange") not in us or not x.get("symbol") or re.search(r"-P[A-Z]?$", x["symbol"]):
+            continue
+        items.append({"sym": x["symbol"], "name": x.get("shortname") or x.get("longname") or x["symbol"], "type": x["quoteType"], "ex": x.get("exchDisp")})
+    return {"items": items[:8]}
+
+
 # ---- 路由:本地服务器和 Vercel 共用 ----
 def route(name, q):
     """返回 (状态码, 数据, 缓存秒数)。缓存可减少对 Yahoo / Finnhub 的请求,保护免费额度。"""
@@ -537,12 +602,14 @@ def route(name, q):
         if name == "macro":
             return 200, macro(), 600
         if name == "movers":
-            return 200, movers(), 120
+            return 200, (sectors() if q.get("part") == "sectors" else movers()), 120
         if name == "company":
             return 200, company(q["symbol"].upper()), 600
         if name == "fin":
             import _fin
             return 200, (_fin.segments if q.get("part") == "seg" else _fin.fin)(q["symbol"].upper()), 3600
+        if name == "search":
+            return 200, search(q.get("q", "")), 60
         if name == "detail":
             return 200, detail(q["symbol"].upper()), 15
         if name == "status":

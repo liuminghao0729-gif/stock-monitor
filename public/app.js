@@ -92,25 +92,62 @@ function renderWatch() {
     const q = Data.quote(s);
     return `<div class="wrow ${s === state.sel ? 'sel' : ''}" data-s="${s}"><div><div class="s">${s}</div><div class="nm">${q.name}</div></div>
       <div class="px">${fmt(q.price)}</div><div><span class="chg ${cls(q.pct)}">${sgn(q.pct)}%</span><button class="x" data-del="${s}" title="删除">×</button></div></div>`;
-  }).join('') || '<div class="muted small" style="padding:10px">还没有自选股,在上面输入代码添加。</div>';
+  }).join('') || '<div class="muted small" style="padding:10px">还没有自选股,到「看盘」里搜索添加。</div>';
 }
 $('#watchList').addEventListener('click', e => {
   const del = e.target.dataset.del;
   if (del) { state.watch = state.watch.filter(x => x !== del); store.set('watch', state.watch); if (state.sel === del) state.sel = state.watch[0]; renderWatch(); renderDetail(); return; }
   const row = e.target.closest('.wrow'); if (row) selectStock(row.dataset.s);
 });
+// ----- 搜索联想:输入代码或公司名(中文也行),下面列出相关股票/ETF,点一下即加入自选并打开 -----
+const ZH_ALIAS = { 甲骨文: 'ORCL', 特斯拉: 'TSLA', 亚马逊: 'AMZN', 谷歌: 'GOOGL', 脸书: 'META', 奈飞: 'NFLX', 台积电: 'TSM', 美光: 'MU', 英特尔: 'INTC', 高通: 'QCOM', 博通: 'AVGO', 伯克希尔: 'BRK-B', 可口可乐: 'KO', 迪士尼: 'DIS', 波音: 'BA', 摩根大通: 'JPM', 沃尔玛: 'WMT', 好市多: 'COST', 阿里巴巴: 'BABA', 拼多多: 'PDD', 英伟达: 'NVDA', 苹果: 'AAPL', 微软: 'MSFT', 超微: 'AMD', 帕兰提尔: 'PLTR', 奥多比: 'ADBE', 星巴克: 'SBUX', 耐克: 'NKE', 麦当劳: 'MCD', 辉瑞: 'PFE', 礼来: 'LLY', 联合健康: 'UNH', 埃克森美孚: 'XOM', 赛富时: 'CRM', 优步: 'UBER', 戴尔: 'DELL', 美国银行: 'BAC', 高盛: 'GS', 百事: 'PEP', 宝洁: 'PG', 强生: 'JNJ', 英特尔公司: 'INTC', 瑞幸: 'LKNCY', 蔚来: 'NIO', 小鹏: 'XPEV', 理想: 'LI', 百度: 'BIDU', 京东: 'JD', 网易: 'NTES', 哔哩哔哩: 'BILI', 苹果公司: 'AAPL' };
+const zhName = s => (COMPANIES[s] && COMPANIES[s].n) || Object.keys(ZH_ALIAS).find(k => ZH_ALIAS[k] === s) || '';
+let suggSeq = 0, suggItems = [], suggOn = -1, suggTimer = 0;
+const hideSugg = () => { $('#sugg').classList.add('hidden'); suggItems = []; suggOn = -1; };
+function paintSugg() {
+  const box = $('#sugg');
+  if (!suggItems.length) { box.classList.add('hidden'); return; }
+  box.innerHTML = suggItems.map((x, i) => `<div class="sg ${i === suggOn ? 'on' : ''}" data-i="${i}"><b>${esc(x.sym)}</b><span class="nm">${esc(zhName(x.sym) ? zhName(x.sym) + ' · ' : '')}${esc(x.name)}</span><span>${state.watch.includes(x.sym) ? '<span class="in">已在自选</span>' : `<span class="tg">${x.type === 'ETF' ? 'ETF' : '股票'}</span>`}</span></div>`).join('');
+  box.classList.remove('hidden');
+}
+async function runSearch(q) {
+  const my = ++suggSeq; q = q.trim(); if (!q) { hideSugg(); return; }
+  const zh = /[\u4e00-\u9fa5]/.test(q); let seeds = [];
+  if (zh) { const names = { ...ZH_ALIAS }; Object.keys(COMPANIES).forEach(k => { if (COMPANIES[k].n) names[COMPANIES[k].n] = k; });
+    seeds = [...new Set(Object.keys(names).filter(n => n.includes(q) || q.includes(n)).map(n => names[n]))].slice(0, 3); if (!seeds.length) { suggItems = []; paintSugg(); $('#addMsg').textContent = '中文名暂只支持常见公司,可以直接输入英文代码或英文名'; return; } }
+  let items = [];
+  try { for (const k of (zh ? seeds : [q])) { const r = await Data.search(k); (r.items || []).forEach(x => { if (!items.some(y => y.sym === x.sym)) items.push(x); }); } } catch { }
+  if (my !== suggSeq) return;
+  if (zh) items = [...seeds.map(s => items.find(x => x.sym === s) || { sym: s, name: s, type: 'EQUITY' }), ...items.filter(x => !seeds.includes(x.sym))];
+  suggItems = items.slice(0, 8); suggOn = -1; $('#addMsg').textContent = suggItems.length ? '' : '没有找到,试试英文代码或英文公司名'; paintSugg();
+}
+async function addPick(s) {
+  hideSugg(); $('#addInput').value = ''; $('#addMsg').textContent = '';
+  let isNew = !state.watch.includes(s);
+  if (isNew) { let ok = false; try { ok = await Data.validate(s); } catch { } if (!ok) { $('#addMsg').textContent = `暂时拿不到 ${s} 的行情`; return; } state.watch.push(s); store.set('watch', state.watch); }
+  selectStock(s);
+  $('#addMsg').textContent = isNew ? `已把 ${s} 加入「自选股」` : `${s} 已在自选股中`; setTimeout(() => { if ($('#addMsg').textContent.includes(s)) $('#addMsg').textContent = ''; }, 3000);
+}
+$('#addInput').addEventListener('input', e => { clearTimeout(suggTimer); suggTimer = setTimeout(() => runSearch(e.target.value), 220); });
+$('#addInput').addEventListener('keydown', e => {
+  if (!suggItems.length) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); suggOn = (suggOn + 1) % suggItems.length; paintSugg(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); suggOn = (suggOn - 1 + suggItems.length) % suggItems.length; paintSugg(); }
+  else if (e.key === 'Escape') hideSugg();
+});
+$('#sugg').addEventListener('mousedown', e => { e.preventDefault(); const r = e.target.closest('.sg'); if (r) addPick(suggItems[+r.dataset.i].sym); });
+document.addEventListener('click', e => { if (!e.target.closest('#searchBox')) hideSugg(); });
 $('#addForm').addEventListener('submit', async e => {
   e.preventDefault();
-  const s = $('#addInput').value.trim().toUpperCase(), msg = $('#addMsg');
-  if (!s) return;
-  if (state.watch.includes(s)) { msg.textContent = s + ' 已在自选股中'; return; }
-  msg.textContent = '查询中…';
-  let ok = false; try { ok = await Data.validate(s); } catch { }
-  if (!ok) { msg.textContent = Data.mode === 'mock' ? `模拟模式只支持内置股票;启动后台后可添加任意代码。` : `找不到代码 ${s},请检查拼写。`; return; }
-  state.watch.push(s); store.set('watch', state.watch); msg.textContent = ''; $('#addInput').value = ''; renderWatch();
+  const raw = $('#addInput').value.trim(), s = raw.toUpperCase(); if (!raw) return;
+  if (suggOn >= 0) return addPick(suggItems[suggOn].sym);
+  const exact = suggItems.find(x => x.sym === s); if (exact) return addPick(exact.sym);
+  if (suggItems.length) return addPick(suggItems[0].sym);             // 没选就取第一条最相关的
+  if (/^[A-Z.\-]{1,8}$/.test(s)) return addPick(s);                    // 联想没出来时按代码直接试
+  $('#addMsg').textContent = '没有找到,试试英文代码或英文公司名';
 });
 function selectStock(s) {
-  state.sel = s; state.hover = -1; if (isIdx(s)) state.dt = 'chart'; switchTab('watch'); renderWatch(); renderDetail(); renderIndices();
+  state.sel = s; state.hover = -1; if (isIdx(s)) state.dt = 'chart'; hideSugg(); switchTab('watch'); renderWatch(); renderDetail(); renderIndices();
   if (isIdx(s) && window.innerWidth < 860) setTimeout(() => $('#detail').scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
   Data.refreshQuotes([s]).then(() => { if (state.sel === s) { const h = $('#dhead'); if (h) h.innerHTML = headHTML(s); renderWatch(); } }).catch(() => { });   // 竞争对手等不在自选里的代码
 }
@@ -806,6 +843,16 @@ const loading = el => { if (!el.innerHTML.trim()) el.innerHTML = '<div class="mu
 function qrow(s) { const q = Data.quote(s); return `<tr><td><span class="sym" data-go="${s}">${s}</span> <span class="muted small">${esc(q.name)}</span></td><td class="r">${fmt(q.price)}</td><td class="r ${cls(q.pct)}">${sgn(q.pct)}%</td></tr>`; }
 async function renderSectors() {
   const el = $('#view-sectors'); loading(el);
+  if (Data.loadSectors) {                      // 实时模式:20 个板块,每个板块市值最大的 15 只
+    let S = null; try { S = await Data.loadSectors(); } catch { }
+    if (state.tab !== 'sectors') return;
+    if (S) {
+      const ok = S.sectors.filter(x => x.items.length), row = x => `<tr><td><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> <span class="muted small">${esc(x.name)}</span></td><td class="r">${fmt(x.price)}</td><td class="r ${cls(x.pct)}">${sgn(x.pct)}%</td><td class="r muted small">${capStr(x.cap)}</td></tr>`;
+      el.innerHTML = '<div class="grid2">' + ok.map(sc => { const v = sc.items.filter(x => Number.isFinite(x.pct)), avg = v.reduce((a, x) => a + x.pct, 0) / (v.length || 1);
+        return `<div class="card"><div class="dh"><h3 style="margin:0">${esc(sc.name)} <span class="muted small">市值前 ${sc.items.length}</span></h3><span class="${cls(avg)}">均值 ${sgn(avg)}%</span></div><table><tbody>${sc.items.map(row).join('')}</tbody></table></div>`; }).join('') + '</div><div class="muted small" style="padding:10px 4px">每个板块按市值从大到小排列,含在美上市的外国公司(ADR);数据来自 Yahoo,可能有延迟。</div>';
+      return;
+    }
+  }
   try { await Data.refreshQuotes(universe()); } catch { }
   if (state.tab !== 'sectors') return;
   el.innerHTML = '<div class="grid2">' + Object.entries(Data.SECTORS).map(([n, list]) => {
@@ -833,9 +880,9 @@ async function renderMovers() {
   let M = null; if (Data.loadMovers) { try { M = await Data.loadMovers(); } catch { } }
   if (state.tab !== 'movers') return;
   if (M) {   // 全市场榜单(已过滤 5 美元以下的小壳股)
-    const mrow = x => `<tr><td><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> <span class="muted small">${esc(x.name)}</span></td><td class="r">${fmt(x.price)}</td><td class="r ${cls(x.pct)}">${sgn(x.pct)}%</td></tr>`;
+    const mrow = x => `<tr><td><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> <span class="muted small">${esc(x.name)}</span></td><td class="r">${fmt(x.price)}</td><td class="r ${cls(x.pct)}">${sgn(x.pct)}%</td><td class="r muted small">${Number.isFinite(x.vol) && Number.isFinite(x.price) ? '成交额 ' + capStr(x.vol * x.price) : ''}</td></tr>`;
     const box = (t, b) => `<div class="card"><h3 style="margin-top:0">${t}</h3>${b.items.length ? `<table><tbody>${b.items.map(mrow).join('')}</tbody></table>` : '<div class="muted small">过滤小壳股后暂无</div>'}</div>`;
-    el.innerHTML = `<div class="grid2">${box('全市场涨幅榜', M.gainers)}${box('全市场跌幅榜', M.losers)}${box('成交最活跃', M.actives)}</div><div class="muted small" style="padding:10px 4px">已过滤股价低于 5 美元的股票;数据来自免费接口,可能有延迟。</div>`;
+    el.innerHTML = `<div class="grid2">${box('涨幅榜 · 前 30', M.gainers)}${box('跌幅榜 · 前 30', M.losers)}${box('成交榜 · 前 30(按成交量)', M.actives)}</div><div class="muted small" style="padding:10px 4px">已过滤市值低于 20 亿美元或股价低于 5 美元的股票;数据来自 Yahoo,可能有延迟。</div>`;
     return;
   }
   try { await Data.refreshQuotes(universe()); } catch { }
@@ -845,7 +892,7 @@ async function renderMovers() {
   el.innerHTML = `<div class="grid2">${top(byPct.slice(0, 10), '涨幅榜')}${top(byPct.slice(-10).reverse(), '跌幅榜')}${top(byVol.slice(0, 10), '成交额榜')}</div>`;
 }
 // ===== 股票推荐(只有一个组合:强趋势龙头,中期)=====
-const capStr = n => !n ? '--' : n >= 1e12 ? (n / 1e12).toFixed(2) + 'T' : (n / 1e9).toFixed(0) + 'B';
+const capStr = n => !n ? '--' : n >= 1e12 ? (n / 1e12).toFixed(2) + 'T' : n >= 1e10 ? (n / 1e9).toFixed(0) + 'B' : n >= 1e9 ? (n / 1e9).toFixed(1) + 'B' : (n / 1e6).toFixed(0) + 'M';
 const SESSION = { pre: '盘前', mid: '盘中(K 线未走完,收盘后会更新)', post: '盘后最终' };
 const ST_LABEL = { NEW: '新入选', STILL_VALID: '持续在名单' };
 const REGIME = { BULL: '牛市(SPY 在 200 日线上,50 日线上升)', BEAR: '熊市(SPY 在 200 日线下,200 日线下降)', NEUTRAL: '中性' };
@@ -911,7 +958,7 @@ async function renderAlerts() {
   let l; try { l = await Data.loadNews(''); } catch { l = { error: '新闻加载失败' }; }
   if (state.tab === 'alerts') $('#macroNews').innerHTML = newsHTML(l);
 }
-const renderers = { sectors: renderSectors, earnings: renderEarnings, movers: renderMovers, picks: renderPicks, macro: renderMacro, alerts: renderAlerts };
+const renderers = { mylist: renderWatch, sectors: renderSectors, earnings: renderEarnings, movers: renderMovers, picks: renderPicks, macro: renderMacro, alerts: renderAlerts };
 document.addEventListener('click', e => {
   const go = e.target.closest('[data-go]'); if (go) selectStock(go.dataset.go);
   if (e.target.dataset.day !== undefined) { state.day = +e.target.dataset.day; renderEarnings(); }

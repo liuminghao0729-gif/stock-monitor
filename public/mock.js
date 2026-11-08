@@ -137,6 +137,7 @@ const MockData = (() => {
     async loadFin() { return { error: 'mock' }; },
     async loadNews(sym) { return this.news(sym); },
     async loadEarnings(d) { return this.earnings(Math.round((d - new Date()) / 864e5)); },
+    async search(q) { q = q.toUpperCase(); return { items: Object.keys(info).filter(s => s.includes(q) || String(info[s].name || '').toUpperCase().includes(q)).slice(0, 8).map(s => ({ sym: s, name: info[s].name || s, type: 'EQUITY', ex: '' })) }; },
     async validate(sym) { return !!info[sym]; }
   };
 })();

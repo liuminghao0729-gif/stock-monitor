@@ -72,8 +72,8 @@ input[type=checkbox]{accent-color:var(--accent)}
 .tabs button{border-radius:0;padding:14px 0;color:var(--muted);white-space:nowrap;letter-spacing:.06em;border-bottom:1.5px solid transparent;margin-bottom:-1px}
 .tabs button.on{color:var(--text);border-color:var(--accent)}
 main{padding:30px 0 40px}
-#view-watch{display:grid;grid-template-columns:260px 1fr;gap:56px}
-@media(max-width:860px){#view-watch{grid-template-columns:1fr;gap:28px}.shell{padding:0 18px}}
+#view-watch{display:grid;grid-template-columns:1fr;gap:24px}
+@media(max-width:860px){.shell{padding:0 18px}}
 
 /* 自选 */
 .addrow{display:flex;gap:8px}.addrow input{flex:1;min-width:0}
@@ -217,3 +217,13 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 @media(max-width:640px){.fingrid{grid-template-columns:1fr}}@media(max-width:560px){.segrow,.seghead{grid-template-columns:1.2fr 1fr 1.2fr 56px}}
 .finv{font-size:12px}.finx{font-size:11px}
 .pfkv{margin:10px 0 4px;grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}.pfkv .small{margin-top:-2px}
+
+/* 搜索框与联想下拉 */
+#searchBox{position:relative;max-width:520px}
+.sugg{position:absolute;left:0;right:0;top:46px;z-index:30;background:var(--bg2,#14161a);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 12px 40px rgba(0,0,0,.45);max-height:340px;overflow:auto}
+.sugg.hidden{display:none}
+.sg{display:grid;grid-template-columns:72px 1fr auto;gap:10px;align-items:center;padding:10px;border-radius:10px;cursor:pointer}
+.sg:hover,.sg.on{background:var(--sel)}.sg b{font-weight:600}.sg .nm{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sg .tg{font-size:11px;color:var(--faint);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+.sg .in{font-size:11px;color:var(--accent)}
+#view-mylist .card{max-width:560px}
