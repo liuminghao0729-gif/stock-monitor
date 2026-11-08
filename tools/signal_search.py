@@ -61,7 +61,8 @@ def load():
                 ad[j] = nr - F[kb][o] * SP[h][o]
                 v[j] = 1
         adj[h], ex[h], valid[h] = ad, e, bytes(v)
-    return {"dates": dates, "slices": slices, "n": n, "RK": RK, "adj": adj, "ex": ex, "valid": valid, "uidx": uidx, "F": F, "R": R, "SP": SP}
+    return {"dates": dates, "slices": slices, "n": n, "RK": RK, "adj": adj, "ex": ex, "valid": valid, "uidx": uidx, "F": F, "R": R, "SP": SP,
+            "stock": Z.get("stock"), "tidx": Z.get("t"), "syms": Z.get("syms"), "groups": groups}
 
 
 def month_t(by):

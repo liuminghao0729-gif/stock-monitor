@@ -38,7 +38,7 @@ def build():
     spy, bars, caps = D["spy"], D["bars"], D["caps"]
     sidx = {d: i for i, d in enumerate(spy["d"])}
     nan = float("nan")
-    date_i, stock_i = array("i"), array("i")
+    date_i, stock_i, t_i = array("i"), array("i"), array("i")
     F = [array("f") for _ in range(NF)]
     R = {h: array("f") for h in HS}
     SP = {h: array("f") for h in HS}
@@ -102,6 +102,7 @@ def build():
                      (px - l_[t]) / (h_[t] - l_[t]) if h_[t] > l_[t] else 0.5, px / min(l_[t - 19:t + 1]) - 1, ao[t] / a[t - 1] - 1, (h_[t] - l_[t]) / px, min(x for x in rs[t - 4:t + 1] if x is not None)]
             date_i.append(i1 - 1)          # 信号日在 SPY 日期里的位置(入场在其后一天)
             stock_i.append(si)
+            t_i.append(t)
             for k, x in enumerate(vals):
                 F[k].append(x)
             for hh in HS:
@@ -113,7 +114,7 @@ def build():
                     R[hh].append(nan); SP[hh].append(nan)
         if (len(syms)) % 200 == 0:
             print(f"  {len(syms)} 只,观测 {len(date_i):,},用时 {time.time() - t0:.0f} 秒", flush=True)
-    pickle.dump({"date": date_i, "F": F, "R": R, "SP": SP, "dates": spy["d"]}, gzip.open(DATA, "wb"))
+    pickle.dump({"date": date_i, "F": F, "R": R, "SP": SP, "dates": spy["d"], "stock": stock_i, "t": t_i, "syms": list(bars.keys())}, gzip.open(DATA, "wb"))
     print(f"完成:观测 {len(date_i):,},用时 {time.time() - t0:.0f} 秒")
 
 
