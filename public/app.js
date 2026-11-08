@@ -221,7 +221,7 @@ try { finMode = localStorage.getItem('finMode') === 'Y' ? 'Y' : 'Q'; } catch { }
 const FIN_METRICS = [['rev', '营收', 'm'], ['ni', '净利润', 'm'], ['ocf', '经营现金流', 'm'], ['fcf', '自由现金流', 'm'], ['gm', '毛利率', 'p'], ['om', '营业利润率', 'p'], ['nm', '净利率', 'p'], ['eps', '每股收益(摊薄)', 'e'], ['dr', '资产负债率', 'p'], ['cr', '流动比率', 'x'], ['cash', '现金', 'm'], ['debt', '长期债务', 'm']];
 const FIN_SHOW = ['rev', 'ni', 'fcf', 'gm'];      // 页面上只画最重要的四项;其余指标放进文字解读
 const finFmt = (v, t) => !Number.isFinite(v) ? '--' : t === 'p' ? v.toFixed(1) + '%' : t === 'e' ? fmt(v) : t === 'x' ? v.toFixed(2) : (v < 0 ? '-' : '') + bigN(Math.abs(v));
-const finLbl = (r, mode) => mode === 'Y' ? 'FY' + r.end.slice(0, 7) : r.end.slice(2, 7);
+const finLbl = (r, mode) => mode === 'Y' ? 'FY' + r.end.slice(0, 4) + '·' + r.end.slice(5, 7) + '月' : r.end.slice(2, 7);
 function finSeries(f, mode, key) {            // 取最近 4 个季度 / 5 个财年,并附上去年同期(用来算同比)
   const all = mode === 'Y' ? f.years : f.rows, n = mode === 'Y' ? 5 : 4, gap = mode === 'Y' ? 1 : 4, out = [];
   for (let i = Math.max(0, all.length - n); i < all.length; i++) out.push({ r: all[i], v: all[i][key], p: i - gap >= 0 ? all[i - gap][key] : null });
@@ -229,12 +229,12 @@ function finSeries(f, mode, key) {            // 取最近 4 个季度 / 5 个�
 }
 function finChart(f, mode, [key, name, t]) {
   const ser = finSeries(f, mode, key), vals = ser.map(x => x.v).filter(Number.isFinite); if (!vals.length) return `<div class="fincard"><div class="muted small">${name}</div><div class="muted small">暂无数据</div></div>`;
-  const W = 150, H = 112, top = 16, bot = 16, mx = Math.max(...vals, 0), mn = Math.min(...vals, 0), span = (mx - mn) || 1, y0 = top + mx / span * (H - top - bot), gw = W / ser.length, bw = Math.min(24, gw * .6);
+  const W = 420, H = 170, top = 22, bot = 22, mx = Math.max(...vals, 0), mn = Math.min(...vals, 0), span = (mx - mn) || 1, y0 = top + mx / span * (H - top - bot), gw = W / ser.length, bw = Math.min(46, gw * .5);
   let g = `<line x1="0" x2="${W}" y1="${y0.toFixed(1)}" y2="${y0.toFixed(1)}" stroke="var(--line)"/>`;
   ser.forEach((x, i) => { if (!Number.isFinite(x.v)) return; const bh = Math.max(1.5, Math.abs(x.v) / span * (H - top - bot)), cx = i * gw + gw / 2, y = x.v >= 0 ? y0 - bh : y0, last = i === ser.length - 1;
     g += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${x.v < 0 ? 'var(--down)' : 'var(--accent)'}" opacity="${last ? 1 : .55}"/>
       <text x="${cx.toFixed(1)}" y="${(x.v >= 0 ? y - 4 : y + bh + 11).toFixed(1)}" text-anchor="middle" class="finv">${finFmt(x.v, t)}</text>
-      <text x="${cx.toFixed(1)}" y="${H - 2}" text-anchor="middle" class="finx">${esc(finLbl(x.r, mode))}</text>`; });
+      <text x="${cx.toFixed(1)}" y="${H - 5}" text-anchor="middle" class="finx">${esc(finLbl(x.r, mode))}</text>`; });
   const l = ser[ser.length - 1], d = (t === 'p' || t === 'x') ? (Number.isFinite(l.v) && Number.isFinite(l.p) ? l.v - l.p : NaN) : (Number.isFinite(l.v) && Number.isFinite(l.p) && l.p > 0 ? (l.v / l.p - 1) * 100 : NaN);
   const dtxt = Number.isFinite(d) ? `<span class="${cls(d)}">${mode === 'Y' ? '较上年' : '较去年同期'} ${t === 'p' ? sgn(d, 1) + ' 个百分点' : t === 'x' ? sgn(d, 2) : sgn(d, 1) + '%'}</span>` : `<span class="muted">${l.p != null && l.p <= 0 ? '基数为负,不算同比' : '无同比数据'}</span>`;
   return `<div class="fincard"><div class="fch"><b>${name}</b><span class="small">${dtxt}</span></div><svg viewBox="0 0 ${W} ${H}" class="finsvg" role="img">${g}</svg></div>`;
