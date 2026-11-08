@@ -188,6 +188,7 @@ def company(sym):
         y = _yh_summary(sym)
         out["about"] = (y or {}).get("about")
         out["rec"] = out.get("rec") or (y or {}).get("rec")
+        out["etf"] = (y or {}).get("etf")
         out["target"] = out["target"] or (y or {}).get("target")
         out["grades"] = out["grades"] or (y or {}).get("grades")
     out["backlog"] = _sec_backlog(sym)
@@ -365,7 +366,7 @@ def _yh_summary(sym):
     if hit and time.time() - hit[0] < 3600:
         return hit[1]
     try:
-        d = _yh_open(f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{urllib.parse.quote(sym)}?modules=financialData,upgradeDowngradeHistory,assetProfile,recommendationTrend")
+        d = _yh_open(f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{urllib.parse.quote(sym)}?modules=financialData,upgradeDowngradeHistory,assetProfile,recommendationTrend,topHoldings")
         r = d["quoteSummary"]["result"][0]
         fd = r.get("financialData") or {}
         raw = lambda k: (fd.get(k) or {}).get("raw")
@@ -382,7 +383,9 @@ def _yh_summary(sym):
                  "employees": ap.get("fullTimeEmployees"), "zh": _brief(_zh(_head(ap.get("longBusinessSummary") or "")))} if ap.get("longBusinessSummary") else None
         rt = (r.get("recommendationTrend") or {}).get("trend") or []
         rec = [{"period": time.strftime("%Y-%m"), **{k: rt[0].get(k) for k in ("strongBuy", "buy", "hold", "sell", "strongSell")}}] if rt else None
-        out = {"target": target, "grades": grades, "about": about, "rec": rec}
+        th = r.get("topHoldings") or {}
+        etf = [{"sym": x.get("symbol"), "name": x.get("holdingName"), "pct": (x.get("holdingPercent") or {}).get("raw")} for x in th.get("holdings", [])] or None
+        out = {"target": target, "grades": grades, "about": about, "rec": rec, "etf": etf}
     except Exception as e:
         DBG["yahoo"] = f"{sym}: {type(e).__name__}: {str(e)[:60]}"
         out = None

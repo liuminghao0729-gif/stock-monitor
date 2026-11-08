@@ -378,6 +378,15 @@ function pfData(s) {                      // 通俗解读里的「关键数字�
   box.innerHTML = `<div class="kv pfkv">${chip('近 12 个月营收', finFmt(t.rev, 'm'), t.rev_yoy)}${chip('净利润', finFmt(t.ni, 'm'), t.ni_yoy)}${chip('毛利率', finFmt(t.gm, 'p'))}${chip('自由现金流', finFmt(t.fcf, 'm'), t.fcf_yoy)}${Number.isFinite(bs.dr) ? chip('资产负债率', finFmt(bs.dr, 'p')) : ''}${v ? chip('最大业务', esc(v.items[0].name) + ' ' + (v.items[0].vals[n - 1] / tot * 100).toFixed(0) + '%') : ''}</div>`;
 }
 const list = a => `<ul class="clist">${(a || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
+let ETFH = {}; fetch('etf_holdings.json').then(r => r.json()).then(j => { ETFH = j || {}; }).catch(() => { });
+function etfHTML(s, c) {                      // ETF 前 15 大持仓:优先用 SEC 季度披露的完整持仓,没有就用 Yahoo 的前 10 大
+  const f = ETFH[s]; let rows, note;
+  if (f && f.top && f.top.length) { rows = f.top.slice(0, 15).map(x => ({ name: x.name, sym: x.ticker, pct: x.pct })); note = `来源:SEC N-PORT 基金持仓披露,数据截止 ${esc(f.asof)}(共 ${f.n} 项持仓;这类披露每季度更新一次,滞后约两个月,所以比例和最新有出入)`; }
+  else if (c && c.etf && c.etf.length) { rows = c.etf.map(x => ({ name: x.name, sym: x.sym, pct: (x.pct || 0) * 100 })); note = '来源:Yahoo,只有前 10 大'; }
+  else return '';
+  const tot = rows.reduce((a, x) => a + (x.pct || 0), 0), mx = Math.max(...rows.map(x => x.pct || 0), 1);
+  return `<div class="csec"><h3>前 ${rows.length} 大持仓 <span class="muted small">合计占 ${tot.toFixed(1)}%</span></h3><table><thead><tr><th>#</th><th>持仓</th><th class="r">占比</th><th></th></tr></thead><tbody>${rows.map((x, i) => `<tr><td class="muted">${i + 1}</td><td>${x.sym ? `<span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> ` : ''}<span class="${x.sym ? 'muted small' : ''}">${esc(x.name || '')}</span></td><td class="r">${(x.pct || 0).toFixed(2)}%</td><td style="width:34%"><div style="height:6px;border-radius:3px;background:var(--accent);opacity:.7;width:${((x.pct || 0) / mx * 100).toFixed(0)}%"></div></td></tr>`).join('')}</tbody></table><div class="muted small">${note}</div></div>`;
+}
 function companyHTML(s, c) {
   const k = COMPANIES[s], p = (c && c.profile) || {}, q = Data.quote(s);
   const meta = [p.finnhubIndustry, p.exchange, p.ipo ? '上市 ' + p.ipo : '', p.country].filter(Boolean).map(esc).join(' · ');
@@ -386,7 +395,7 @@ function companyHTML(s, c) {
   const chips = peers.map(x => /^[A-Z.]{1,6}$/.test(x) ? `<button class="chip" data-go="${x}">${x}</button>` : `<span class="chip plain">${esc(x)}</span>`).join('');
   const note = c && c.error ? '暂无数据' : '';
   let h = `<div class="csec"><h3>${esc(k ? k.n : q.name)} <span class="muted small">${meta}${web}</span></h3>${k ? `<p class="intro">${esc(k.intro)}</p>` : c && c.about ? '' : '<p class="muted">暂无这家公司的详细分析</p>'}</div>`;
-  h += profileHTML(s);
+  h += profileHTML(s) + etfHTML(s, c);
   if (k) h += `<div class="csec"><h3>主营业务</h3>${list(k.segs)}</div>`;
   else if (c && c.about) h += `<div class="csec"><h3>公司简介 <span class="muted small">${[c.about.sector, c.about.industry, c.about.employees ? c.about.employees.toLocaleString('en-US') + ' 名员工' : ''].filter(Boolean).map(esc).join(' · ')}</span></h3><p class="intro">${esc(c.about.zh || c.about.summary)}</p><div class="muted small">${c.about.zh ? '机器翻译自 Yahoo 的英文简介,仅供参考;' : '英文原文,来自 Yahoo;'}这只股票暂无深度中文分析</div></div>`;
   h += `<div class="csec"><h3>分析师评级</h3>${note && !(c && c.rec) ? `<div class="muted small">${note}</div>` : recHTML(c)}</div>`;
