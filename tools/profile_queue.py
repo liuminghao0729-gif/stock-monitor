@@ -41,6 +41,10 @@ def done_set():
         d |= set(json.load(open(os.path.join(ROOT, "public", "profiles_gen.json"), encoding="utf8")))
     except Exception:
         pass
+    try:                                                  # 正在由人工(对话里)手写、还没合并的代码,夜间任务先跳过,避免撞车
+        d |= {x.strip() for x in open(os.path.join(ROOT, "tools", "profile_reserved.txt"), encoding="utf8") if x.strip() and not x.startswith("#")}
+    except Exception:
+        pass
     return d
 
 

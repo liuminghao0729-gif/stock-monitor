@@ -1,0 +1,7 @@
+# 这些代码正在对话里手写(或已手写待合并),夜间任务不要重复写。写完并合并进 profiles_gen.json 后可以从这里删掉。
+GOOGL
+BRK-B
+COST
+KO
+MCD
+NVO
