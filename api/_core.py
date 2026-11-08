@@ -650,7 +650,7 @@ def route(name, q):
         if name == "detail":
             return 200, detail(q["symbol"].upper()), 15
         if name == "status":
-            return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY")), "fmp": bool(os.environ.get("FMP_KEY")), "sec": bool(os.environ.get("SEC_CONTACT")), "fred": bool(os.environ.get("FRED_KEY")), "dbg": DBG}, 0
+            return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY")), "fmp": bool(os.environ.get("FMP_KEY")), "sec": bool(os.environ.get("SEC_CONTACT")), "fred": bool(os.environ.get("FRED_KEY")), "auth": {"url": os.environ.get("SUPABASE_URL"), "key": os.environ.get("SUPABASE_KEY")} if os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_KEY") else None, "dbg": DBG}, 0
         return 404, {"error": "not found"}, 0
     except Exception as e:
         # 只返回错误类型和简短说明(urllib 的错误信息不含网址和密钥),方便排查

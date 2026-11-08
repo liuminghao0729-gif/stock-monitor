@@ -233,3 +233,7 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 .hc td{padding:8px 6px;vertical-align:top}.hc .hn{white-space:nowrap;font-weight:500}.hc td:last-child{max-width:420px}
 @media(max-width:700px){.hc td:last-child{display:none}}
 .scrform{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:10px}.sf{display:flex;flex-direction:column;gap:4px}.sf select{min-width:150px}.sf.chk{flex-direction:row;align-items:center;gap:6px;padding-bottom:8px}
+.authbtn{color:var(--accent);border:1px solid var(--gline);border-radius:999px;padding:3px 12px;font-size:12px}.authme{display:inline-flex;align-items:center;gap:6px;color:var(--text)}.authme img{width:20px;height:20px;border-radius:50%}.authme span{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#view-mylist{display:flex;flex-direction:column;gap:20px}#view-mylist .card{max-width:760px}
+.holdform{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.holdform input{flex:1;min-width:80px}.holdform button{color:var(--accent);padding:6px 10px}
+.hsum{margin:10px 0 14px}.hrow{cursor:pointer}.hrow:hover{background:var(--sel)}.hrow .x{opacity:.5}

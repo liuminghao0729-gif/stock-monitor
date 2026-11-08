@@ -10,7 +10,7 @@ const sgn = (n, d = 2) => Number.isFinite(n) ? (n >= 0 ? '+' : '') + fmt(n, d) :
 const big = n => n >= 1e9 ? fmt(n / 1e9) + 'B' : n >= 1e6 ? fmt(n / 1e6) + 'M' : n >= 1e3 ? fmt(n / 1e3) + 'K' : String(n);
 const store = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
-  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } }
+  set(k, v, quiet) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } if ((k === 'watch' || k === 'holdings') && !quiet && typeof cloudSave === 'function') cloudSave(); }
 };
 
 
@@ -23,6 +23,7 @@ const C = { line: 'rgba(255,255,255,.13)', grid: 'rgba(255,255,255,.07)', text: 
 
 const state = {
   watch: store.get('watch', ['AAPL', 'NVDA', 'VOO', 'QQQ']),
+  holdings: store.get('holdings', []),
   sel: null,
   period: store.get('period', 'D'), minute: store.get('minute', '1m'), type: store.get('ctype', 'candle'),
   ind: Object.assign({ ma: [1, 1, 1, 1, 0, 0], boll: 0, chip: 1, vol: 1, macd: 1, rsi: 1, sr: 1, trend: 1, pat: 1, sig: 1 }, store.get('ind2', {})),
@@ -88,12 +89,43 @@ function renderIndices() {
 
 // ===== 自选股 =====
 function renderWatch() {
+  renderHold();
   $('#watchList').innerHTML = state.watch.map(s => {
     const q = Data.quote(s);
     return `<div class="wrow ${s === state.sel ? 'sel' : ''}" data-s="${s}"><div><div class="s">${s}</div><div class="nm">${q.name}</div></div>
       <div class="px">${fmt(q.price)}</div><div><span class="chg ${cls(q.pct)}">${sgn(q.pct)}%</span><button class="x" data-del="${s}" title="删除">×</button></div></div>`;
   }).join('') || '<div class="muted small" style="padding:10px">还没有自选股,到「看盘」里搜索添加。</div>';
 }
+// ===== 我的持仓(代码 / 股数 / 成本价;登录 Google 后云端同步)=====
+const money = n => !Number.isFinite(n) ? '--' : (n < 0 ? '-' : '') + '$' + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: Math.abs(n) >= 100 ? 0 : 2 });
+function renderHold() {
+  const el = $('#holdList'); if (!el) return;
+  const note = $('#holdNote'); if (note) note.textContent = (typeof CLOUD !== 'undefined' && CLOUD.user) ? '已登录,持仓会自动同步到你的 Google 账号,只有你自己能看到。' : '目前只保存在这个浏览器里;登录 Google 后可以跨设备同步。';
+  if (!state.holdings.length) { el.innerHTML = '<div class="muted small" style="padding:8px 0">还没有持仓。在上面填写代码、股数、成本价,点「添加/更新」。同一只股票再填一次会覆盖(多次买入请填平均成本)。</div>'; return; }
+  let val = 0, cost = 0, day = 0;
+  const rows = state.holdings.map(h => { const q = Data.quote(h.sym), px = q.price, v = h.qty * px, c = h.qty * h.cost, pl = v - c;
+    if (Number.isFinite(v)) { val += v; cost += c; day += h.qty * (q.change || 0); }
+    return `<tr class="hrow" data-s="${esc(h.sym)}"><td><b>${esc(h.sym)}</b><div class="muted small">${esc(q.name || '')}</div></td><td class="r">${h.qty}</td><td class="r">${fmt(h.cost)}</td><td class="r">${fmt(px)}</td><td class="r">${money(v)}</td><td class="r ${cls(pl)}">${money(pl)}<div class="small">${Number.isFinite(pl) && c ? sgn(pl / c * 100, 1) + '%' : ''}</div></td><td><button class="x" data-hdel="${esc(h.sym)}" title="删除">×</button></td></tr>`; }).join('');
+  el.innerHTML = `<div class="kv hsum"><div><span class="muted small">总市值</span><b>${money(val)}</b></div><div><span class="muted small">总盈亏</span><b class="${cls(val - cost)}">${money(val - cost)}</b><span class="small ${cls(val - cost)}">${cost ? sgn((val - cost) / cost * 100, 1) + '%' : ''}</span></div><div><span class="muted small">今日盈亏</span><b class="${cls(day)}">${money(day)}</b></div></div>
+    <table><thead><tr><th>股票</th><th class="r">股数</th><th class="r">成本</th><th class="r">现价</th><th class="r">市值</th><th class="r">盈亏</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+$('#holdList').addEventListener('click', e => {
+  const d = e.target.dataset.hdel;
+  if (d) { state.holdings = state.holdings.filter(h => h.sym !== d); store.set('holdings', state.holdings); renderHold(); return; }
+  const row = e.target.closest('.hrow'); if (row) selectStock(row.dataset.s);
+});
+$('#holdForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const sym = $('#hSym').value.trim().toUpperCase(), qty = parseFloat($('#hQty').value), cost = parseFloat($('#hCost').value), msg = $('#holdMsg');
+  if (!/^[A-Z.\-]{1,8}$/.test(sym)) { msg.textContent = '请输入股票代码,如 AAPL'; return; }
+  if (!(qty > 0) || !(cost > 0)) { msg.textContent = '股数和成本价要填大于 0 的数字'; return; }
+  msg.textContent = '查询中…';
+  let ok = false; try { ok = await Data.validate(sym); } catch { }
+  if (!ok) { msg.textContent = `找不到代码 ${sym}`; return; }
+  const i = state.holdings.findIndex(h => h.sym === sym), item = { sym, qty, cost };
+  if (i >= 0) state.holdings[i] = item; else state.holdings.push(item);
+  store.set('holdings', state.holdings); msg.textContent = ''; $('#hSym').value = $('#hQty').value = $('#hCost').value = ''; renderHold();
+});
 $('#watchList').addEventListener('click', e => {
   const del = e.target.dataset.del;
   if (del) { state.watch = state.watch.filter(x => x !== del); store.set('watch', state.watch); if (state.sel === del) state.sel = state.watch[0]; renderWatch(); renderDetail(); return; }
@@ -1056,7 +1088,7 @@ function switchTab(t) {
 }
 $('#tabs').addEventListener('click', e => { if (e.target.dataset.tab) switchTab(e.target.dataset.tab); });
 
-const coreSymbols = () => [...Data.INDICES.map(i => i[0]), ...state.watch, state.sel].filter(Boolean);
+const coreSymbols = () => [...new Set([...Data.INDICES.map(i => i[0]), ...state.watch, ...state.holdings.map(h => h.sym), state.sel])].filter(Boolean);
 function setBadge(err) {
   const b = $('#dataMode'); b.textContent = err ? '数据连接异常' : Data.mode === 'live' ? '实时数据' : '模拟数据';
   b.className = 'badge' + (Data.mode === 'live' && !err ? ' live' : '');
@@ -1087,7 +1119,7 @@ window.addEventListener('resize', () => state.tab === 'watch' && drawCharts());
 
 async function init() {
   if (!location.search.includes('mock')) {
-    try { const r = await fetch('/api/status'); if (r.ok && (await r.json()).finnhub !== undefined) Data = LiveData; } catch { }
+    try { const r = await fetch('/api/status'); if (r.ok) { const st = await r.json(); if (st.finnhub !== undefined) { Data = LiveData; if (typeof initAuth === 'function') initAuth(st.auth).catch(() => { }); } } } catch { }
   }
   marketStatus(); let err = false;
   try { await Data.refreshQuotes(coreSymbols()); } catch { err = true; }
