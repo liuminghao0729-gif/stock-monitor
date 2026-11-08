@@ -174,8 +174,6 @@ def detail(sym):
 
 def company(sym):
     """公司资料、竞争对手、分析师评级分布、财报对比(Finnhub 免费接口,需要 Key)。部分接口失败时对应字段为 None。"""
-    if not os.environ.get("FINNHUB_KEY") and not os.environ.get("FMP_KEY"):
-        return {"error": "no_key"}
     out = {}
     for key, path, params in [("profile", "stock/profile2", {"symbol": sym}), ("peers", "stock/peers", {"symbol": sym}),
                               ("rec", "stock/recommendation", {"symbol": sym}), ("earn", "stock/earnings", {"symbol": sym, "limit": 4})]:
@@ -189,6 +187,7 @@ def company(sym):
     if True:        # Yahoo(不需要 Key):补 FMP 免费版不覆盖的股票,并提供英文公司简介
         y = _yh_summary(sym)
         out["about"] = (y or {}).get("about")
+        out["rec"] = out.get("rec") or (y or {}).get("rec")
         out["target"] = out["target"] or (y or {}).get("target")
         out["grades"] = out["grades"] or (y or {}).get("grades")
     out["backlog"] = _sec_backlog(sym)
@@ -300,7 +299,7 @@ def _yh_summary(sym):
     if hit and time.time() - hit[0] < 3600:
         return hit[1]
     try:
-        d = _yh_open(f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{urllib.parse.quote(sym)}?modules=financialData,upgradeDowngradeHistory,assetProfile")
+        d = _yh_open(f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{urllib.parse.quote(sym)}?modules=financialData,upgradeDowngradeHistory,assetProfile,recommendationTrend")
         r = d["quoteSummary"]["result"][0]
         fd = r.get("financialData") or {}
         raw = lambda k: (fd.get(k) or {}).get("raw")
@@ -315,7 +314,9 @@ def _yh_summary(sym):
         ap = r.get("assetProfile") or {}
         about = {"summary": ap.get("longBusinessSummary"), "sector": ap.get("sector"), "industry": ap.get("industry"),
                  "employees": ap.get("fullTimeEmployees"), "zh": _brief(_zh(_head(ap.get("longBusinessSummary") or "")))} if ap.get("longBusinessSummary") else None
-        out = {"target": target, "grades": grades, "about": about}
+        rt = (r.get("recommendationTrend") or {}).get("trend") or []
+        rec = [{"period": time.strftime("%Y-%m"), **{k: rt[0].get(k) for k in ("strongBuy", "buy", "hold", "sell", "strongSell")}}] if rt else None
+        out = {"target": target, "grades": grades, "about": about, "rec": rec}
     except Exception as e:
         DBG["yahoo"] = f"{sym}: {type(e).__name__}: {str(e)[:60]}"
         out = None
