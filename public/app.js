@@ -991,26 +991,72 @@ function bindChart() {
 const universe = () => Object.keys(Data.U);
 const loading = el => { if (!el.innerHTML.trim()) el.innerHTML = '<div class="muted" style="padding:20px">加载中…</div>'; };
 function qrow(s) { const q = Data.quote(s); return `<tr><td><span class="sym" data-go="${s}">${s}</span> <span class="muted small">${esc(q.name)}</span></td><td class="r">${fmt(q.price)}</td><td class="r ${cls(q.pct)}">${sgn(q.pct)}%</td></tr>`; }
+// 板块页(改版):顶部市值地图(面积 = 市值,颜色 = 涨跌,点板块名放大),下面是强弱清单(点一行行内展开)
+const secState = { open: new Set(), sort: 'chg', zoom: '', seen: false, play: true };
+const secAvg = items => { const v = items.filter(x => Number.isFinite(x.pct)); return v.reduce((a, x) => a + x.pct, 0) / (v.length || 1); };
+function squarify(items, x, y, w, h) {      // 经典 squarified treemap:items 按 v 从大到小
+  const tot = items.reduce((a, i) => a + i.v, 0), sc = w * h / tot, out = []; let row = [];
+  items = items.map(i => ({ it: i, a: i.v * sc }));
+  const sum = r => r.reduce((a, b) => a + b.a, 0);
+  const worst = (r, len) => { const t = sum(r), mx = Math.max(...r.map(b => b.a)), mn = Math.min(...r.map(b => b.a)); return Math.max(len * len * mx / (t * t), t * t / (len * len * mn)); };
+  const lay = r => {
+    const t = sum(r);
+    if (w >= h) { const rw = t / h; let yy = y; r.forEach(b => { const hh = b.a / rw; out.push({ it: b.it, x, y: yy, w: rw, h: hh }); yy += hh; }); x += rw; w -= rw; }
+    else { const rh = t / w; let xx = x; r.forEach(b => { const ww = b.a / rh; out.push({ it: b.it, x: xx, y, w: ww, h: rh }); xx += ww; }); y += rh; h -= rh; }
+  };
+  let i = 0;
+  while (i < items.length) { const len = Math.min(w, h), t = row.concat([items[i]]); if (!row.length || worst(t, len) <= worst(row, len)) { row = t; i++; } else { lay(row); row = []; } }
+  if (row.length) lay(row);
+  return out;
+}
+const tmW = (x, live) => live && x.cap > 0 ? Math.sqrt(x.cap) : 1;      // 面积用市值的平方根,免得最大的一只把其余挤没
+const tmBg = p => { const a = Math.min(Math.abs(Number.isFinite(p) ? p : 0) / 6, 1); return `background:rgba(${p >= 0 ? '126,211,164' : '239,138,120'},${(.13 + a * .55).toFixed(2)})`; };
+function tmTiles(items, W, H, big, live) {
+  const arr = items.map(x => ({ v: tmW(x, live), x })).sort((a, b) => b.v - a.v);
+  return squarify(arr, 0, 0, W, H).map(r => {
+    const x = r.it.x, m = Math.min(r.w, r.h * (W / H)), k = m > 14 ? 'l' : m > 7 ? 'm' : 's';
+    return `<div class="tm-t ${k}" data-go="${esc(x.sym)}" title="${esc(x.sym)} ${esc(x.name)}  ${fmt(x.price)}  ${sgn(x.pct)}%" style="left:${(r.x / W * 100).toFixed(2)}%;top:${(r.y / H * 100).toFixed(2)}%;width:${(r.w / W * 100).toFixed(2)}%;height:${(r.h / H * 100).toFixed(2)}%;${tmBg(x.pct)}"><b>${esc(x.sym)}</b>${m > 6 ? `<span>${sgn(x.pct)}%</span>` : ''}${big && m > 12 ? `<small>${esc(x.name)} · ${fmt(x.price)}</small>` : ''}</div>`;
+  });
+}
+function secMap(list, live) {
+  const TH = window.innerWidth < 820 ? 130 : 52, play = secState.play ? ' play' : '';
+  const z = secState.zoom && list.find(s => s.name === secState.zoom);
+  if (z) {
+    const a = secAvg(z.items);
+    return `<div class="tm-top"><button class="tm-back" data-zoom="">‹ 返回全部板块</button><h3>${esc(z.name)}</h3><b class="num ${cls(a)}">${sgn(a)}%</b>${live ? `<button class="tm-more" data-sec="${esc(z.name)}">查看整个板块(前 50 只) ›</button>` : ''}<span class="muted small" style="margin-left:auto">面积 = 市值${live ? '(取平方根)' : ''} · 点方块看个股</span></div><div class="tm${play}" style="aspect-ratio:100/${TH}">${tmTiles(z.items, 100, TH, true, live).join('')}</div>`;
+  }
+  const arr = list.map(s => ({ v: Math.max(1, s.items.reduce((t, x) => t + tmW(x, live), 0)), s })).sort((a, b) => b.v - a.v);
+  const html = squarify(arr, 0, 0, 100, TH).map(r => {
+    const s = r.it.s, a = secAvg(s.items), hu = 2.3, sh = Math.max(r.h - hu, 1);
+    return `<section class="tm-s" style="left:${r.x.toFixed(2)}%;top:${(r.y / TH * 100).toFixed(2)}%;width:${r.w.toFixed(2)}%;height:${(r.h / TH * 100).toFixed(2)}%"><button class="tm-h" data-zoom="${esc(s.name)}" title="放大 ${esc(s.name)}"><span>${esc(s.name)}</span><b class="num ${cls(a)}">${sgn(a)}%</b></button><div class="tm-b">${tmTiles(s.items, r.w, sh, false, live).join('')}</div></section>`;
+  }).join('');
+  return `<div class="tm-top"><div class="muted small">板块地图 · 面积 = 市值${live ? '(取平方根)' : ''},颜色 = 今日涨跌 · 点板块名放大,点方块看个股</div><div class="tm-leg"><span class="down">跌</span><i></i><span class="up">涨</span></div></div><div class="tm${play}" style="aspect-ratio:100/${TH}">${html}</div>`;
+}
+function secList(list, live) {
+  const rows = list.map(s => ({ ...s, a: secAvg(s.items) }));
+  if (secState.sort === 'chg') rows.sort((x, y) => y.a - x.a);
+  if (!secState.seen && rows.length) { secState.open.add(rows[0].name); secState.seen = true; }
+  const maxAbs = Math.max(1, ...rows.flatMap(s => s.items.map(x => Math.abs(Number.isFinite(x.pct) ? x.pct : 0))));
+  const sec = r => {
+    const v = r.items.filter(x => Number.isFinite(x.pct)), up = v.filter(x => x.pct > 0).length, open = secState.open.has(r.name);
+    const ticks = v.map(x => `<i class="${cls(x.pct)}" style="height:${(3 + Math.abs(x.pct) / maxAbs * 15).toFixed(1)}px"></i>`).join('');
+    const body = r.items.map(x => `<div class="sl-r"><span class="si"><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span><span class="muted small nm">${esc(x.name)}</span></span><span class="spx">${fmt(x.price)}</span><span class="sbar"><i class="${cls(x.pct)}" style="width:${Math.min(Math.abs(Number.isFinite(x.pct) ? x.pct : 0) / maxAbs * 100, 100).toFixed(0)}%"></i></span><b class="spc ${cls(x.pct)}">${sgn(x.pct)}%</b>${live ? `<span class="scap muted small">${capStr(x.cap)}</span>` : ''}</div>`).join('');
+    return `<section class="sl${open ? ' open' : ''}" data-n="${esc(r.name)}"><div class="sl-h" role="button" tabindex="0" aria-expanded="${open}" data-sltg="${esc(r.name)}"><span class="sl-n">${esc(r.name)}</span><span class="sl-m muted small">${live ? '市值前 ' : ''}${r.items.length} 只 · 涨 ${up} 跌 ${v.length - up}</span><span class="sl-t" aria-hidden="true">${ticks}</span><b class="sl-a ${cls(r.a)}">均值 ${sgn(r.a)}%</b><i class="chev" aria-hidden="true"></i></div><div class="sl-fold"><div>${body}${live ? `<button class="sl-more" data-sec="${esc(r.name)}">查看整个板块(前 50 只) ›</button>` : ''}</div></div></section>`;
+  };
+  return `<div class="sl-bar"><div class="muted small">板块强弱 · 点一行展开成分股</div><div class="seg2" role="group" aria-label="排序"><button data-slsort="chg" class="${secState.sort === 'chg' ? 'on' : ''}">按涨幅</button><button data-slsort="def" class="${secState.sort === 'def' ? 'on' : ''}">默认顺序</button></div></div><div class="sl-list${secState.play ? ' play' : ''}">${rows.map(sec).join('')}</div><div class="muted small" style="padding:14px 2px">${live ? '每个板块先列市值最大的 10 只,点「查看整个板块」看前 50 只;含在美上市的外国公司(ADR);' : ''}数据来自 Yahoo,可能有延迟。</div>`;
+}
+function secPage(list, live) { const h = secMap(list, live) + secList(list, live); secState.play = false; return h; }
 async function renderSectors() {
   if (state.secView) return renderSectorDetail(state.secView);
   const el = $('#view-sectors'); loading(el);
-  if (Data.loadSectors) {                      // 实时模式:20 个板块,每个板块市值最大的 15 只
+  if (Data.loadSectors) {                      // 实时模式:20 个板块,每个板块市值最大的几只
     let S = null; try { S = await Data.loadSectors(); } catch { }
-    if (state.tab !== 'sectors') return;
-    if (S) {
-      const ok = S.sectors.filter(x => x.items.length), row = x => `<tr><td><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> <span class="muted small">${esc(x.name)}</span></td><td class="r">${fmt(x.price)}</td><td class="r ${cls(x.pct)}">${sgn(x.pct)}%</td><td class="r muted small">${capStr(x.cap)}</td></tr>`;
-      el.innerHTML = '<div class="grid2">' + ok.map(sc => { const v = sc.items.filter(x => Number.isFinite(x.pct)), avg = v.reduce((a, x) => a + x.pct, 0) / (v.length || 1);
-        return `<div class="card"><div class="dh"><h3 style="margin:0">${esc(sc.name)} <span class="muted small">市值前 ${sc.items.length}</span></h3><span><span class="${cls(avg)}">均值 ${sgn(avg)}%</span> <button class="secgo" data-sec="${esc(sc.name)}" title="查看整个板块">更多 ›</button></span></div><table><tbody>${sc.items.map(row).join('')}</tbody></table><button class="secmore" data-sec="${esc(sc.name)}">查看整个板块(前 50 只) ›</button></div>`; }).join('') + '</div><div class="muted small" style="padding:10px 4px">每个板块先列市值最大的 10 只,点「更多」看前 50 只;含在美上市的外国公司(ADR);数据来自 Yahoo,可能有延迟。</div>';
-      return;
-    }
+    if (state.tab !== 'sectors' || state.secView) return;
+    if (S) { el.innerHTML = secPage(S.sectors.filter(x => x.items.length), true); return; }
   }
   try { await Data.refreshQuotes(universe()); } catch { }
-  if (state.tab !== 'sectors') return;
-  el.innerHTML = '<div class="grid2">' + Object.entries(Data.SECTORS).map(([n, list]) => {
-    const avg = list.reduce((a, s) => a + (Data.quote(s).pct || 0), 0) / list.length;
-    return `<div class="card"><div class="dh"><h3 style="margin:0">${n}</h3><span class="${cls(avg)}">板块均值 ${sgn(avg)}%</span></div>
-      <table><tbody>${[...list].sort((a, b) => (Data.quote(b).pct || 0) - (Data.quote(a).pct || 0)).map(qrow).join('')}</tbody></table></div>`;
-  }).join('') + '</div>';
+  if (state.tab !== 'sectors' || state.secView) return;
+  el.innerHTML = secPage(Object.entries(Data.SECTORS).map(([n, list]) => ({ name: n, items: list.map(s => { const q = Data.quote(s); return { sym: s, name: q.name, price: q.price, pct: q.pct, cap: 0 }; }) })), false);
 }
 async function renderSectorDetail(name) {
   state.secView = name; const el = $('#view-sectors'); if (!el.querySelector('.secback')) el.innerHTML = `<div class="secback"><button data-secback="1">‹ 返回板块</button> <b>${esc(name)}</b> <span class="muted small">加载中…</span></div>`;
@@ -1019,9 +1065,17 @@ async function renderSectorDetail(name) {
   if (!S) { el.innerHTML = `<div class="secback"><button data-secback="1">‹ 返回板块</button></div><div class="card muted">这个板块暂时加载失败,稍后再试。</div>`; return; }
   const v = S.items.filter(x => Number.isFinite(x.pct)), avg = v.reduce((a, x) => a + x.pct, 0) / (v.length || 1), up = v.filter(x => x.pct > 0).length;
   el.innerHTML = `<div class="secback"><button data-secback="1">‹ 返回板块</button> <b>${esc(name)}</b> <span class="muted small">市值前 ${S.items.length} 只 · 均值 <span class="${cls(avg)}">${sgn(avg)}%</span> · 上涨 ${up} / 下跌 ${v.length - up}</span></div>
-    <div class="card"><table><thead><tr><th>#</th><th>股票</th><th class="r">现价</th><th class="r">涨跌</th><th class="r">市值</th></tr></thead><tbody>${S.items.map((x, i) => `<tr><td class="muted">${i + 1}</td><td><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> <span class="muted small">${esc(x.name)}</span></td><td class="r">${fmt(x.price)}</td><td class="r ${cls(x.pct)}">${sgn(x.pct)}%</td><td class="r muted small">${capStr(x.cap)}</td></tr>`).join('')}</tbody></table></div>`;
+    <div class="flatbox"><table><thead><tr><th>#</th><th>股票</th><th class="r">现价</th><th class="r">涨跌</th><th class="r">市值</th></tr></thead><tbody>${S.items.map((x, i) => `<tr><td class="muted">${i + 1}</td><td><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> <span class="muted small">${esc(x.name)}</span></td><td class="r">${fmt(x.price)}</td><td class="r ${cls(x.pct)}">${sgn(x.pct)}%</td><td class="r muted small">${capStr(x.cap)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-sec]'); if (b) { window.scrollTo({ top: 0 }); renderSectorDetail(b.dataset.sec); return; } if (e.target.closest('[data-secback]')) { state.secView = null; renderSectors(); } });
+document.addEventListener('click', e => {
+  const tg = e.target.closest('[data-sltg]');
+  if (tg && !e.target.closest('[data-go]')) { const b = tg.closest('.sl'), on = !b.classList.contains('open'); b.classList.toggle('open', on); tg.setAttribute('aria-expanded', on); on ? secState.open.add(b.dataset.n) : secState.open.delete(b.dataset.n); return; }
+  const z = e.target.closest('[data-zoom]'); if (z) { secState.zoom = z.dataset.zoom; secState.play = true; renderSectors(); return; }
+  const so = e.target.closest('[data-slsort]'); if (so) { secState.sort = so.dataset.slsort; renderSectors(); }
+});
+document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.sl-h')) { e.preventDefault(); e.target.click(); } });
+document.addEventListener('pointermove', e => { const t = e.target.closest && e.target.closest('.sl-h'); if (!t) return; const r = t.getBoundingClientRect(); t.style.setProperty('--mx', (e.clientX - r.left) + 'px'); t.style.setProperty('--my', (e.clientY - r.top) + 'px'); });
 // ===== 条件筛选(新手选行业和市值,点「筛选」)=====
 const SCR_SECTORS = [['', '全部行业'], ['Technology', '科技'], ['Communication Services', '通信与传媒'], ['Consumer Cyclical', '可选消费'], ['Consumer Defensive', '必需消费'], ['Healthcare', '医疗健康'], ['Financial Services', '金融'], ['Industrials', '工业'], ['Energy', '能源'], ['Utilities', '公用事业'], ['Real Estate', '房地产'], ['Basic Materials', '基础材料']];
 const SCR_INDUSTRIES = [['', '不限细分'], ['Semiconductors', '半导体'], ['Semiconductor Equipment & Materials', '半导体设备'], ['Computer Hardware', 'AI 硬件/存储'], ['Information Technology Services', 'IT 服务'], ['Communication Equipment', '通信设备'], ['Internet Content & Information', '互联网内容'], ['Entertainment', '娱乐/流媒体'], ['Telecom Services', '电信运营'], ['Internet Retail', '电商零售'], ['Specialty Retail', '专营零售'], ['Restaurants', '餐饮'], ['Auto Manufacturers', '汽车整车'], ['Airlines', '航空'], ['Biotechnology', '生物科技'], ['Medical Devices', '医疗器械'], ['Capital Markets', '投行与券商'], ['Credit Services', '信用卡/支付'], ['Insurance Brokers', '保险经纪'], ['Aerospace & Defense', '航空航天与国防'], ['Railroads', '铁路'], ['Oil & Gas Integrated', '综合油气'], ['Gold', '黄金矿业']];
@@ -1150,7 +1204,7 @@ document.addEventListener('click', e => {
 
 // ===== 标签页 / 刷新 =====
 function switchTab(t) {
-  state.tab = t;
+  state.tab = t; if (t === 'sectors') secState.play = true;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('hidden', v.id !== 'view-' + t));
   if (renderers[t]) renderers[t](); else { renderWatch(); renderDetail(); }
