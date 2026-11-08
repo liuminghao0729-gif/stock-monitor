@@ -1,0 +1,2522 @@
+{
+"updated": "2026-11-07",
+"n_sp500": 503,
+"missing_cap": [],
+"queue": [
+{
+"sym": "AAPL",
+"cap": 4975383019520,
+"name": "Apple Inc."
+},
+{
+"sym": "NVDA",
+"cap": 4506795900928,
+"name": "NVIDIA Corporation"
+},
+{
+"sym": "MSFT",
+"cap": 3940412817408,
+"name": "Microsoft Corporation"
+},
+{
+"sym": "GOOGL",
+"cap": 3501085163520,
+"name": "Alphabet Inc."
+},
+{
+"sym": "GOOG",
+"cap": 3490635317248,
+"name": "Alphabet Inc."
+},
+{
+"sym": "AMZN",
+"cap": 2803846610944,
+"name": "Amazon.com, Inc."
+},
+{
+"sym": "META",
+"cap": 1560051712000,
+"name": "Meta Platforms, Inc."
+},
+{
+"sym": "TSLA",
+"cap": 1415956922368,
+"name": "Tesla, Inc."
+},
+{
+"sym": "AVGO",
+"cap": 1401967345664,
+"name": "Broadcom Inc."
+},
+{
+"sym": "BRK-B",
+"cap": 1222109822976,
+"name": "Berkshire Hathaway Inc. New"
+},
+{
+"sym": "LLY",
+"cap": 1206068707328,
+"name": "Eli Lilly and Company"
+},
+{
+"sym": "WMT",
+"cap": 995843768320,
+"name": "Walmart Inc."
+},
+{
+"sym": "JPM",
+"cap": 888274812928,
+"name": "JP Morgan Chase & Co."
+},
+{
+"sym": "V",
+"cap": 788580401152,
+"name": "Visa Inc."
+},
+{
+"sym": "MU",
+"cap": 780682002432,
+"name": "Micron Technology, Inc."
+},
+{
+"sym": "AMD",
+"cap": 736464797696,
+"name": "Advanced Micro Devices, Inc."
+},
+{
+"sym": "XOM",
+"cap": 676620599296,
+"name": "ExxonMobil Holdings Corporation"
+},
+{
+"sym": "JNJ",
+"cap": 664947261440,
+"name": "Johnson & Johnson"
+},
+{
+"sym": "MA",
+"cap": 568616681472,
+"name": "Mastercard Incorporated"
+},
+{
+"sym": "ABBV",
+"cap": 514924281856,
+"name": "AbbVie Inc."
+},
+{
+"sym": "COST",
+"cap": 466863390720,
+"name": "Costco Wholesale Corporation"
+},
+{
+"sym": "CVX",
+"cap": 414856019968,
+"name": "Chevron Corporation"
+},
+{
+"sym": "KO",
+"cap": 411562999808,
+"name": "Coca-Cola Company (The)"
+},
+{
+"sym": "PLTR",
+"cap": 386435252224,
+"name": "Palantir Technologies Inc."
+},
+{
+"sym": "PG",
+"cap": 383361286144,
+"name": "Procter & Gamble Company (The)"
+},
+{
+"sym": "CSCO",
+"cap": 370011766784,
+"name": "Cisco Systems, Inc."
+},
+{
+"sym": "ORCL",
+"cap": 361965912064,
+"name": "Oracle Corporation"
+},
+{
+"sym": "MRK",
+"cap": 361725493248,
+"name": "Merck & Company, Inc."
+},
+{
+"sym": "UNH",
+"cap": 353167310848,
+"name": "UnitedHealth Group Incorporated"
+},
+{
+"sym": "HD",
+"cap": 342676439040,
+"name": "Home Depot, Inc. (The)"
+},
+{
+"sym": "BAC",
+"cap": 341008318464,
+"name": "Bank of America Corporation"
+},
+{
+"sym": "GE",
+"cap": 335381692416,
+"name": "GE Aerospace"
+},
+{
+"sym": "PM",
+"cap": 308418412544,
+"name": "Philip Morris International Inc"
+},
+{
+"sym": "INTC",
+"cap": 299128193024,
+"name": "Intel Corporation"
+},
+{
+"sym": "MS",
+"cap": 283598684160,
+"name": "Morgan Stanley"
+},
+{
+"sym": "AMAT",
+"cap": 264041775104,
+"name": "Applied Materials, Inc."
+},
+{
+"sym": "NFLX",
+"cap": 260382130176,
+"name": "Netflix, Inc."
+},
+{
+"sym": "TMO",
+"cap": 257419608064,
+"name": "Thermo Fisher Scientific Inc"
+},
+{
+"sym": "PANW",
+"cap": 256860192768,
+"name": "Palo Alto Networks, Inc."
+},
+{
+"sym": "RTX",
+"cap": 255759466496,
+"name": "RTX Corporation"
+},
+{
+"sym": "CAT",
+"cap": 255625838592,
+"name": "Caterpillar, Inc."
+},
+{
+"sym": "TXN",
+"cap": 253575725056,
+"name": "Texas Instruments Incorporated"
+},
+{
+"sym": "WFC",
+"cap": 251975319552,
+"name": "Wells Fargo & Company"
+},
+{
+"sym": "LRCX",
+"cap": 250835501056,
+"name": "Lam Research Corporation"
+},
+{
+"sym": "GS",
+"cap": 249732448256,
+"name": "Goldman Sachs Group, Inc. (The)"
+},
+{
+"sym": "AMGN",
+"cap": 249046466560,
+"name": "Amgen Inc."
+},
+{
+"sym": "LIN",
+"cap": 236542918656,
+"name": "Linde plc"
+},
+{
+"sym": "IBM",
+"cap": 231554596864,
+"name": "International Business Machines"
+},
+{
+"sym": "CRWD",
+"cap": 222091460608,
+"name": "CrowdStrike Holdings, Inc."
+},
+{
+"sym": "ANET",
+"cap": 215789125632,
+"name": "Arista Networks, Inc."
+},
+{
+"sym": "AXP",
+"cap": 215240474624,
+"name": "American Express Company"
+},
+{
+"sym": "DELL",
+"cap": 208883564544,
+"name": "Dell Technologies Inc."
+},
+{
+"sym": "GILD",
+"cap": 207000109056,
+"name": "Gilead Sciences, Inc."
+},
+{
+"sym": "GEV",
+"cap": 204889161728,
+"name": "GE Vernova Inc."
+},
+{
+"sym": "DIS",
+"cap": 201590685696,
+"name": "Walt Disney Company (The)"
+},
+{
+"sym": "C",
+"cap": 197052104704,
+"name": "Citigroup, Inc."
+},
+{
+"sym": "MCD",
+"cap": 195163602944,
+"name": "McDonald's Corporation"
+},
+{
+"sym": "PEP",
+"cap": 192609828864,
+"name": "Pepsico, Inc."
+},
+{
+"sym": "ABT",
+"cap": 190392336384,
+"name": "Abbott Laboratories"
+},
+{
+"sym": "VZ",
+"cap": 189366681600,
+"name": "Verizon Communications Inc."
+},
+{
+"sym": "APH",
+"cap": 184182194176,
+"name": "Amphenol Corporation"
+},
+{
+"sym": "NEE",
+"cap": 182360752128,
+"name": "NextEra Energy, Inc."
+},
+{
+"sym": "BLK",
+"cap": 182045147136,
+"name": "BlackRock, Inc."
+},
+{
+"sym": "DE",
+"cap": 181093908480,
+"name": "Deere & Company"
+},
+{
+"sym": "KLAC",
+"cap": 180447281152,
+"name": "KLA Corporation"
+},
+{
+"sym": "WELL",
+"cap": 179741753344,
+"name": "Welltower Inc."
+},
+{
+"sym": "QCOM",
+"cap": 176988700672,
+"name": "QUALCOMM Incorporated"
+},
+{
+"sym": "ADI",
+"cap": 176168615936,
+"name": "Analog Devices, Inc."
+},
+{
+"sym": "CRM",
+"cap": 175833939968,
+"name": "Salesforce, Inc."
+},
+{
+"sym": "UNP",
+"cap": 172376948736,
+"name": "Union Pacific Corporation"
+},
+{
+"sym": "TMUS",
+"cap": 171612749824,
+"name": "T-Mobile US, Inc."
+},
+{
+"sym": "PFE",
+"cap": 167518699520,
+"name": "Pfizer, Inc."
+},
+{
+"sym": "DHR",
+"cap": 161862533120,
+"name": "Danaher Corporation"
+},
+{
+"sym": "COP",
+"cap": 161116815360,
+"name": "ConocoPhillips"
+},
+{
+"sym": "ISRG",
+"cap": 159964299264,
+"name": "Intuitive Surgical, Inc."
+},
+{
+"sym": "SCHW",
+"cap": 158216912896,
+"name": "Charles Schwab Corporation (The"
+},
+{
+"sym": "ACN",
+"cap": 153887113216,
+"name": "Accenture plc"
+},
+{
+"sym": "TJX",
+"cap": 149466513408,
+"name": "TJX Companies, Inc. (The)"
+},
+{
+"sym": "BX",
+"cap": 148610383872,
+"name": "Blackstone Inc."
+},
+{
+"sym": "T",
+"cap": 145709924352,
+"name": "AT&T Inc."
+},
+{
+"sym": "UBER",
+"cap": 140053790720,
+"name": "Uber Technologies, Inc."
+},
+{
+"sym": "CB",
+"cap": 139466555392,
+"name": "Chubb Limited"
+},
+{
+"sym": "VRTX",
+"cap": 138707943424,
+"name": "Vertex Pharmaceuticals Incorpor"
+},
+{
+"sym": "BA",
+"cap": 137410813952,
+"name": "Boeing Company (The)"
+},
+{
+"sym": "SPGI",
+"cap": 135615217664,
+"name": "S&P Global Inc."
+},
+{
+"sym": "ETN",
+"cap": 132758216704,
+"name": "Eaton Corporation, PLC"
+},
+{
+"sym": "PGR",
+"cap": 131961323520,
+"name": "Progressive Corporation (The)"
+},
+{
+"sym": "LMT",
+"cap": 130998116352,
+"name": "Lockheed Martin Corporation"
+},
+{
+"sym": "MDT",
+"cap": 130216247296,
+"name": "Medtronic plc."
+},
+{
+"sym": "APP",
+"cap": 129619787776,
+"name": "Applovin Corporation"
+},
+{
+"sym": "IBKR",
+"cap": 129185234944,
+"name": "Interactive Brokers Group, Inc."
+},
+{
+"sym": "MRVL",
+"cap": 127046942720,
+"name": "Marvell Technology, Inc."
+},
+{
+"sym": "BMY",
+"cap": 127019499520,
+"name": "Bristol-Myers Squibb Company"
+},
+{
+"sym": "MO",
+"cap": 126620819456,
+"name": "Altria Group, Inc."
+},
+{
+"sym": "LOW",
+"cap": 125984677888,
+"name": "Lowe's Companies, Inc."
+},
+{
+"sym": "NEM",
+"cap": 125648855040,
+"name": "Newmont Corporation"
+},
+{
+"sym": "SYK",
+"cap": 124055773184,
+"name": "Stryker Corporation"
+},
+{
+"sym": "PLD",
+"cap": 123439521792,
+"name": "Prologis, Inc."
+},
+{
+"sym": "MCK",
+"cap": 122481041408,
+"name": "McKesson Corporation"
+},
+{
+"sym": "COF",
+"cap": 121431498752,
+"name": "Capital One Financial Corporati"
+},
+{
+"sym": "SBUX",
+"cap": 120177942528,
+"name": "Starbucks Corporation"
+},
+{
+"sym": "ADP",
+"cap": 119750270976,
+"name": "Automatic Data Processing, Inc."
+},
+{
+"sym": "BKNG",
+"cap": 119486758912,
+"name": "Booking Holdings Inc. Common St"
+},
+{
+"sym": "SNDK",
+"cap": 118820151296,
+"name": "Sandisk Corporation"
+},
+{
+"sym": "PH",
+"cap": 115730374656,
+"name": "Parker-Hannifin Corporation"
+},
+{
+"sym": "ABNB",
+"cap": 113375051776,
+"name": "Airbnb, Inc."
+},
+{
+"sym": "CVNA",
+"cap": 109759676416,
+"name": "Carvana Co."
+},
+{
+"sym": "CME",
+"cap": 109488398336,
+"name": "CME Group Inc."
+},
+{
+"sym": "SO",
+"cap": 107507859456,
+"name": "Southern Company (The)"
+},
+{
+"sym": "CVS",
+"cap": 107283906560,
+"name": "CVS Health Corporation"
+},
+{
+"sym": "MAR",
+"cap": 107242856448,
+"name": "Marriott International"
+},
+{
+"sym": "NOW",
+"cap": 105836396544,
+"name": "ServiceNow, Inc."
+},
+{
+"sym": "STX",
+"cap": 105825370112,
+"name": "Seagate Technology Holdings PLC"
+},
+{
+"sym": "HCA",
+"cap": 103399694336,
+"name": "HCA Healthcare, Inc."
+},
+{
+"sym": "MPC",
+"cap": 101490491392,
+"name": "Marathon Petroleum Corporation"
+},
+{
+"sym": "MRNA",
+"cap": 101481775104,
+"name": "Moderna, Inc."
+},
+{
+"sym": "EQIX",
+"cap": 100246462464,
+"name": "Equinix, Inc."
+},
+{
+"sym": "DUK",
+"cap": 99631120384,
+"name": "Duke Energy Corporation (Holdin"
+},
+{
+"sym": "BNY",
+"cap": 99400564736,
+"name": "The Bank of New York Mellon Cor"
+},
+{
+"sym": "WDC",
+"cap": 98738987008,
+"name": "Western Digital Corporation"
+},
+{
+"sym": "MRSH",
+"cap": 97394851840,
+"name": "Marsh"
+},
+{
+"sym": "VLO",
+"cap": 96619511808,
+"name": "Valero Energy Corporation"
+},
+{
+"sym": "ICE",
+"cap": 96274546688,
+"name": "Intercontinental Exchange Inc."
+},
+{
+"sym": "PSX",
+"cap": 95848579072,
+"name": "Phillips 66"
+},
+{
+"sym": "GD",
+"cap": 95675408384,
+"name": "General Dynamics Corporation"
+},
+{
+"sym": "MMM",
+"cap": 95672475648,
+"name": "3M Company"
+},
+{
+"sym": "WM",
+"cap": 93945225216,
+"name": "Waste Management, Inc."
+},
+{
+"sym": "REGN",
+"cap": 93553065984,
+"name": "Regeneron Pharmaceuticals, Inc."
+},
+{
+"sym": "ADBE",
+"cap": 93135560704,
+"name": "Adobe Inc."
+},
+{
+"sym": "USB",
+"cap": 92635512832,
+"name": "U.S. Bancorp"
+},
+{
+"sym": "UPS",
+"cap": 92214132736,
+"name": "United Parcel Service, Inc."
+},
+{
+"sym": "ELV",
+"cap": 91957706752,
+"name": "Elevance Health, Inc."
+},
+{
+"sym": "GLW",
+"cap": 91420491776,
+"name": "Corning Incorporated"
+},
+{
+"sym": "INTU",
+"cap": 91261091840,
+"name": "Intuit Inc."
+},
+{
+"sym": "CSX",
+"cap": 90993565696,
+"name": "CSX Corporation"
+},
+{
+"sym": "EMR",
+"cap": 90932232192,
+"name": "Emerson Electric Company"
+},
+{
+"sym": "MNST",
+"cap": 89497444352,
+"name": "Monster Beverage Corporation"
+},
+{
+"sym": "PNC",
+"cap": 89425829888,
+"name": "PNC Financial Services Group, I"
+},
+{
+"sym": "KKR",
+"cap": 89108021248,
+"name": "KKR & Co. Inc."
+},
+{
+"sym": "CEG",
+"cap": 88559132672,
+"name": "Constellation Energy Corporatio"
+},
+{
+"sym": "CTAS",
+"cap": 88293621760,
+"name": "Cintas Corporation"
+},
+{
+"sym": "TT",
+"cap": 87943397376,
+"name": "Trane Technologies plc"
+},
+{
+"sym": "CDNS",
+"cap": 87779336192,
+"name": "Cadence Design Systems, Inc."
+},
+{
+"sym": "AMT",
+"cap": 87553916928,
+"name": "American Tower Corporation (REI"
+},
+{
+"sym": "RCL",
+"cap": 87505788928,
+"name": "Royal Caribbean Cruises Ltd."
+},
+{
+"sym": "FTNT",
+"cap": 87312908288,
+"name": "Fortinet, Inc."
+},
+{
+"sym": "MCO",
+"cap": 87189684224,
+"name": "Moody's Corporation"
+},
+{
+"sym": "CMCSA",
+"cap": 86609035264,
+"name": "Comcast Corporation"
+},
+{
+"sym": "SPG",
+"cap": 86464774144,
+"name": "Simon Property Group, Inc."
+},
+{
+"sym": "SNPS",
+"cap": 86324641792,
+"name": "Synopsys, Inc."
+},
+{
+"sym": "FCX",
+"cap": 85328158720,
+"name": "Freeport-McMoRan, Inc."
+},
+{
+"sym": "MSI",
+"cap": 85065965568,
+"name": "Motorola Solutions, Inc."
+},
+{
+"sym": "ECL",
+"cap": 84331044864,
+"name": "Ecolab Inc."
+},
+{
+"sym": "HLT",
+"cap": 83779559424,
+"name": "Hilton Worldwide Holdings Inc. Common Stock"
+},
+{
+"sym": "MDLZ",
+"cap": 83570638848,
+"name": "Mondelez International, Inc."
+},
+{
+"sym": "SHW",
+"cap": 83130458112,
+"name": "Sherwin-Williams Company (The)"
+},
+{
+"sym": "HWM",
+"cap": 81842503680,
+"name": "Howmet Aerospace Inc."
+},
+{
+"sym": "JCI",
+"cap": 81793269760,
+"name": "Johnson Controls International "
+},
+{
+"sym": "PWR",
+"cap": 81501274112,
+"name": "Quanta Services, Inc."
+},
+{
+"sym": "TRV",
+"cap": 80976486400,
+"name": "The Travelers Companies, Inc."
+},
+{
+"sym": "WMB",
+"cap": 80112975872,
+"name": "Williams Companies, Inc. (The)"
+},
+{
+"sym": "ITW",
+"cap": 79845990400,
+"name": "Illinois Tool Works Inc."
+},
+{
+"sym": "DASH",
+"cap": 78331863040,
+"name": "DoorDash, Inc."
+},
+{
+"sym": "CI",
+"cap": 77361717248,
+"name": "The Cigna Group"
+},
+{
+"sym": "CL",
+"cap": 76757524480,
+"name": "Colgate-Palmolive Company"
+},
+{
+"sym": "EOG",
+"cap": 76284583936,
+"name": "EOG Resources, Inc."
+},
+{
+"sym": "RSG",
+"cap": 75200299008,
+"name": "Republic Services, Inc."
+},
+{
+"sym": "NOC",
+"cap": 74585284608,
+"name": "Northrop Grumman Corporation"
+},
+{
+"sym": "ROST",
+"cap": 73822420992,
+"name": "Ross Stores, Inc."
+},
+{
+"sym": "SLB",
+"cap": 73683394560,
+"name": "SLB Limited"
+},
+{
+"sym": "GM",
+"cap": 73149841408,
+"name": "General Motors Company"
+},
+{
+"sym": "HOOD",
+"cap": 72858755072,
+"name": "Robinhood Markets, Inc."
+},
+{
+"sym": "ORLY",
+"cap": 72326168576,
+"name": "O'Reilly Automotive, Inc."
+},
+{
+"sym": "AJG",
+"cap": 72209022976,
+"name": "Arthur J. Gallagher & Co."
+},
+{
+"sym": "FDX",
+"cap": 72166195200,
+"name": "FedEx Corporation"
+},
+{
+"sym": "TGT",
+"cap": 71964311552,
+"name": "Target Corporation"
+},
+{
+"sym": "NSC",
+"cap": 71863861248,
+"name": "Norfolk Southern Corporation"
+},
+{
+"sym": "AON",
+"cap": 71032348672,
+"name": "Aon plc"
+},
+{
+"sym": "VRT",
+"cap": 70412148736,
+"name": "Vertiv Holdings, LLC"
+},
+{
+"sym": "HON",
+"cap": 69742649344,
+"name": "Honeywell International Inc."
+},
+{
+"sym": "APO",
+"cap": 68933001216,
+"name": "Apollo Global Management, Inc. "
+},
+{
+"sym": "AEP",
+"cap": 68898914304,
+"name": "American Electric Power Company"
+},
+{
+"sym": "APD",
+"cap": 67883458560,
+"name": "Air Products and Chemicals, Inc"
+},
+{
+"sym": "GWW",
+"cap": 67445141504,
+"name": "W.W. Grainger, Inc."
+},
+{
+"sym": "DLR",
+"cap": 67065409536,
+"name": "Digital Realty Trust, Inc."
+},
+{
+"sym": "TDG",
+"cap": 66953060352,
+"name": "Transdigm Group Incorporated"
+},
+{
+"sym": "KMI",
+"cap": 66742349824,
+"name": "Kinder Morgan, Inc."
+},
+{
+"sym": "KMB",
+"cap": 66540814336,
+"name": "Kimberly-Clark Corporation"
+},
+{
+"sym": "URI",
+"cap": 65357287424,
+"name": "United Rentals, Inc."
+},
+{
+"sym": "DDOG",
+"cap": 64641056768,
+"name": "Datadog, Inc."
+},
+{
+"sym": "COR",
+"cap": 63652311040,
+"name": "Cencora, Inc."
+},
+{
+"sym": "CRH",
+"cap": 63070523392,
+"name": "CRH PLC"
+},
+{
+"sym": "ALL",
+"cap": 63052607488,
+"name": "Allstate Corporation (The)"
+},
+{
+"sym": "PSA",
+"cap": 63052189696,
+"name": "Public Storage"
+},
+{
+"sym": "CAH",
+"cap": 62804451328,
+"name": "Cardinal Health, Inc."
+},
+{
+"sym": "NXPI",
+"cap": 62582235136,
+"name": "NXP Semiconductors N.V."
+},
+{
+"sym": "BSX",
+"cap": 61964984320,
+"name": "Boston Scientific Corporation"
+},
+{
+"sym": "MET",
+"cap": 61757005824,
+"name": "MetLife, Inc."
+},
+{
+"sym": "CMI",
+"cap": 61694644224,
+"name": "Cummins Inc."
+},
+{
+"sym": "AFL",
+"cap": 61360951296,
+"name": "AFLAC Incorporated"
+},
+{
+"sym": "FAST",
+"cap": 60795506688,
+"name": "Fastenal Company"
+},
+{
+"sym": "D",
+"cap": 60338233344,
+"name": "Dominion Energy, Inc."
+},
+{
+"sym": "NDAQ",
+"cap": 59877654528,
+"name": "Nasdaq, Inc."
+},
+{
+"sym": "TEL",
+"cap": 59515486208,
+"name": "TE Connectivity plc"
+},
+{
+"sym": "HPE",
+"cap": 59430600704,
+"name": "Hewlett Packard Enterprise Comp"
+},
+{
+"sym": "TFC",
+"cap": 59181359104,
+"name": "Truist Financial Corporation"
+},
+{
+"sym": "EW",
+"cap": 58730500096,
+"name": "Edwards Lifesciences Corporatio"
+},
+{
+"sym": "MPWR",
+"cap": 58055376896,
+"name": "Monolithic Power Systems, Inc."
+},
+{
+"sym": "BDX",
+"cap": 57713319936,
+"name": "Becton, Dickinson and Company"
+},
+{
+"sym": "DAL",
+"cap": 57369956352,
+"name": "Delta Air Lines, Inc."
+},
+{
+"sym": "NKE",
+"cap": 57318068224,
+"name": "Nike, Inc."
+},
+{
+"sym": "TRGP",
+"cap": 56768847872,
+"name": "Targa Resources, Inc."
+},
+{
+"sym": "OXY",
+"cap": 56359555072,
+"name": "Occidental Petroleum Corporatio"
+},
+{
+"sym": "O",
+"cap": 56305201152,
+"name": "Realty Income Corporation"
+},
+{
+"sym": "NUE",
+"cap": 55577735168,
+"name": "Nucor Corporation"
+},
+{
+"sym": "GRMN",
+"cap": 55027998720,
+"name": "Garmin Ltd."
+},
+{
+"sym": "ADSK",
+"cap": 54699479040,
+"name": "Autodesk, Inc."
+},
+{
+"sym": "OKE",
+"cap": 53708075008,
+"name": "ONEOK, Inc."
+},
+{
+"sym": "PCAR",
+"cap": 53693018112,
+"name": "PACCAR Inc."
+},
+{
+"sym": "EBAY",
+"cap": 53540438016,
+"name": "eBay Inc."
+},
+{
+"sym": "IDXX",
+"cap": 53262663680,
+"name": "IDEXX Laboratories, Inc."
+},
+{
+"sym": "ETR",
+"cap": 52823789568,
+"name": "Entergy Corporation"
+},
+{
+"sym": "AME",
+"cap": 52438147072,
+"name": "AMETEK, Inc."
+},
+{
+"sym": "HUM",
+"cap": 52093583360,
+"name": "Humana Inc."
+},
+{
+"sym": "AZO",
+"cap": 51765035008,
+"name": "AutoZone, Inc."
+},
+{
+"sym": "XYZ",
+"cap": 51674542080,
+"name": "Block, Inc."
+},
+{
+"sym": "BE",
+"cap": 51198869504,
+"name": "Bloom Energy Corporation"
+},
+{
+"sym": "XEL",
+"cap": 51138134016,
+"name": "Xcel Energy Inc."
+},
+{
+"sym": "SRE",
+"cap": 51132530688,
+"name": "DBA Sempra"
+},
+{
+"sym": "VMRK",
+"cap": 50663776256,
+"name": "Vivmark Residential"
+},
+{
+"sym": "FANG",
+"cap": 49959878656,
+"name": "Diamondback Energy, Inc."
+},
+{
+"sym": "KDP",
+"cap": 49851240448,
+"name": "Keurig Dr Pepper Inc."
+},
+{
+"sym": "F",
+"cap": 49675624448,
+"name": "Ford Motor Company"
+},
+{
+"sym": "A",
+"cap": 49269886976,
+"name": "Agilent Technologies, Inc."
+},
+{
+"sym": "PYPL",
+"cap": 49208201216,
+"name": "PayPal Holdings, Inc."
+},
+{
+"sym": "VEEV",
+"cap": 49176576000,
+"name": "Veeva Systems Inc."
+},
+{
+"sym": "LITE",
+"cap": 48841990144,
+"name": "Lumentum Holdings Inc."
+},
+{
+"sym": "HONA",
+"cap": 48480509952,
+"name": "Honeywell Aerospace Inc."
+},
+{
+"sym": "LHX",
+"cap": 48391712768,
+"name": "L3Harris Technologies, Inc."
+},
+{
+"sym": "DVN",
+"cap": 48107339776,
+"name": "Devon Energy Corporation"
+},
+{
+"sym": "FITB",
+"cap": 47929372672,
+"name": "Fifth Third Bancorp"
+},
+{
+"sym": "WAB",
+"cap": 47587078144,
+"name": "Westinghouse Air Brake Technolo"
+},
+{
+"sym": "BKR",
+"cap": 47538663424,
+"name": "Baker Hughes Company"
+},
+{
+"sym": "EXC",
+"cap": 47211986944,
+"name": "Exelon Corporation"
+},
+{
+"sym": "ROP",
+"cap": 47200763904,
+"name": "Roper Technologies, Inc."
+},
+{
+"sym": "VTR",
+"cap": 46932774912,
+"name": "Ventas, Inc."
+},
+{
+"sym": "VYLR",
+"cap": 46804627456,
+"name": "Vylor Inc."
+},
+{
+"sym": "MSCI",
+"cap": 46601428992,
+"name": "MSCI Inc."
+},
+{
+"sym": "WDAY",
+"cap": 46488899584,
+"name": "Workday, Inc."
+},
+{
+"sym": "KEYS",
+"cap": 46328705024,
+"name": "Keysight Technologies Inc."
+},
+{
+"sym": "FERG",
+"cap": 45209899008,
+"name": "Ferguson Enterprises Inc."
+},
+{
+"sym": "STT",
+"cap": 45045239808,
+"name": "State Street Corporation"
+},
+{
+"sym": "WAT",
+"cap": 44929847296,
+"name": "Waters Corporation"
+},
+{
+"sym": "IQV",
+"cap": 44797583360,
+"name": "IQVIA Holdings, Inc."
+},
+{
+"sym": "ARES",
+"cap": 44451340288,
+"name": "Ares Management Corporation"
+},
+{
+"sym": "ED",
+"cap": 44001615872,
+"name": "Consolidated Edison, Inc."
+},
+{
+"sym": "CMG",
+"cap": 43553087488,
+"name": "Chipotle Mexican Grill, Inc."
+},
+{
+"sym": "AMP",
+"cap": 43535585280,
+"name": "Ameriprise Financial, Inc."
+},
+{
+"sym": "YUM",
+"cap": 43346661376,
+"name": "Yum! Brands, Inc."
+},
+{
+"sym": "CARR",
+"cap": 42855231488,
+"name": "Carrier Global Corporation"
+},
+{
+"sym": "VST",
+"cap": 42307203072,
+"name": "Vistra Corp."
+},
+{
+"sym": "ROK",
+"cap": 41738752000,
+"name": "Rockwell Automation, Inc."
+},
+{
+"sym": "PAYX",
+"cap": 41671073792,
+"name": "Paychex, Inc."
+},
+{
+"sym": "DHI",
+"cap": 41334214656,
+"name": "D.R. Horton, Inc."
+},
+{
+"sym": "LYV",
+"cap": 41305821184,
+"name": "Live Nation Entertainment, Inc."
+},
+{
+"sym": "PRU",
+"cap": 40899317760,
+"name": "Prudential Financial, Inc."
+},
+{
+"sym": "SKYD",
+"cap": 40387846144,
+"name": "Skydance Corporation"
+},
+{
+"sym": "AIG",
+"cap": 40308621312,
+"name": "American International Group, I"
+},
+{
+"sym": "TTWO",
+"cap": 40176488448,
+"name": "Take-Two Interactive Software, "
+},
+{
+"sym": "KR",
+"cap": 39982850048,
+"name": "Kroger Company (The)"
+},
+{
+"sym": "EL",
+"cap": 39878090752,
+"name": "Estee Lauder Companies, Inc. (T"
+},
+{
+"sym": "CCL",
+"cap": 39773569024,
+"name": "Carnival Corporation Ltd."
+},
+{
+"sym": "CBRE",
+"cap": 39053471744,
+"name": "CBRE Group Inc"
+},
+{
+"sym": "WEC",
+"cap": 38120341504,
+"name": "WEC Energy Group, Inc."
+},
+{
+"sym": "COHR",
+"cap": 37975601152,
+"name": "Coherent Corp."
+},
+{
+"sym": "SYY",
+"cap": 37835931648,
+"name": "Sysco Corporation"
+},
+{
+"sym": "CCI",
+"cap": 37697630208,
+"name": "Crown Castle Inc."
+},
+{
+"sym": "GEHC",
+"cap": 37247111168,
+"name": "GE HealthCare Technologies Inc."
+},
+{
+"sym": "CBOE",
+"cap": 36856741888,
+"name": "Cboe Global Markets, Inc."
+},
+{
+"sym": "MLM",
+"cap": 36850044928,
+"name": "Martin Marietta Materials, Inc."
+},
+{
+"sym": "BIIB",
+"cap": 36711153664,
+"name": "Biogen Inc."
+},
+{
+"sym": "UAL",
+"cap": 36628590592,
+"name": "United Airlines Holdings, Inc."
+},
+{
+"sym": "VMC",
+"cap": 36285534208,
+"name": "Vulcan Materials Company (Holdi"
+},
+{
+"sym": "PEG",
+"cap": 36197203968,
+"name": "Public Service Enterprise Group"
+},
+{
+"sym": "TKO",
+"cap": 36022378496,
+"name": "TKO Group Holdings, Inc."
+},
+{
+"sym": "HIG",
+"cap": 35830722560,
+"name": "The Hartford Insurance Group, I"
+},
+{
+"sym": "FIX",
+"cap": 35810230272,
+"name": "Comfort Systems USA, Inc."
+},
+{
+"sym": "HSY",
+"cap": 35790585856,
+"name": "The Hershey Company"
+},
+{
+"sym": "COIN",
+"cap": 35679518720,
+"name": "Coinbase Global, Inc."
+},
+{
+"sym": "ACGL",
+"cap": 34922356736,
+"name": "Arch Capital Group Ltd."
+},
+{
+"sym": "EXR",
+"cap": 34727747584,
+"name": "Extra Space Storage Inc"
+},
+{
+"sym": "CNC",
+"cap": 34526040064,
+"name": "Centene Corporation"
+},
+{
+"sym": "CIEN",
+"cap": 34514776064,
+"name": "Ciena Corporation"
+},
+{
+"sym": "MTD",
+"cap": 34254260224,
+"name": "Mettler-Toledo International, I"
+},
+{
+"sym": "TER",
+"cap": 34068762624,
+"name": "Teradyne, Inc."
+},
+{
+"sym": "ODFL",
+"cap": 33980098560,
+"name": "Old Dominion Freight Line, Inc."
+},
+{
+"sym": "FISV",
+"cap": 33455161344,
+"name": "Fiserv, Inc."
+},
+{
+"sym": "ADM",
+"cap": 33300066304,
+"name": "Archer-Daniels-Midland Company"
+},
+{
+"sym": "NTAP",
+"cap": 33232132096,
+"name": "NetApp, Inc."
+},
+{
+"sym": "RMD",
+"cap": 33096609792,
+"name": "ResMed Inc."
+},
+{
+"sym": "ZTS",
+"cap": 32261502976,
+"name": "Zoetis Inc."
+},
+{
+"sym": "P",
+"cap": 32239736832,
+"name": "Everpure, Inc."
+},
+{
+"sym": "ILMN",
+"cap": 32225257472,
+"name": "Illumina, Inc."
+},
+{
+"sym": "IR",
+"cap": 31869800448,
+"name": "Ingersoll Rand Inc."
+},
+{
+"sym": "MCHP",
+"cap": 31755446272,
+"name": "Microchip Technology Incorporat"
+},
+{
+"sym": "IRM",
+"cap": 31725254656,
+"name": "Iron Mountain Incorporated (Del"
+},
+{
+"sym": "STLD",
+"cap": 31700277248,
+"name": "Steel Dynamics, Inc."
+},
+{
+"sym": "RJF",
+"cap": 31318409216,
+"name": "Raymond James Financial, Inc."
+},
+{
+"sym": "NTRS",
+"cap": 31289911296,
+"name": "Northern Trust Corporation"
+},
+{
+"sym": "TWLO",
+"cap": 31259369472,
+"name": "Twilio Inc."
+},
+{
+"sym": "AEE",
+"cap": 31241762816,
+"name": "Ameren Corporation"
+},
+{
+"sym": "MTB",
+"cap": 31232847872,
+"name": "M&T Bank Corporation"
+},
+{
+"sym": "HBAN",
+"cap": 31178041344,
+"name": "Huntington Bancshares Incorpora"
+},
+{
+"sym": "EQT",
+"cap": 30902142976,
+"name": "EQT Corporation"
+},
+{
+"sym": "EXPE",
+"cap": 30739202048,
+"name": "Expedia Group, Inc."
+},
+{
+"sym": "WTW",
+"cap": 30326228992,
+"name": "Willis Towers Watson Public Lim"
+},
+{
+"sym": "OTIS",
+"cap": 30060902400,
+"name": "Otis Worldwide Corporation"
+},
+{
+"sym": "AWK",
+"cap": 29923436544,
+"name": "American Water Works Company, I"
+},
+{
+"sym": "WSM",
+"cap": 29920137216,
+"name": "Williams-Sonoma, Inc."
+},
+{
+"sym": "LH",
+"cap": 29765484544,
+"name": "Labcorp Holdings Inc."
+},
+{
+"sym": "DXCM",
+"cap": 29616033792,
+"name": "DexCom, Inc."
+},
+{
+"sym": "CPRT",
+"cap": 29596258304,
+"name": "Copart, Inc."
+},
+{
+"sym": "DG",
+"cap": 29507493888,
+"name": "Dollar General Corporation"
+},
+{
+"sym": "OKTA",
+"cap": 29490542592,
+"name": "Okta, Inc."
+},
+{
+"sym": "ATO",
+"cap": 29272199168,
+"name": "Atmos Energy Corporation"
+},
+{
+"sym": "KHC",
+"cap": 29134032896,
+"name": "The Kraft Heinz Company"
+},
+{
+"sym": "CPAY",
+"cap": 29117417472,
+"name": "Corpay, Inc."
+},
+{
+"sym": "CTSH",
+"cap": 28931809280,
+"name": "Cognizant Technology Solutions "
+},
+{
+"sym": "TDY",
+"cap": 28659202048,
+"name": "Teledyne Technologies Incorpora"
+},
+{
+"sym": "PCG",
+"cap": 28565514240,
+"name": "Pacific Gas & Electric Co."
+},
+{
+"sym": "CINF",
+"cap": 28473094144,
+"name": "Cincinnati Financial Corporatio"
+},
+{
+"sym": "VLTO",
+"cap": 28469475328,
+"name": "Veralto Corp"
+},
+{
+"sym": "DGX",
+"cap": 28214743040,
+"name": "Quest Diagnostics Incorporated"
+},
+{
+"sym": "DTE",
+"cap": 28118669312,
+"name": "DTE Energy Company"
+},
+{
+"sym": "FOXA",
+"cap": 28108845056,
+"name": "Fox Corporation"
+},
+{
+"sym": "WRB",
+"cap": 27949133824,
+"name": "W.R. Berkley Corporation"
+},
+{
+"sym": "WST",
+"cap": 27851180032,
+"name": "West Pharmaceutical Services, I"
+},
+{
+"sym": "VRSN",
+"cap": 27687700480,
+"name": "VeriSign, Inc."
+},
+{
+"sym": "ULTA",
+"cap": 27568308224,
+"name": "Ulta Beauty, Inc."
+},
+{
+"sym": "ECHO",
+"cap": 27532353536,
+"name": "EchoStar Corporation"
+},
+{
+"sym": "VICI",
+"cap": 27295911936,
+"name": "VICI Properties Inc."
+},
+{
+"sym": "DOV",
+"cap": 27113617408,
+"name": "Dover Corporation"
+},
+{
+"sym": "PPG",
+"cap": 27033741312,
+"name": "PPG Industries, Inc."
+},
+{
+"sym": "CNP",
+"cap": 26952685568,
+"name": "CenterPoint Energy, Inc (Holdin"
+},
+{
+"sym": "PPL",
+"cap": 26941104128,
+"name": "PPL Corporation"
+},
+{
+"sym": "FE",
+"cap": 26878017536,
+"name": "FirstEnergy Corp."
+},
+{
+"sym": "EME",
+"cap": 26639161344,
+"name": "EMCOR Group, Inc."
+},
+{
+"sym": "CFG",
+"cap": 26509895680,
+"name": "Citizens Financial Group, Inc."
+},
+{
+"sym": "LVS",
+"cap": 26380869632,
+"name": "Las Vegas Sands Corp."
+},
+{
+"sym": "HAL",
+"cap": 26335703040,
+"name": "Halliburton Company"
+},
+{
+"sym": "ES",
+"cap": 26306963456,
+"name": "Eversource Energy (D/B/A)"
+},
+{
+"sym": "VRSK",
+"cap": 26246117376,
+"name": "Verisk Analytics, Inc."
+},
+{
+"sym": "TPR",
+"cap": 26097391616,
+"name": "Tapestry, Inc."
+},
+{
+"sym": "CHD",
+"cap": 25805383680,
+"name": "Church & Dwight Company, Inc."
+},
+{
+"sym": "FLEX",
+"cap": 25779128320,
+"name": "Flex Ltd."
+},
+{
+"sym": "GPN",
+"cap": 25775527936,
+"name": "Global Payments Inc."
+},
+{
+"sym": "HPQ",
+"cap": 25664970752,
+"name": "HP Inc."
+},
+{
+"sym": "DRI",
+"cap": 25609969664,
+"name": "Darden Restaurants, Inc."
+},
+{
+"sym": "AXON",
+"cap": 25488439296,
+"name": "Axon Enterprise, Inc."
+},
+{
+"sym": "CASY",
+"cap": 25415290880,
+"name": "Caseys General Stores, Inc."
+},
+{
+"sym": "PHM",
+"cap": 25237538816,
+"name": "PulteGroup, Inc."
+},
+{
+"sym": "FOX",
+"cap": 25097183232,
+"name": "Fox Corporation"
+},
+{
+"sym": "ON",
+"cap": 24645601280,
+"name": "ON Semiconductor Corporation"
+},
+{
+"sym": "JBL",
+"cap": 24620165120,
+"name": "Jabil Inc."
+},
+{
+"sym": "OMC",
+"cap": 24615987200,
+"name": "Omnicom Group Inc."
+},
+{
+"sym": "DLTR",
+"cap": 24605837312,
+"name": "Dollar Tree, Inc."
+},
+{
+"sym": "STE",
+"cap": 24500103168,
+"name": "STERIS plc (Ireland)"
+},
+{
+"sym": "Q",
+"cap": 24458074112,
+"name": "Qnity Electronics, Inc."
+},
+{
+"sym": "INCY",
+"cap": 24388558848,
+"name": "Incyte Corporation"
+},
+{
+"sym": "RF",
+"cap": 24063500288,
+"name": "Regions Financial Corporation"
+},
+{
+"sym": "STZ",
+"cap": 24024762368,
+"name": "Constellation Brands, Inc."
+},
+{
+"sym": "SYF",
+"cap": 23992846336,
+"name": "Synchrony Financial"
+},
+{
+"sym": "BRO",
+"cap": 23921616896,
+"name": "Brown & Brown, Inc."
+},
+{
+"sym": "EXPD",
+"cap": 23835121664,
+"name": "Expeditors International of Was"
+},
+{
+"sym": "PFG",
+"cap": 23554674688,
+"name": "Principal Financial Group Inc"
+},
+{
+"sym": "TROW",
+"cap": 23126665216,
+"name": "T. Rowe Price Group, Inc."
+},
+{
+"sym": "SW",
+"cap": 23126394880,
+"name": "Smurfit WestRock plc"
+},
+{
+"sym": "EIX",
+"cap": 22844817408,
+"name": "Edison International"
+},
+{
+"sym": "VTRS",
+"cap": 22825914368,
+"name": "Viatris Inc."
+},
+{
+"sym": "DOW",
+"cap": 22729891840,
+"name": "Dow Inc."
+},
+{
+"sym": "HUBB",
+"cap": 22690007040,
+"name": "Hubbell Inc"
+},
+{
+"sym": "XYL",
+"cap": 22435803136,
+"name": "Xylem Inc."
+},
+{
+"sym": "EFX",
+"cap": 22273961984,
+"name": "Equifax, Inc."
+},
+{
+"sym": "RL",
+"cap": 22255339520,
+"name": "Ralph Lauren Corporation"
+},
+{
+"sym": "PKG",
+"cap": 22246936576,
+"name": "Packaging Corporation of Americ"
+},
+{
+"sym": "L",
+"cap": 22186129408,
+"name": "Loews Corporation"
+},
+{
+"sym": "KEY",
+"cap": 22017179648,
+"name": "KeyCorp"
+},
+{
+"sym": "LUV",
+"cap": 21757224960,
+"name": "Southwest Airlines Company"
+},
+{
+"sym": "CMS",
+"cap": 21696620544,
+"name": "CMS Energy Corporation"
+},
+{
+"sym": "FSLR",
+"cap": 21618759680,
+"name": "First Solar, Inc."
+},
+{
+"sym": "BR",
+"cap": 21535426560,
+"name": "Broadridge Financial Solutions,"
+},
+{
+"sym": "PTC",
+"cap": 21190889472,
+"name": "PTC Inc."
+},
+{
+"sym": "NI",
+"cap": 21177370624,
+"name": "NiSource Inc"
+},
+{
+"sym": "LEN",
+"cap": 21111267328,
+"name": "Lennar Corporation"
+},
+{
+"sym": "TSN",
+"cap": 20995514368,
+"name": "Tyson Foods, Inc."
+},
+{
+"sym": "BBY",
+"cap": 20895170560,
+"name": "Best Buy Co., Inc."
+},
+{
+"sym": "AMCR",
+"cap": 20723015680,
+"name": "Amcor plc"
+},
+{
+"sym": "IFF",
+"cap": 20687329280,
+"name": "International Flavors & Fragran"
+},
+{
+"sym": "EVRG",
+"cap": 20527837184,
+"name": "Evergy, Inc."
+},
+{
+"sym": "JBHT",
+"cap": 20279793664,
+"name": "J.B. Hunt Transport Services, I"
+},
+{
+"sym": "ZBH",
+"cap": 19983316992,
+"name": "Zimmer Biomet Holdings, Inc."
+},
+{
+"sym": "SBAC",
+"cap": 19780749312,
+"name": "SBA Communications Corporation"
+},
+{
+"sym": "LYB",
+"cap": 19627284480,
+"name": "LyondellBasell Industries NV"
+},
+{
+"sym": "CDW",
+"cap": 19595063296,
+"name": "CDW Corporation"
+},
+{
+"sym": "EXE",
+"cap": 19538991104,
+"name": "Expand Energy Corporation"
+},
+{
+"sym": "FTV",
+"cap": 19457017856,
+"name": "Fortive Corporation"
+},
+{
+"sym": "DD",
+"cap": 19418638336,
+"name": "DuPont de Nemours, Inc."
+},
+{
+"sym": "SWKS",
+"cap": 19328258048,
+"name": "Skyworks Solutions, Inc."
+},
+{
+"sym": "BG",
+"cap": 19041447936,
+"name": "Bunge Limited"
+},
+{
+"sym": "GIS",
+"cap": 18986739712,
+"name": "General Mills, Inc."
+},
+{
+"sym": "SMCI",
+"cap": 18959380480,
+"name": "Super Micro Computer, Inc."
+},
+{
+"sym": "SNA",
+"cap": 18941659136,
+"name": "Snap-On Incorporated"
+},
+{
+"sym": "TSCO",
+"cap": 18850152448,
+"name": "Tractor Supply Company"
+},
+{
+"sym": "LNT",
+"cap": 18847809536,
+"name": "Alliant Energy Corporation"
+},
+{
+"sym": "TPL",
+"cap": 18785943552,
+"name": "Texas Pacific Land Corporation"
+},
+{
+"sym": "ESS",
+"cap": 18780952576,
+"name": "Essex Property Trust, Inc."
+},
+{
+"sym": "NRG",
+"cap": 18559483904,
+"name": "NRG Energy, Inc."
+},
+{
+"sym": "FDXF",
+"cap": 18474846208,
+"name": "FedEx Freight Holding Company, "
+},
+{
+"sym": "RDDT",
+"cap": 18363213824,
+"name": "Reddit, Inc."
+},
+{
+"sym": "IP",
+"cap": 18287173632,
+"name": "International Paper Company"
+},
+{
+"sym": "ROL",
+"cap": 18259468288,
+"name": "Rollins, Inc."
+},
+{
+"sym": "GEN",
+"cap": 17673695232,
+"name": "Gen Digital Inc."
+},
+{
+"sym": "FFIV",
+"cap": 17659131904,
+"name": "F5, Inc."
+},
+{
+"sym": "J",
+"cap": 17582241792,
+"name": "Jacobs Solutions Inc."
+},
+{
+"sym": "CF",
+"cap": 17464954880,
+"name": "CF Industries Holdings, Inc."
+},
+{
+"sym": "RVTY",
+"cap": 17308166144,
+"name": "Revvity, Inc."
+},
+{
+"sym": "BEN",
+"cap": 17286625280,
+"name": "Franklin Templeton, Inc."
+},
+{
+"sym": "NDSN",
+"cap": 17264762880,
+"name": "Nordson Corporation"
+},
+{
+"sym": "BALL",
+"cap": 17158417408,
+"name": "Ball Corporation"
+},
+{
+"sym": "HST",
+"cap": 17099915264,
+"name": "Host Hotels & Resorts, Inc."
+},
+{
+"sym": "SWK",
+"cap": 17077761024,
+"name": "Stanley Black & Decker, Inc."
+},
+{
+"sym": "KIM",
+"cap": 16957750272,
+"name": "Kimco Realty Corporation (HC)"
+},
+{
+"sym": "GPC",
+"cap": 16929783808,
+"name": "Genuine Parts Company"
+},
+{
+"sym": "TYL",
+"cap": 16721265664,
+"name": "Tyler Technologies, Inc."
+},
+{
+"sym": "IEX",
+"cap": 16673051648,
+"name": "IDEX Corporation"
+},
+{
+"sym": "NVR",
+"cap": 16663940096,
+"name": "NVR, Inc."
+},
+{
+"sym": "HAS",
+"cap": 16631061504,
+"name": "Hasbro, Inc."
+},
+{
+"sym": "LDOS",
+"cap": 16186255360,
+"name": "Leidos Holdings, Inc."
+},
+{
+"sym": "CRL",
+"cap": 16173103104,
+"name": "Charles River Laboratories Inte"
+},
+{
+"sym": "MAS",
+"cap": 15849476096,
+"name": "Masco Corporation"
+},
+{
+"sym": "ALLE",
+"cap": 15764969472,
+"name": "Allegion plc"
+},
+{
+"sym": "INVH",
+"cap": 15673315328,
+"name": "Invitation Homes Inc."
+},
+{
+"sym": "NWS",
+"cap": 15546548224,
+"name": "News Corporation"
+},
+{
+"sym": "SOLV",
+"cap": 15360703488,
+"name": "Solventum Corporation"
+},
+{
+"sym": "CHTR",
+"cap": 15344094208,
+"name": "Charter Communications, Inc."
+},
+{
+"sym": "EG",
+"cap": 15228745728,
+"name": "Everest Group, Ltd."
+},
+{
+"sym": "FICO",
+"cap": 15216614400,
+"name": "Fair Isaac Corporation"
+},
+{
+"sym": "ZBRA",
+"cap": 15163102208,
+"name": "Zebra Technologies Corporation"
+},
+{
+"sym": "WY",
+"cap": 15112816640,
+"name": "Weyerhaeuser Company"
+},
+{
+"sym": "AIZ",
+"cap": 15063523328,
+"name": "Assurant, Inc."
+},
+{
+"sym": "APA",
+"cap": 14984791040,
+"name": "APA Corporation"
+},
+{
+"sym": "FIS",
+"cap": 14809459712,
+"name": "Fidelity National Information S"
+},
+{
+"sym": "DOC",
+"cap": 14709140480,
+"name": "Healthpeak Properties, Inc."
+},
+{
+"sym": "CHRW",
+"cap": 14530964480,
+"name": "C.H. Robinson Worldwide, Inc."
+},
+{
+"sym": "ERIE",
+"cap": 14278794240,
+"name": "Erie Indemnity Company"
+},
+{
+"sym": "NWSA",
+"cap": 14164215808,
+"name": "News Corporation"
+},
+{
+"sym": "TXT",
+"cap": 14151674880,
+"name": "Textron Inc."
+},
+{
+"sym": "MAA",
+"cap": 14143537152,
+"name": "Mid-America Apartment Communiti"
+},
+{
+"sym": "AVY",
+"cap": 14104027136,
+"name": "Avery Dennison Corporation"
+},
+{
+"sym": "BF-B",
+"cap": 14032068608,
+"name": "Brown Forman Inc"
+},
+{
+"sym": "REG",
+"cap": 13991991296,
+"name": "Regency Centers Corporation"
+},
+{
+"sym": "SJM",
+"cap": 13945766912,
+"name": "The J.M. Smucker Company"
+},
+{
+"sym": "GDDY",
+"cap": 13871399936,
+"name": "GoDaddy Inc."
+},
+{
+"sym": "BAX",
+"cap": 13342410752,
+"name": "Baxter International Inc."
+},
+{
+"sym": "UDR",
+"cap": 13278130176,
+"name": "UDR, Inc."
+},
+{
+"sym": "MKC",
+"cap": 13022721024,
+"name": "McCormick & Company, Incorporat"
+},
+{
+"sym": "LULU",
+"cap": 12832360448,
+"name": "lululemon athletica inc."
+},
+{
+"sym": "PNW",
+"cap": 12631589888,
+"name": "Pinnacle West Capital Corporati"
+},
+{
+"sym": "TRMB",
+"cap": 12404339712,
+"name": "Trimble Inc."
+},
+{
+"sym": "CSGP",
+"cap": 12291405824,
+"name": "CoStar Group, Inc."
+},
+{
+"sym": "JKHY",
+"cap": 12145501184,
+"name": "Jack Henry & Associates, Inc."
+},
+{
+"sym": "CLX",
+"cap": 12088980480,
+"name": "Clorox Company (The)"
+},
+{
+"sym": "HRL",
+"cap": 12080199680,
+"name": "Hormel Foods Corporation"
+},
+{
+"sym": "DVA",
+"cap": 12035915776,
+"name": "DaVita Inc."
+},
+{
+"sym": "IT",
+"cap": 11991764992,
+"name": "Gartner, Inc."
+},
+{
+"sym": "AKAM",
+"cap": 11941412864,
+"name": "Akamai Technologies, Inc."
+},
+{
+"sym": "IVZ",
+"cap": 11902443520,
+"name": "Invesco Ltd"
+},
+{
+"sym": "COO",
+"cap": 11858084864,
+"name": "The Cooper Companies, Inc."
+},
+{
+"sym": "GL",
+"cap": 11857616896,
+"name": "Globe Life Inc."
+},
+{
+"sym": "ALB",
+"cap": 11712477184,
+"name": "Albemarle Corporation"
+},
+{
+"sym": "ALGN",
+"cap": 11700851712,
+"name": "Align Technology, Inc."
+},
+{
+"sym": "LII",
+"cap": 11698257920,
+"name": "Lennox International, Inc."
+},
+{
+"sym": "DECK",
+"cap": 11574049792,
+"name": "Deckers Outdoor Corporation"
+},
+{
+"sym": "FDS",
+"cap": 11564639232,
+"name": "FactSet Research Systems Inc."
+},
+{
+"sym": "BXP",
+"cap": 11548574720,
+"name": "BXP, Inc."
+},
+{
+"sym": "UHS",
+"cap": 11522088960,
+"name": "Universal Health Services, Inc."
+},
+{
+"sym": "TECH",
+"cap": 11430504448,
+"name": "Bio-Techne Corp"
+},
+{
+"sym": "HII",
+"cap": 11378105344,
+"name": "Huntington Ingalls Industries, "
+},
+{
+"sym": "DPZ",
+"cap": 10996493312,
+"name": "Domino's Pizza Inc"
+},
+{
+"sym": "PNR",
+"cap": 10875677696,
+"name": "Pentair plc."
+},
+{
+"sym": "AES",
+"cap": 10610706432,
+"name": "The AES Corporation"
+},
+{
+"sym": "GNRC",
+"cap": 10428072960,
+"name": "Generac Holdlings Inc."
+},
+{
+"sym": "PODD",
+"cap": 10163550208,
+"name": "Insulet Corporation"
+},
+{
+"sym": "CPT",
+"cap": 10132240384,
+"name": "Camden Property Trust"
+},
+{
+"sym": "FRT",
+"cap": 9743569920,
+"name": "Federal Realty Investment Trust"
+},
+{
+"sym": "HSIC",
+"cap": 9511841792,
+"name": "Henry Schein, Inc."
+},
+{
+"sym": "AOS",
+"cap": 8670935040,
+"name": "A.O. Smith Corporation"
+},
+{
+"sym": "WYNN",
+"cap": 8558159872,
+"name": "Wynn Resorts, Limited"
+},
+{
+"sym": "NCLH",
+"cap": 8230216192,
+"name": "Norwegian Cruise Line Holdings "
+},
+{
+"sym": "MGM",
+"cap": 8182361088,
+"name": "MGM Resorts International"
+},
+{
+"sym": "APTV",
+"cap": 7983842304,
+"name": "Aptiv PLC"
+},
+{
+"sym": "ARE",
+"cap": 7802396672,
+"name": "Alexandria Real Estate Equities"
+},
+{
+"sym": "MOS",
+"cap": 7108325888,
+"name": "Mosaic Company (The)"
+}
+]
+}
