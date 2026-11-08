@@ -381,6 +381,26 @@ function paintFin(s) {
     if (m) { finMode = m.dataset.fm; try { localStorage.setItem('finMode', finMode); } catch { } paintFin(s); }
     if (g) { finAxis = +g.dataset.seg; paintFin(s); } };
 }
+// ===== 公司简介(代码拼装:维基百科 / 年报业务描述 + 基本信息卡)=====
+const aboutCache = {};
+function aboutHTML(d, c) {
+  if (!d || d.error) {                         // ETF 等:退回到原来的 Yahoo 简介
+    const ab = c && c.about; if (!ab) return '';
+    return `<h3>公司简介 <span class="muted small">${[ab.sector, ab.industry].filter(Boolean).map(esc).join(' · ')}</span></h3><p class="intro">${esc(ab.zh || ab.summary)}</p>`;
+  }
+  const f = d.facts || {}, kv = (l, v) => v ? `<div><span class="muted small">${l}</span><b>${esc(String(v))}</b></div>` : '';
+  return `<h3>公司简介 <span class="muted small">${[f.sector, f.industry].filter(Boolean).map(esc).join(' · ')}</span></h3>
+    ${d.text ? `<p class="intro">${esc(d.text)}</p>` : '<p class="muted">暂时没有找到这家公司的中文介绍。</p>'}
+    <div class="kv aboutkv">${kv('总部', f.loc)}${kv('员工', f.emp ? f.emp.toLocaleString('en-US') + ' 人' : '')}${kv('首席执行官', f.ceo)}${f.web && /^https?:\/\//.test(f.web) ? `<div><span class="muted small">官网</span><b><a href="${esc(f.web)}" target="_blank" rel="noopener noreferrer">${esc(f.web.replace(/^https?:\/\/(www\.)?/, ''))}</a></b></div>` : ''}</div>
+    <div class="muted small">来源:${d.url ? `<a href="${esc(d.url)}" target="_blank" rel="noopener noreferrer">${esc(d.src)}</a>(内容采用 CC BY-SA 协议,可能不是最新)` : esc(d.src)};基本信息来自 Yahoo,${esc(d.asof)} 取。深度解读(护城河、订单线索、风险)目前只有部分公司,在持续补充。</div>
+    ${d.orig ? `<details class="muted small"><summary>查看英文原文</summary><p>${esc(d.orig)}</p></details>` : ''}`;
+}
+async function fillAbout(s, c) {
+  if (!Data.loadProfile || !$('#aboutbox')) return;
+  const paint = () => { const b = $('#aboutbox'); if (b && state.sel === s && state.dt === 'company') b.innerHTML = aboutHTML(aboutCache[s], c); };
+  if (aboutCache[s] === undefined) { try { aboutCache[s] = await Data.loadProfile(s); } catch { aboutCache[s] = { error: 'fail' }; } }
+  paint();
+}
 // ===== 财务健康体检 / 质量分 / 风险分 / 内在价值 / 财报前预期波动 =====
 const healthCache = {}, emCache = {};
 const RATE = { good: ['良好', 'up'], ok: ['一般', ''], bad: ['偏弱', 'down'] };
@@ -470,7 +490,7 @@ function companyHTML(s, c) {
   let h = `<div class="csec"><h3>${esc(k ? k.n : q.name)} <span class="muted small">${meta}${web}</span></h3>${k ? `<p class="intro">${esc(k.intro)}</p>` : c && c.about ? '' : '<p class="muted">暂无这家公司的详细分析</p>'}</div>`;
   h += profileHTML(s) + etfHTML(s, c);
   if (k) h += `<div class="csec"><h3>主营业务</h3>${list(k.segs)}</div>`;
-  else if (c && c.about) h += `<div class="csec"><h3>公司简介 <span class="muted small">${[c.about.sector, c.about.industry, c.about.employees ? c.about.employees.toLocaleString('en-US') + ' 名员工' : ''].filter(Boolean).map(esc).join(' · ')}</span></h3><p class="intro">${esc(c.about.zh || c.about.summary)}</p><div class="muted small">${c.about.zh ? '机器翻译自 Yahoo 的英文简介,仅供参考;' : '英文原文,来自 Yahoo;'}这只股票暂无深度中文分析</div></div>`;
+  else if (!isIdx(s)) h += '<div class="csec" id="aboutbox"><h3>公司简介</h3><div class="muted small">加载中…</div></div>';
   h += `<div class="csec"><h3>分析师评级</h3>${note && !(c && c.rec) ? `<div class="muted small">${note}</div>` : recHTML(c)}</div>`;
   if (c && c.target) h += `<div class="csec"><h3>分析师目标价</h3>${targetHTML(c)}</div>`;      // 没数据(如 ETF)就不显示这一栏
   if (c && Array.isArray(c.grades) && c.grades.length) h += `<div class="csec"><h3>最近机构评级变动</h3>${gradesHTML(c)}</div>`;
@@ -490,9 +510,9 @@ function companyHTML(s, c) {
 }
 async function renderCompany() {
   const s = state.sel, box = $('#dcompany'); if (!box) return;
-  box.innerHTML = companyHTML(s, null); fillFin(s); fillHealth(s);
+  box.innerHTML = companyHTML(s, null); fillFin(s); fillHealth(s); fillAbout(s); fillAbout(s);
   let c; try { c = await Data.loadCompany(s); } catch { c = { error: 'fail' }; }
-  if (state.sel === s && state.dt === 'company' && $('#dcompany')) { $('#dcompany').innerHTML = companyHTML(s, c); fillFin(s); fillHealth(s); }
+  if (state.sel === s && state.dt === 'company' && $('#dcompany')) { $('#dcompany').innerHTML = companyHTML(s, c); fillFin(s); fillHealth(s); fillAbout(s, c); }
 }
 function loadStats(s) { if (Data.loadDetail) Data.loadDetail(s).then(() => { if (state.sel === s && state.tab === 'watch' && $('#dhead')) $('#dhead').innerHTML = headHTML(s); }).catch(() => { }); }
 function newsHTML(list) {

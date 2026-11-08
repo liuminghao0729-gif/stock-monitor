@@ -640,6 +640,9 @@ def route(name, q):
         if name == "movers":
             return 200, (screen(q) if q.get("part") == "screen" else sectors(10) if q.get("part") == "sectors" else sectors(50, q.get("name", "")) if q.get("part") == "sector" else movers()), 120
         if name == "company":
+            if q.get("part") == "profile":
+                import _profile
+                return 200, _profile.profile(q["symbol"].upper()), 3600
             return 200, company(q["symbol"].upper()), 600
         if name == "fin":
             import _fin, _health

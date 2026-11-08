@@ -137,6 +137,7 @@ const MockData = (() => {
     async loadHealth() { return { error: 'mock' }; },
     async loadEM() { return { error: 'mock' }; },
     async screen() { return { error: 'mock' }; },
+    async loadProfile() { return { error: 'mock' }; },
     async loadFin() { return { error: 'mock' }; },
     async loadNews(sym) { return this.news(sym); },
     async loadEarnings(d) { return this.earnings(Math.round((d - new Date()) / 864e5)); },

@@ -237,3 +237,4 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 #view-mylist{display:flex;flex-direction:column;gap:20px}#view-mylist .card{max-width:760px}
 .holdform{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}.holdform input{flex:1;min-width:80px}.holdform button{color:var(--accent);padding:6px 10px}
 .hsum{margin:10px 0 14px}.hrow{cursor:pointer}.hrow:hover{background:var(--sel)}.hrow .x{opacity:.5}
+.aboutkv{margin:10px 0}.aboutkv b{font-size:14px}

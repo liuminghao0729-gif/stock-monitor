@@ -18,6 +18,7 @@ const LiveData = (() => {
     async loadCompany(sym) { return api('/api/company?symbol=' + encodeURIComponent(sym)); },
     async loadHealth(sym) { return api('/api/fin?part=health&symbol=' + encodeURIComponent(sym)); },
     async loadEM(sym) { return api('/api/fin?part=em&symbol=' + encodeURIComponent(sym)); },
+    async loadProfile(sym) { return api('/api/company?part=profile&symbol=' + encodeURIComponent(sym)); },
     async loadFin(sym) { return api('/api/fin?symbol=' + encodeURIComponent(sym)); },
     async loadSeg(sym) { return api('/api/fin?part=seg&symbol=' + encodeURIComponent(sym)); },
     async loadSectors() { const r = await api('/api/movers?part=sectors'); if (!r.sectors) throw new Error('x'); return r; },
