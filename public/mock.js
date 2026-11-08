@@ -134,6 +134,7 @@ const MockData = (() => {
     },
     async loadDetail() { },
     async loadCompany() { return { error: 'mock' }; },
+    async loadFin() { return { error: 'mock' }; },
     async loadNews(sym) { return this.news(sym); },
     async loadEarnings(d) { return this.earnings(Math.round((d - new Date()) / 864e5)); },
     async validate(sym) { return !!info[sym]; }

@@ -213,6 +213,53 @@ function extraHTML(c) {
     ${l.length ? `<table><thead><tr><th>日期</th><th>人员</th><th>说明</th><th class="r">金额</th></tr></thead><tbody>${l.map(i => `<tr><td class="muted small">${esc(i.date || '')}</td><td>${esc(i.name || '')} <span class="muted small">${esc(i.rel || '')}</span></td><td class="small">${esc(i.text || '')}</td><td class="r">${i.value ? '$' + bigN(i.value) : '--'}</td></tr>`).join('')}</tbody></table>` : ''}</div>`; }
   return h;
 }
+
+// ===== 财报趋势(SEC 官方数据)=====
+const finCache = {};
+function finBars(rows, keys, colors, w = 330, h = 120) {
+  // 分组柱状图:每个季度一组;正数向上,负数向下;不画坐标线,鼠标悬停显示数值
+  const n = rows.length, vals = rows.flatMap(r => keys.map(k => r[k]).filter(Number.isFinite)); if (!vals.length) return '';
+  const mx = Math.max(...vals, 0), mn = Math.min(...vals, 0), pad = 14, span = (mx - mn) || 1, y0 = pad + (mx / span) * (h - pad * 2), gw = (w - 8) / n, bw = Math.max(2, Math.min(14, gw / keys.length - 1));
+  let g = `<line x1="0" x2="${w}" y1="${y0}" y2="${y0}" stroke="var(--line)"/>`;
+  rows.forEach((r, i) => keys.forEach((k, j) => { const v = r[k]; if (!Number.isFinite(v)) return;
+    const bh = Math.abs(v) / span * (h - pad * 2), x = 4 + i * gw + j * (bw + 1) + (gw - keys.length * (bw + 1)) / 2;
+    g += `<rect x="${x.toFixed(1)}" y="${(v >= 0 ? y0 - bh : y0).toFixed(1)}" width="${bw}" height="${Math.max(1, bh).toFixed(1)}" fill="${colors[j]}" rx="1"><title>${r.end} ${bigN(v)}</title></rect>`; }));
+  return `<svg viewBox="0 0 ${w} ${h}" class="finsvg" role="img">${g}</svg><div class="finaxis"><span>${esc(rows[0].end.slice(0, 7))}</span><span>${esc(rows[n - 1].end.slice(0, 7))}</span></div>`;
+}
+function finHTML(f) {
+  if (!f) return '<div class="muted small">正在读取 SEC 财报…</div>';
+  if (f.error) return `<div class="muted small">${{ no_cik: 'ETF / 指数没有公司财报', no_us_gaap: '这是外国公司,使用国际会计准则(20-F),暂不支持', no_contact: '后台还没设置 SEC_CONTACT', not_stock: '指数没有公司财报', too_short: '上市时间太短,财报不足 4 个季度', mock: '演示模式没有财报数据' }[f.error] || '暂无财报数据'}</div>`;
+  const rows = f.rows.slice(-20), t = f.ttm, last = f.rows[f.rows.length - 1];
+  const kv = (l, v, y) => `<div><span class="muted small">${l}</span><b>${v}</b>${Number.isFinite(y) ? `<span class="small ${cls(y)}">同比 ${sgn(y, 1)}%</span>` : ''}</div>`;
+  const pc = v => Number.isFinite(v) ? v.toFixed(1) + '%' : '--';
+  let h = `<div class="kv">${kv('近 12 个月营收', bigN(t.rev), t.rev_yoy)}${kv('净利润', bigN(t.ni), t.ni_yoy)}${kv('经营现金流', bigN(t.ocf), t.ocf_yoy)}${kv('自由现金流', bigN(t.fcf), t.fcf_yoy)}${kv('毛利率', pc(t.gm))}${kv('营业利润率', pc(t.om))}${kv('净利率', pc(t.nm))}${kv('每股收益(摊薄)', Number.isFinite(t.eps) ? fmt(t.eps) : '--', t.eps_yoy)}</div>
+    <div class="finrow"><div><div class="muted small">每季度营收</div>${finBars(rows, ['rev'], ['var(--accent)'])}</div><div><div class="muted small">净利润 <i class="dot" style="background:var(--accent)"></i> · 自由现金流 <i class="dot" style="background:#8aa7c9"></i></div>${finBars(rows, ['ni', 'fcf'], ['var(--accent)', '#8aa7c9'])}</div></div>
+    <table><thead><tr><th>季度末</th><th>公告日</th><th class="r">营收</th><th class="r">同比</th><th class="r">净利润</th><th class="r">毛利率</th><th class="r">自由现金流</th></tr></thead><tbody>${f.rows.slice(-8).reverse().map(r => `<tr><td>${esc(r.end)}${r.est ? '<span class="muted small" title="第四季或现金流数据由全年数减前三季推算"> *</span>' : ''}</td><td class="muted small">${esc(r.filed)}</td><td class="r">${bigN(r.rev)}</td><td class="r ${cls(r.rev_yoy)}">${Number.isFinite(r.rev_yoy) ? sgn(r.rev_yoy, 1) + '%' : '--'}</td><td class="r">${bigN(r.ni)}</td><td class="r">${pc(r.gm)}</td><td class="r">${bigN(r.fcf)}</td></tr>`).join('')}</tbody></table>`;
+  const ck = f.check, lv = ck && { ok: ['✅', '与 Yahoo 一致'], warn: ['⚠️', '与 Yahoo 有小差异'], bad: ['❌', '与 Yahoo 差异大,请以 SEC 原文为准'] }[ck.level];
+  h += `<div class="muted small finfoot">来源:${esc(f.source)};最新一期 ${esc(f.asof)}(${esc(last.filed)} 公告)。带 * 的为推算值。${lv ? `数据核对:${lv[0]} ${lv[1]}(核对 ${ck.n} 项,最大误差 ${ck.worst}%)。` : '数据核对:Yahoo 暂时没有可比数据。'}</div>`;
+  return h;
+}
+async function fillFin(s) {
+  const box = $('#finbox'); if (!box || state.sel !== s) return;
+  box.innerHTML = '<h3>财报趋势</h3>' + finHTML(finCache[s]);
+  if (finCache[s] === undefined) {
+    let f; try { f = await Data.loadFin(s); } catch { f = { error: 'fail' }; }
+    finCache[s] = f; if (state.sel === s && state.dt === 'company' && $('#finbox')) $('#finbox').innerHTML = '<h3>财报趋势</h3>' + finHTML(f);
+  }
+}
+
+function profileHTML(s) {
+  const p = typeof PROFILES !== 'undefined' && PROFILES[s]; if (!p) return '';
+  return `<div class="csec"><h3>通俗解读 <span class="muted small">补充 · ${esc(GRADE_TXT[p.grade] || '')} · 整理于 ${PROFILE_ASOF}</span></h3>
+    <p class="intro"><b>${esc(p.one)}</b></p>
+    <div class="pf"><div><span class="muted small">靠什么赚钱</span>${list(p.money)}</div>
+    <div><span class="muted small">强在哪</span><p>${esc(p.strong)}</p></div>
+    <div><span class="muted small">产业链位置 / 卡脖子</span><p>${esc(p.choke)}</p></div>
+    <div><span class="muted small">未来订单线索(合同不等于收入)</span><p>${esc(p.orders)}</p></div>
+    <div><span class="muted small">主要风险 / 最有力的反方</span>${list(p.risk)}</div>
+    <div><span class="muted small">接下来盯什么</span><p>${esc(p.watch)}</p></div></div>
+    <div class="muted small">${esc(p.note)}依据:公司公开披露的一般信息,数字以上方 SEC 财报数据为准,未逐条核对最新电话会。</div></div>`;
+}
 const list = a => `<ul class="clist">${(a || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
 function companyHTML(s, c) {
   const k = COMPANIES[s], p = (c && c.profile) || {}, q = Data.quote(s);
@@ -222,12 +269,14 @@ function companyHTML(s, c) {
   const chips = peers.map(x => /^[A-Z.]{1,6}$/.test(x) ? `<button class="chip" data-go="${x}">${x}</button>` : `<span class="chip plain">${esc(x)}</span>`).join('');
   const note = c && c.error ? '暂无数据' : '';
   let h = `<div class="csec"><h3>${esc(k ? k.n : q.name)} <span class="muted small">${meta}${web}</span></h3>${k ? `<p class="intro">${esc(k.intro)}</p>` : c && c.about ? '' : '<p class="muted">暂无这家公司的详细分析</p>'}</div>`;
+  h += profileHTML(s);
   if (k) h += `<div class="csec"><h3>主营业务</h3>${list(k.segs)}</div>`;
   else if (c && c.about) h += `<div class="csec"><h3>公司简介 <span class="muted small">${[c.about.sector, c.about.industry, c.about.employees ? c.about.employees.toLocaleString('en-US') + ' 名员工' : ''].filter(Boolean).map(esc).join(' · ')}</span></h3><p class="intro">${esc(c.about.zh || c.about.summary)}</p><div class="muted small">${c.about.zh ? '机器翻译自 Yahoo 的英文简介,仅供参考;' : '英文原文,来自 Yahoo;'}这只股票暂无深度中文分析</div></div>`;
   h += `<div class="csec"><h3>分析师评级</h3>${note && !(c && c.rec) ? `<div class="muted small">${note}</div>` : recHTML(c)}</div>`;
   if (c && c.target) h += `<div class="csec"><h3>分析师目标价</h3>${targetHTML(c)}</div>`;      // 没数据(如 ETF)就不显示这一栏
   if (c && Array.isArray(c.grades) && c.grades.length) h += `<div class="csec"><h3>最近机构评级变动</h3>${gradesHTML(c)}</div>`;
   if (peers.length) h += `<div class="csec"><h3>竞争对手</h3><div class="chips">${chips}</div></div>`;
+  if (!isIdx(s)) h += '<div class="csec" id="finbox"></div>';
   h += extraHTML(c);
   if (!k && backlogHTML(c)) h += `<div class="csec"><h3>在手订单</h3>${backlogHTML(c)}</div>`;
   if (k) {
@@ -243,9 +292,9 @@ function companyHTML(s, c) {
 }
 async function renderCompany() {
   const s = state.sel, box = $('#dcompany'); if (!box) return;
-  box.innerHTML = companyHTML(s, null);
+  box.innerHTML = companyHTML(s, null); fillFin(s);
   let c; try { c = await Data.loadCompany(s); } catch { c = { error: 'fail' }; }
-  if (state.sel === s && state.dt === 'company' && $('#dcompany')) $('#dcompany').innerHTML = companyHTML(s, c);
+  if (state.sel === s && state.dt === 'company' && $('#dcompany')) { $('#dcompany').innerHTML = companyHTML(s, c); fillFin(s); }
 }
 function loadStats(s) { if (Data.loadDetail) Data.loadDetail(s).then(() => { if (state.sel === s && state.tab === 'watch' && $('#dhead')) $('#dhead').innerHTML = headHTML(s); }).catch(() => { }); }
 function newsHTML(list) {
