@@ -80,16 +80,30 @@ function marketStatus() {
   $('#clock').textContent = `纽约 ${p.hour}:${p.minute}`;
 }
 const isIdx = s => Data.INDICES.some(i => i[0] === s);
+const idxHist = {}, idxPrev = {};
+function sparkPath(a, w, h) { const lo = Math.min(...a), hi = Math.max(...a); return a.map((v, i) => (i ? 'L' : 'M') + (i / (a.length - 1) * w).toFixed(1) + ',' + (h - 2 - (v - lo) / ((hi - lo) || 1) * (h - 4)).toFixed(1)).join(''); }
 function renderIndices() {
   $('#indices').innerHTML = Data.INDICES.map(([s, n]) => {
-    const q = Data.quote(s);
-    return `<div class="idx ${s === state.sel ? 'on' : ''}" data-go="${s}" title="查看${n}图表"><div class="n">${n}</div><div class="p">${fmt(q.price, q.price < 200 ? 2 : 0)}</div><div class="c ${cls(q.pct)}">${sgn(q.pct)}%</div></div>`;
+    const q = Data.quote(s), pv = idxPrev[s], fl = Number.isFinite(pv) && Number.isFinite(q.price) && pv !== q.price ? (q.price > pv ? ' fu' : ' fd') : '';
+    if (Number.isFinite(q.price)) idxPrev[s] = q.price;
+    const h = idxHist[s], sp = h && h.length > 2 ? `<svg class="isp" viewBox="0 0 120 22" preserveAspectRatio="none" aria-hidden="true"><path class="${cls(q.pct)}" d="${sparkPath(h, 120, 22)}"/></svg>` : '<span class="isp"></span>';
+    return `<div class="idx ${s === state.sel ? 'on' : ''}${fl}" data-go="${s}" title="查看${n}图表"><div class="n">${n}</div><div class="p">${fmt(q.price, q.price < 200 ? 2 : 0)}</div><div class="c ${cls(q.pct)}">${sgn(q.pct)}%</div>${sp}</div>`;
   }).join('');
 }
-
+async function loadIdxSpark() {      // 指数的迷你走势:逐个取一次日K,取不到就不显示
+  for (const [s] of Data.INDICES) {
+    if (idxHist[s]) continue;
+    try { await Data.loadBars(s, 'D'); const B = Data.bars(s, 'D'); if (B && B.bars && B.bars.length > 2) idxHist[s] = B.bars.slice(-30).map(b => b.c); } catch { }
+    renderIndices();
+  }
+}
 // ===== 自选股 =====
+function renderQuick() {      // 看盘页顶部:自选股快速切换(← → 也能切)
+  const el = $('#quick'); if (!el) return;
+  el.innerHTML = state.watch.map(s => `<button class="qk ${s === state.sel ? 'on' : ''}" data-go="${s}" title="${esc(Data.quote(s).name || s)}">${s}</button>`).join('');
+}
 function renderWatch() {
-  renderHold();
+  renderHold(); renderQuick();
   $('#watchList').innerHTML = state.watch.map(s => {
     const q = Data.quote(s);
     return `<div class="wrow ${s === state.sel ? 'sel' : ''}" data-s="${s}"><div><div class="s">${s}</div><div class="nm">${q.name}</div></div>
@@ -189,25 +203,45 @@ function selectStock(s) {
 
 // ===== 个股详情 =====
 const cn = (n, u = '') => !Number.isFinite(n) ? '--' : n >= 1e8 ? fmt(n / 1e8) + '亿' + u : n >= 1e4 ? fmt(n / 1e4) + '万' + u : fmt(n, 0) + u;
+function barPos(v, lo, hi) { return Number.isFinite(v) && Number.isFinite(lo) && Number.isFinite(hi) && hi > lo ? Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100)) : null; }
+function hbar(lo, hi, cur, ticks, la, lb) {      // 位置条:圆点是现价,竖线是参考位(如今开、昨收)
+  const p = barPos(cur, lo, hi);
+  if (p === null) return `<div class="hbar na"><div class="hb-t"></div><div class="hb-l"><span>${la}</span><span>${lb}</span></div></div>`;
+  return `<div class="hbar"><div class="hb-t"><i class="fill" style="width:${p.toFixed(1)}%"></i>${(ticks || []).map(([v, t]) => { const k = barPos(v, lo, hi); return k === null ? '' : `<i class="tk" title="${t}" style="left:${k.toFixed(1)}%"></i>`; }).join('')}<i class="mk" style="left:${p.toFixed(1)}%"></i></div><div class="hb-l"><span>${la}</span><span>${lb}</span></div></div>`;
+}
+function sigChips(s) {      // 信号胶囊:全部由代码按数字算出(趋势用日K的 20/50 日均线,量能用量比,位置用 52 周高点)
+  const q = Data.quote(s), d = (Data.detail && Data.detail(s)) || {}, idx = isIdx(s), out = [];
+  const B = Data.bars && Data.bars(s, 'D'), bars = B && B.bars;
+  if (bars && bars.length >= 50) {
+    const c = bars.map(b => b.c); if (Number.isFinite(q.price)) c[c.length - 1] = q.price;
+    const m20 = sma(c, 20)[c.length - 1], m50 = sma(c, 50)[c.length - 1], px = c[c.length - 1];
+    out.push(px > m20 && m20 > m50 ? ['趋势', '多头排列(价 > 20 日 > 50 日)', 'ok'] : px < m20 && m20 < m50 ? ['趋势', '空头排列(价 < 20 日 < 50 日)', 'bad'] : ['趋势', '震荡', '']);
+  }
+  if (!idx && Number.isFinite(d.volRatio)) { const v = d.volRatio, k = v >= 1.3 ? '放量' : v <= .8 ? '缩量' : '正常'; out.push(['量能', `${k} · 量比 ${fmt(v)}`, v >= 1.3 ? 'ok' : v <= .8 ? 'w' : '']); }
+  if (Number.isFinite(d.wk52h) && d.wk52h > 0 && Number.isFinite(q.price)) { const g = Math.max(0, (d.wk52h - q.price) / d.wk52h * 100); out.push(['位置', `离 52 周高点 ${fmt(g, 1)}%`, g <= 5 ? 'ok' : g >= 30 ? 'w' : '']); }
+  return out.map(([k, v, c]) => `<span class="hsig ${c}"><i></i>${k} <b>${v}</b></span>`).join('');
+}
+async function fillSigs(s) {      // 趋势需要日K:没缓存就取一次,取到后只更新胶囊
+  if (!$('#sigs')) return;
+  if (!(Data.bars && Data.bars(s, 'D') && Data.bars(s, 'D').bars)) { try { await Data.loadBars(s, 'D'); } catch { return; } }
+  if (state.sel === s && state.tab === 'watch' && $('#sigs')) $('#sigs').innerHTML = sigChips(s);
+}
 function headHTML(s) {
   const q = Data.quote(s), d = (Data.detail && Data.detail(s)) || {}, dec = Number.isFinite(q.price) ? decOf(q.price) : 2, P = v => Number.isFinite(v) ? fmt(v, dec) : '--';
   const pct = v => Number.isFinite(v) ? fmt(v) + '%' : '--', num = v => Number.isFinite(v) ? fmt(v) : '--';
   const vs = v => !Number.isFinite(v) || !Number.isFinite(q.prev) ? '' : v >= q.prev ? 'up' : 'down';
-  const rows = [   // 三列,排列参照 Moomoo
-    [['成交额', cn(d.turnover)], ['成交量', cn(q.volume, '股')], ['换手率', pct(d.turnoverRate)], ['52周最高', P(d.wk52h)], ['52周最低', P(d.wk52l)], ['股息率', pct(d.divYield)]],
-    [['最高', P(q.high), vs(q.high)], ['最低', P(q.low), vs(q.low)], ['市值', cn(d.mcap)], ['总股本', cn(d.shares)], ['振幅', pct(d.amp)], ['市盈率(TTM)', num(d.pe)]],
-    [['今开', P(q.open), vs(q.open)], ['昨收', P(q.prev)], ['平均价', P(d.avg)], ['量比', num(d.volRatio)], ['历史最高', P(d.ath)], ['历史最低', P(d.atl)]]
-  ];
-  const idx = isIdx(s);
-  if (idx) rows.splice(0, 3,   // 指数:没有市值、换手率等,只显示行情类数据
-    [['52周最高', P(d.wk52h)], ['52周最低', P(d.wk52l)], ['振幅', pct(d.amp)]],
-    [['最高', P(q.high), vs(q.high)], ['最低', P(q.low), vs(q.low)], ['今开', P(q.open), vs(q.open)]],
-    [['昨收', P(q.prev)], ['历史最高', P(d.ath)], ['历史最低', P(d.atl)]]);
-  const arrow = q.change >= 0 ? '↑' : '↓', open = store.get('statsOpen', true), show = idx ? 3 : open ? 6 : 2;
+  const idx = isIdx(s), arrow = q.change >= 0 ? '↑' : '↓', open = store.get('statsOpen', true);
+  const row = (l, v, c) => `<div class="hl"><span class="l">${l}</span><span class="v ${c || ''}">${v}</span></div>`;
+  const grp = (t, inner) => `<div class="hg"><h5>${t}</h5>${inner}</div>`;
+  const day = grp('今日区间', hbar(q.low, q.high, q.price, [[q.open, '今开'], [q.prev, '昨收']], '最低', '最高') + `<div class="hrows">${row('最高', P(q.high), vs(q.high))}${row('最低', P(q.low), vs(q.low))}${row('今开', P(q.open), vs(q.open))}${row('昨收', P(q.prev))}${idx ? '' : row('平均价', P(d.avg))}${row('振幅', pct(d.amp))}</div>`);
+  const pos = grp('位置', hbar(d.wk52l, d.wk52h, q.price, null, '52周低', '52周高') + `<div class="hrows">${row('52周最高', P(d.wk52h))}${row('52周最低', P(d.wk52l))}</div>` + hbar(d.atl, d.ath, q.price, null, '历史低', '历史高') + `<div class="hrows">${row('历史最高', P(d.ath))}${row('历史最低', P(d.atl))}</div>`);
+  const vol = grp('成交', hbar(0, 2, d.volRatio, [[1, '平均']], '缩量', '放量') + `<div class="hrows">${row('量比', num(d.volRatio))}${row('成交额', cn(d.turnover))}${row('成交量', cn(q.volume, '股'))}${row('换手率', pct(d.turnoverRate))}</div>`);
+  const val = grp('估值', `<div class="hrows">${row('市值', cn(d.mcap))}${row('总股本', cn(d.shares))}${row('市盈率(TTM)', num(d.pe))}${row('股息率', pct(d.divYield))}</div>`);
   return `<div class="dh"><div><h2>${s} <span class="muted" style="font-size:14px;font-weight:400">${esc(q.name)}</span></h2></div>${state.watch.includes(s) || idx ? '' : '<button class="tb on" data-act="addwatch">＋ 加入自选</button>'}</div>
   <div class="px-big ${cls(q.change)}"><span class="big">${P(q.price)}</span><span class="arr">${Number.isFinite(q.price) ? arrow : ''}</span></div>
   <div class="${cls(q.change)} px-sub">${sgn(q.change, dec)} &nbsp; ${sgn(q.pct)}%</div>
-  <div class="sgrid">${rows.map(col => `<div class="scol">${col.slice(0, show).map(([l, v, c]) => `<div class="srow"><span class="l">${l}</span><span class="v ${c || ''}">${v}</span></div>`).join('')}</div>`).join('')}</div>
+  <div class="hsigs" id="sigs">${sigChips(s)}</div>
+  <div class="hg4 ${open || idx ? '' : 'compact'}">${idx ? day + pos : day + pos + vol + val}</div>
   ${idx ? '' : `<button class="sfold" data-act="stats" title="${open ? '收起' : '展开'}">${open ? '︿' : '﹀'}</button>`}`;
 }
 async function renderDetail() {
@@ -216,14 +250,14 @@ async function renderDetail() {
   $('#detail').innerHTML = `<div id="dhead">${headHTML(s)}</div>
   <div class="dtabs" id="dtabs"><button data-dt="chart">图表</button>${isIdx(s) ? '' : '<button data-dt="company">公司</button>'}</div>
   <div id="dchart">
+    <div class="tbar" id="tb"></div>
     <div class="legend" id="legend"></div>
     <div class="chartwrap" id="cw"><canvas id="cv"></canvas><div id="cload" class="cload">图表加载中…</div></div>
-    <div class="tbar" id="tb"></div>
     <h3>${isIdx(s) ? '市场新闻' : s + ' 相关新闻'}</h3>
     <ul class="news" id="stockNews"><li class="muted">加载中…</li></ul>
   </div>
   <div id="dcompany" class="hidden"></div>`;
-  bindChart(); renderToolbar(); loadChart(true); loadStats(s); showDT(state.dt);
+  bindChart(); renderToolbar(); loadChart(true); loadStats(s); fillSigs(s); showDT(state.dt);
   { const q = Data.quote(s); countUp($('.px-big .big'), q.price, Number.isFinite(q.price) ? decOf(q.price) : 2); }
   const stale = () => state.sel !== s || state.tab !== 'watch';
   Data.loadNews(isIdx(s) ? '' : s).then(l => { if (!stale()) $('#stockNews').innerHTML = newsHTML(l); })
@@ -530,9 +564,20 @@ const IND_ITEMS = [['ma0', 'MA5', MA_DEF[0][1]], ['ma1', 'MA10', MA_DEF[1][1]], 
 const SUB_ITEMS = [['vol', '成交量'], ['macd', 'MACD(12,26,9)'], ['rsi', 'RSI(6,12,24)'], ['sig', '信号提示(放量 / 金叉死叉 / 背离)']];
 const isMA = k => /^ma\d$/.test(k);     // 均线键名 ma0..ma5(注意 macd 不是均线)
 const indOn = k => isMA(k) ? state.ind.ma[+k.slice(2)] : state.ind[k];
+const PRESETS = {
+  lite: ['简洁', { ma: [0, 0, 1, 1, 0, 0], boll: 0, chip: 0, vol: 1, macd: 0, rsi: 0, sr: 1, trend: 0, pat: 0, sig: 0 }],
+  tech: ['技术派', { ma: [1, 1, 1, 1, 0, 0], boll: 0, chip: 1, vol: 1, macd: 1, rsi: 1, sr: 1, trend: 1, pat: 1, sig: 1 }],
+  full: ['全部', { ma: [1, 1, 1, 1, 1, 1], boll: 1, chip: 1, vol: 1, macd: 1, rsi: 1, sr: 1, trend: 1, pat: 1, sig: 1 }]
+};
+const presetOf = () => Object.keys(PRESETS).find(k => { const p = PRESETS[k][1]; return JSON.stringify(p.ma) === JSON.stringify(state.ind.ma) && Object.keys(p).every(x => x === 'ma' || !!p[x] === !!state.ind[x]); }) || '';
+function applyPreset(k) {      // 一键切换指标组合;之后你在「指标」菜单里仍可逐项增减
+  const p = PRESETS[k]; if (!p) return;
+  state.ind = { ...state.ind, ...JSON.parse(JSON.stringify(p[1])) }; store.set('ind2', state.ind);
+  renderToolbar(); if (V) { layout(); paint(); }
+}
 function renderToolbar() {
-  const p = state.period, chk = ([k, n, c]) => `<label ${c ? `style="color:${c}"` : ''}><input type="checkbox" data-ind="${k}" ${indOn(k) ? 'checked' : ''}>${n}</label>`;
-  $('#tb').innerHTML = `<div class="tl">${Object.entries(PERIODS).map(([k, n]) => `<button class="tb ${p === k ? 'on' : ''}" data-p="${k}">${n}</button>`).join('')}
+  const p = state.period, po = presetOf(), chk = ([k, n, c]) => `<label ${c ? `style="color:${c}"` : ''}><input type="checkbox" data-ind="${k}" ${indOn(k) ? 'checked' : ''}>${n}</label>`;
+  $('#tb').innerHTML = `<div class="tl"><span class="seg" role="group" aria-label="图表预设">${Object.entries(PRESETS).map(([k, [n]]) => `<button class="tb pre ${po === k ? 'on' : ''}" data-act="preset" data-v="${k}">${n}</button>`).join('')}</span><span class="tsep"></span>${Object.entries(PERIODS).map(([k, n]) => `<button class="tb ${p === k ? 'on' : ''}" data-p="${k}">${n}</button>`).join('')}
     <span class="pwrap"><button class="tb ${isIntra(p) ? 'on' : ''}" data-act="minmenu">${MINUTES[state.minute]} ▾</button>
       <div class="pop hidden" id="popMin">${Object.entries(MINUTES).map(([k, n]) => `<button data-p="${k}" class="${p === k ? 'on' : ''}">${n}</button>`).join('')}</div></span></div>
     <div class="tr"><button class="tb" data-act="type" title="切换蜡烛图 / 折线图">${state.type === 'candle' ? '蜡烛图' : '折线图'}</button>
@@ -552,6 +597,7 @@ $('#detail').addEventListener('click', e => {
   const dt = e.target.closest('[data-dt]'); if (dt) return showDT(dt.dataset.dt);
   const t = e.target.closest('[data-p],[data-act]'); if (!t) return;
   if (t.dataset.act === 'addwatch') { if (!state.watch.includes(state.sel)) { state.watch.push(state.sel); store.set('watch', state.watch); } $('#dhead').innerHTML = headHTML(state.sel); renderWatch(); return; }
+  if (t.dataset.act === 'preset') return applyPreset(t.dataset.v);
   if (t.dataset.p) return setPeriod(t.dataset.p);
   const a = t.dataset.act, pop = t.parentElement.querySelector('.pop');
   if (a === 'minmenu' || a === 'indmenu') { const was = pop.classList.contains('hidden'); closePops(); pop.classList.toggle('hidden', !was); e.stopPropagation(); return; }
@@ -566,7 +612,7 @@ $('#detail').addEventListener('click', e => {
 $('#detail').addEventListener('change', e => {
   const k = e.target.dataset.ind; if (!k) return;
   if (isMA(k)) state.ind.ma[+k.slice(2)] = e.target.checked ? 1 : 0; else state.ind[k] = e.target.checked ? 1 : 0;
-  store.set('ind2', state.ind); if (V) { layout(); paint(); }
+  store.set('ind2', state.ind); document.querySelectorAll('#tb .pre').forEach(b => b.classList.toggle('on', b.dataset.v === presetOf())); if (V) { layout(); paint(); }
 });
 document.addEventListener('click', e => { if (!e.target.closest('.pwrap')) closePops(); });
 
@@ -1112,9 +1158,17 @@ function switchTab(t) {
 $('#tabs').addEventListener('click', e => { if (e.target.dataset.tab) switchTab(e.target.dataset.tab); });
 
 const coreSymbols = () => [...new Set([...Data.INDICES.map(i => i[0]), ...state.watch, ...state.holdings.map(h => h.sym), state.sel])].filter(Boolean);
+let lastOk = 0, liveErr = false;
+function updLive() {      // 右上角:实时 · N 秒前更新
+  const el = $('#liveTxt'); if (!el) return;
+  const n = lastOk ? Math.max(0, Math.round((Date.now() - lastOk) / 1000)) : 0;
+  el.textContent = liveErr ? '数据连接异常' : Data.mode === 'live' ? `实时 · ${n} 秒前更新` : '模拟数据';
+  $('#liveInd').classList.toggle('bad', liveErr);
+}
 function setBadge(err) {
   const b = $('#dataMode'); b.textContent = err ? '数据连接异常' : Data.mode === 'live' ? '实时数据' : '模拟数据';
   b.className = 'badge' + (Data.mode === 'live' && !err ? ' live' : '');
+  liveErr = !!err; if (!err) lastOk = Date.now(); updLive();
 }
 let left = REFRESH, busy = false;
 async function refresh() {
@@ -1137,7 +1191,7 @@ async function refresh() {
     } else if (renderers[state.tab]) renderers[state.tab]();
   } finally { busy = false; }
 }
-setInterval(() => { left--; $('#countdown').textContent = Math.max(left, 0); if (left <= 0) { left = REFRESH; refresh(); } }, 1000);
+setInterval(() => { left--; $('#countdown').textContent = Math.max(left, 0); updLive(); if (left <= 0) { left = REFRESH; refresh(); } }, 1000);
 window.addEventListener('resize', () => state.tab === 'watch' && drawCharts());
 
 async function init() {
@@ -1147,5 +1201,16 @@ async function init() {
   marketStatus(); let err = false;
   try { await Data.refreshQuotes(coreSymbols()); } catch { err = true; }
   setBadge(err); renderIndices(); renderWatch(); renderDetail(); $('#countdown').textContent = left;
+  loadIdxSpark();
 }
+// ===== 键盘:/ 聚焦搜索;← → 在自选股之间切换 =====
+document.addEventListener('keydown', e => {
+  const t = e.target, typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+  if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === '/') { e.preventDefault(); if (state.tab !== 'watch') switchTab('watch'); $('#addInput').focus(); return; }
+  if (state.tab === 'watch' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && state.watch.length > 1) {
+    const i = state.watch.indexOf(state.sel), n = state.watch.length;
+    selectStock(state.watch[((i < 0 ? 0 : i) + (e.key === 'ArrowRight' ? 1 : -1) + n) % n]);
+  }
+});
 init();

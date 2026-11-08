@@ -19,6 +19,7 @@
   <div class="status">
     <span id="mkt" class="pill">--</span>
     <span id="clock"></span>
+    <span id="liveInd" class="live"><i></i><span id="liveTxt">--</span></span>
     <span id="authBox"></span>
     <span class="badge" id="dataMode"></span>
     <span class="cd"><span id="countdown">--</span></span>
@@ -28,26 +29,30 @@
 <section id="indices" class="strip"></section>
 
 <nav id="tabs" class="tabs">
-  <button data-tab="watch" class="on">看盘</button>
-  <button data-tab="mylist">自选股</button>
-  <button data-tab="sectors">板块</button>
-  <button data-tab="screen">条件筛选</button>
-  <button data-tab="earnings">财报日历</button>
-  <button data-tab="movers">涨跌幅榜</button>
-  <button data-tab="picks">股票推荐</button>
-  <button data-tab="macro">宏观</button>
-  <button data-tab="alerts">快讯</button>
+  <button data-tab="watch" class="p on">看盘</button>
+  <button data-tab="mylist" class="p">自选股</button>
+  <button data-tab="sectors" class="p">板块</button>
+  <button data-tab="picks" class="p">股票推荐</button>
+  <span class="nsep"></span>
+  <button data-tab="screen" class="s">条件筛选</button>
+  <button data-tab="earnings" class="s">财报日历</button>
+  <button data-tab="movers" class="s">涨跌幅榜</button>
+  <button data-tab="macro" class="s">宏观</button>
+  <button data-tab="alerts" class="s">快讯</button>
 </nav>
 
 <main>
   <div id="view-watch" class="view">
-    <div id="searchBox">
-      <form id="addForm" class="addrow">
-        <input id="addInput" placeholder="搜索代码或公司名,如 TSLA、甲骨文" maxlength="30" autocomplete="off">
-        <button type="submit">搜索</button>
-      </form>
-      <div id="sugg" class="sugg hidden"></div>
-      <div id="addMsg" class="muted small"></div>
+    <div class="srow2">
+      <div id="searchBox">
+        <form id="addForm" class="addrow">
+          <input id="addInput" placeholder="搜索代码或公司名,如 TSLA、甲骨文" maxlength="30" autocomplete="off" aria-label="搜索股票">
+          <button type="submit">搜索</button>
+        </form>
+        <div id="sugg" class="sugg hidden"></div>
+        <div id="addMsg" class="muted small"></div>
+      </div>
+      <div class="quickwrap"><div id="quick" class="quick" role="group" aria-label="自选股快速切换"></div><div class="khint"><kbd>/</kbd> 搜索 · <kbd>←</kbd> <kbd>→</kbd> 切换自选股</div></div>
     </div>
     <section class="card" id="detail"></section>
   </div>
