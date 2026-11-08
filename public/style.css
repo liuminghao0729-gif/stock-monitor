@@ -219,8 +219,8 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 .pfkv{margin:10px 0 4px;grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}.pfkv .small{margin-top:-2px}
 
 /* 搜索框与联想下拉 */
-#searchBox{position:relative;max-width:520px}
-.sugg{position:absolute;left:0;right:0;top:46px;z-index:30;background:var(--bg2,#14161a);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 12px 40px rgba(0,0,0,.45);max-height:340px;overflow:auto}
+#searchBox{position:relative;z-index:40;max-width:520px}
+.sugg{position:absolute;left:0;right:0;top:46px;z-index:30;background:#0c0e10;opacity:1;border:1px solid var(--gline);border-radius:14px;padding:6px;box-shadow:0 12px 40px rgba(0,0,0,.45);max-height:340px;overflow:auto}
 .sugg.hidden{display:none}
 .sg{display:grid;grid-template-columns:72px 1fr auto;gap:10px;align-items:center;padding:10px;border-radius:10px;cursor:pointer}
 .sg:hover,.sg.on{background:var(--sel)}.sg b{font-weight:600}.sg .nm{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
