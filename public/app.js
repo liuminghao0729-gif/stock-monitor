@@ -747,8 +747,20 @@ async function renderPicks() {
       ${p.confirmed.length ? p.confirmed.map((r, i) => pickRow2(r, i + 1)).join('') : '<div class="muted small" style="padding:8px 0">今天没有股票满足全部确认条件。不会为了凑数降低标准。</div>'}
       ${p.watching.length ? `<div class="small" style="margin-top:12px"><b>观察列表</b> <span class="muted">(形态初步符合,尚未确认,不计入确认数量)共 ${p.watchingTotal} 只</span></div>${p.watching.map(r => pickRow2(r, 0)).join('')}` : ''}
       ${p.invalidated.length ? `<div class="small" style="margin-top:12px"><b>已失效</b></div>${p.invalidated.map(x => `<div class="muted small"><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> ${esc(x.reason)}(${esc(x.date)})</div>`).join('')}` : ''}</div>`).join('')}</div>
-    <div class="card small muted" style="line-height:1.8"><b>数据限制(如实披露)</b><ul class="clist">${(P.dataLimits || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
-    <div class="muted small" style="padding:8px 4px;line-height:1.7">评分只用于通过硬门槛之后的排序,评分高不等于出现买入信号。仅为条件筛选,不是买卖建议,不构成投资建议。这些参数没有经过回测验证,技术形态没有被证明有预测能力。基本面数据来自 Yahoo 免费接口,可能有延迟或错误。</div>`;
+    <div class="card small" style="line-height:1.8"><b>回测结论(如实披露)</b>
+      <p style="margin:6px 0">用约 1200 只股票、10 年日线回测过这些技术条件(次日开盘价入场,含交易成本)。<b>没有发现稳定的、按风险调整后能超过标普 500 的优势。</b>所以这里的名单是「条件筛选和提醒」,不是跑赢指数的信号。</p>
+      <details><summary class="muted">查看依据和限制</summary>
+        <ul class="clist">
+          <li>选股池本身没有溢价:同一批股票随便哪天买,60 天平均 +4.0%,同期标普 +3.7%。</li>
+          <li>现有技术条件在样本外(2023 年起)60 天平均相对标普:激进成长 -0.5%,强势回调 +0.1%,超跌反转 +0.5%(只有 67 个事件,样本很小)。差距都在统计噪声范围内。</li>
+          <li>调参后样本内最好的条件,样本外基本失效(例如超跌反转样本内 +6.0%,样本外 -1.3%)——典型的过拟合。</li>
+          <li>看起来收益更高的方案,多是因为承担了更高的波动:例如只选相对强度前 20% 的激进成长,年化多约 5 个点,但 beta 1.21、最大回撤 -27%(标普 -19%)、夏普更低,扣掉市场风险后 alpha 只有约 +1.8%。</li>
+          <li>超跌反转的结果可能受幸存者偏差影响:回测股票池只含活到今天的公司,退市的不在里面。</li>
+        </ul>
+        <div class="muted">限制:只测了技术条件(营收、自由现金流等基本面条件没有历史时点数据,无法回测);用今天的市值筛选范围;样本外 2023 年起基本是牛市;试了很多参数组合,样本内最好的几乎一定带运气成分。完整报告在代码仓库的 tools/tune_report.md 和 tools/backtest_report.md。</div>
+      </details></div>
+    <div class="card small muted" style="line-height:1.8"><b>数据限制</b><ul class="clist">${(P.dataLimits || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
+    <div class="muted small" style="padding:8px 4px;line-height:1.7">评分只用于通过硬门槛之后的排序,评分高不等于出现买入信号。仅为条件筛选,不是买卖建议,不构成投资建议。回测显示这些技术条件没有稳定跑赢标普 500(见上方说明);技术形态没有被证明有预测能力。基本面数据来自 Yahoo 免费接口,可能有延迟或错误。</div>`;
 }
 // ===== 宏观 =====
 function spark(v, w = 120, h = 34) {
