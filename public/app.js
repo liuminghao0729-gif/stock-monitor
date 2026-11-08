@@ -453,7 +453,6 @@ function companyHTML(s, c) {
       <div class="csec"><h3>未来订单 / 需求能见度</h3>${backlogHTML(c)}<p>${esc(k.orders)}</p></div>
       <div class="csec"><h3>主要风险</h3>${list(k.risks)}</div>`;
   }
-  h += `<div class="csec"><h3>财报对比(近 4 个季度)</h3>${note && !(c && c.earn) ? `<div class="muted small">${note}</div>` : earnHTML(c)}</div>
     <div class="small cfoot">${k ? `分析内容撰写于 ${COMPANY_ASOF},可能已过时,订单等数字以最新财报为准。` : ''}</div>`;
   return h;
 }
