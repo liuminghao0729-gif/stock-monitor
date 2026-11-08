@@ -1105,12 +1105,21 @@ const capStr = n => !n ? '--' : n >= 1e12 ? (n / 1e12).toFixed(2) + 'T' : n >= 1
 const SESSION = { pre: '盘前', mid: '盘中(K 线未走完,收盘后会更新)', post: '盘后最终' };
 const ST_LABEL = { NEW: '新入选', STILL_VALID: '持续在名单' };
 const REGIME = { BULL: '牛市(SPY 在 200 日线上,50 日线上升)', BEAR: '熊市(SPY 在 200 日线下,200 日线下降)', NEUTRAL: '中性' };
-function pickRow3(r, i) {
-  const p = (v, d = 0) => Number.isFinite(v) ? (v * 100).toFixed(d) + '%' : '--', rk = r.ranks || {};
-  return `<div class="prow"><div class="ph"><span class="prank">${i}</span><span class="sym" data-go="${esc(r.sym)}">${esc(r.sym)}</span> <span class="muted small">${esc(r.name)}</span><span class="r ${cls(r.day)} pday">${sgn(r.day)}%</span></div>
-    <div class="pm"><b>${fmt(r.price)}</b> <span class="muted small">市值 ${capStr(r.cap)} · 入选于 ${esc(r.since)}</span></div>
-    <div class="muted small" style="line-height:1.7">离 200 日线 <b>${sgn(r.dist200 * 100, 0)}%</b>(同类前 ${(100 - (rk.dist200 || 0) * 100).toFixed(0)}%) · 3 个月 ${sgn(r.mom63 * 100, 0)}% · 6 个月 ${sgn(r.mom126 * 100, 0)}%<br>日波动 ATR ${p(r.atrp, 1)} · beta ${r.beta} · RSI ${r.rsi} · 离 52 周高点回撤 ${p(r.dd52)}</div>
-    <div class="ptags"><span class="ptag ${r.status === 'NEW' ? 'ok' : ''}">${ST_LABEL[r.status] || r.status}</span>${r.beta >= 1.5 ? '<span class="ptag warn">高 beta</span>' : ''}${r.atrp >= 0.05 ? '<span class="ptag warn">日波动大</span>' : ''}${r.rsi >= 75 ? '<span class="ptag warn">RSI 偏热</span>' : ''}</div></div>`;
+const pickState = { open: new Set(), play: true };
+function pickRow3(r, i, maxD) {      // 改版:一行一只,点开看全部指标(原有的指标一项不少)
+  const p = (v, d = 0) => Number.isFinite(v) ? (v * 100).toFixed(d) + '%' : '--', rk = r.ranks || {}, open = pickState.open.has(r.sym);
+  const kv = (l, v) => `<div><span class="muted small">${l}</span><b class="num">${v}</b></div>`;
+  const fl = `<span class="fl ${r.status === 'NEW' ? 'ok' : ''}">${ST_LABEL[r.status] || esc(r.status)}</span>${r.beta >= 1.5 ? '<span class="fl w">高 beta</span>' : ''}${r.atrp >= 0.05 ? '<span class="fl w">日波动大</span>' : ''}${r.rsi >= 75 ? '<span class="fl w">RSI 偏热</span>' : ''}`;
+  return `<article class="pk${open ? ' open' : ''}" data-n="${esc(r.sym)}" style="--i:${i}">
+    <div class="pk-h" role="button" tabindex="0" aria-expanded="${open}" data-pktg="${esc(r.sym)}">
+      <span class="pk-n">${String(i).padStart(2, '0')}</span>
+      <span class="pk-id"><b class="sym" data-go="${esc(r.sym)}">${esc(r.sym)}</b><span class="muted small nm">${esc(r.name)}</span></span>
+      <span class="pk-px num">${fmt(r.price)}</span>
+      <b class="pk-d num ${cls(r.day)}">${sgn(r.day)}%</b>
+      <span class="pk-dist"><span class="pk-bar"><i style="width:${Math.max(4, Math.min((r.dist200 || 0) / maxD * 100, 100)).toFixed(0)}%"></i></span><em class="num">${sgn(r.dist200 * 100, 0)}%</em></span>
+      <span class="pk-fl">${fl}</span><i class="chev" aria-hidden="true"></i>
+    </div>
+    <div class="pk-fold"><div><div class="pk-det">${kv('离 200 日线', sgn(r.dist200 * 100, 0) + '%(同类前 ' + (100 - (rk.dist200 || 0) * 100).toFixed(0) + '%)')}${kv('3 个月', sgn(r.mom63 * 100, 0) + '%')}${kv('6 个月', sgn(r.mom126 * 100, 0) + '%')}${kv('市值', capStr(r.cap))}${kv('日波动 ATR', p(r.atrp, 1))}${kv('beta', r.beta)}${kv('RSI', r.rsi)}${kv('离 52 周高点回撤', p(r.dd52))}${kv('入选于', esc(r.since))}</div></div></div></article>`;
 }
 async function renderPicks() {
   const el = $('#view-picks'); loading(el);
@@ -1118,17 +1127,25 @@ async function renderPicks() {
   if (state.tab !== 'picks') return;
   if (!P) { el.innerHTML = '<div class="card muted">暂无推荐数据。运行 python3 tools/picks.py 生成,或等待每日自动更新。</div>'; return; }
   if (P.version !== 3) { el.innerHTML = '<div class="card muted">推荐数据版本过旧,请重新运行 python3 tools/picks.py</div>'; return; }
-  const t = P.presets[0], ru = P.rules || { entry: {}, stay: {} };
-  const top = k => `前 ${((1 - ru.entry[k]) * 100).toFixed(0)}%`;
-  el.innerHTML = `<div class="pnote"><b>每日推荐 · 强趋势龙头(中期)</b><span class="muted small"> ${P.session ? esc(SESSION[P.session] || '') + ' · ' : ''}行情日期 ${esc(P.dataDate)} · 更新于 ${esc(P.asof)} · 合格股票 ${P.universe} 只 · 市场环境:${esc(REGIME[P.regime] || P.regime)}</span></div>
-    <div class="card small" style="line-height:1.8"><b>这个组合选什么</b>
-      <p style="margin:6px 0">在市值 ≥ 50 亿美元、成交额靠前的一半股票里,同时满足:<b>离 200 日线的距离 ${top('dist200')}</b>、<b>日波动(ATR%)${top('atrp')}</b>、<b>3 个月涨幅 ${top('mom63')}</b>——也就是已经走出强趋势、而且波动较大的领涨龙头。适合的参考持有期是 <b>30 到 120 天</b>,不适合短线。已在名单里的股票,只要仍满足放宽后的条件就继续保留,名单不会天天换。</p>
-      <p class="muted" style="margin:0"><b>要先知道:</b>这是高 beta 的趋势押注。回测里组合的 beta 约 1.8,最大回撤约 -37%(标普 -19%),收益集中在少数年份和主题(AI、存储、加密龙头)。不是稳赢,不保证收益,可能亏损,请自行判断风险。</p></div>
-    <div class="picks" style="display:grid;grid-template-columns:minmax(300px,520px);gap:18px"><div class="card pcol"><h3 style="margin:0">${esc(t.name)}</h3><div class="muted small" style="margin:4px 0 8px">当前名单 ${t.confirmedTotal} 只${t.confirmedTotal > t.confirmed.length ? `,显示离 200 日线最远的前 ${t.confirmed.length} 只` : ''}</div>
-      ${t.confirmed.length ? t.confirmed.map((r, i) => pickRow3(r, i + 1)).join('') : '<div class="muted small" style="padding:8px 0">今天没有股票满足条件。不会为了凑数降低标准。</div>'}
-      ${t.others && t.others.length ? `<div class="small" style="margin-top:12px"><b>名单里的其他股票</b> <span class="muted">(共 ${t.others.length} 只)</span><div class="chips" style="margin-top:6px">${t.others.map(x => `<button class="chip" data-go="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>` : ''}
-      ${t.invalidated && t.invalidated.length ? `<div class="small" style="margin-top:12px"><b>最近失效(跌出放宽后的条件)</b></div>${t.invalidated.map(x => `<div class="muted small"><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> ${esc(x.name)}(${esc(x.date)})</div>`).join('')}` : ''}</div></div>
-    <div class="card small" style="line-height:1.8"><b>回测结论(如实披露)</b>
+  const t = P.presets[0], ru = P.rules || { entry: {}, stay: {} }, play = pickState.play; pickState.play = false;
+  const top = k => `前 ${((1 - ru.entry[k]) * 100).toFixed(0)}%`, maxD = Math.max(0.01, ...t.confirmed.map(r => r.dist200 || 0));
+  const fact = (l, v) => `<div><span>${l}</span><b>${v}</b></div>`;
+  el.innerHTML = `<div class="pk-wrap${play ? ' play' : ''}">
+    <header class="pk-head"><h2>每日推荐 · 强趋势龙头<span class="pk-tag">中期</span></h2>
+      <div class="pk-facts">${fact('行情日期', esc(P.dataDate) + (P.session ? ' · ' + esc(SESSION[P.session] || '') : ''))}${fact('更新于', esc(P.asof))}${fact('合格股票', P.universe + ' 只')}${fact('市场环境', esc(REGIME[P.regime] || P.regime))}</div></header>
+    <section class="pk-rule">
+      <div class="pk-rule-h">这个组合选什么</div>
+      <div class="pk-crit"><div><b>${top('dist200')}</b><span>离 200 日线的距离</span></div><div><b>${top('atrp')}</b><span>日波动(ATR%)</span></div><div><b>${top('mom63')}</b><span>3 个月涨幅</span></div></div>
+      <p>在市值 ≥ 50 亿美元、成交额靠前的一半股票里,同时满足:<b>离 200 日线的距离 ${top('dist200')}</b>、<b>日波动(ATR%)${top('atrp')}</b>、<b>3 个月涨幅 ${top('mom63')}</b>——也就是已经走出强趋势、而且波动较大的领涨龙头。适合的参考持有期是 <b>30 到 120 天</b>,不适合短线。已在名单里的股票,只要仍满足放宽后的条件就继续保留,名单不会天天换。</p>
+      <p class="pk-risk"><b>要先知道</b>这是高 beta 的趋势押注。回测里组合的 beta 约 1.8,最大回撤约 -37%(标普 -19%),收益集中在少数年份和主题(AI、存储、加密龙头)。不是稳赢,不保证收益,可能亏损,请自行判断风险。</p>
+    </section>
+    <section class="pk-list">
+      <div class="pk-list-h"><h3>${esc(t.name)}</h3><span class="muted small">当前名单 ${t.confirmedTotal} 只${t.confirmedTotal > t.confirmed.length ? `,显示离 200 日线最远的前 ${t.confirmed.length} 只` : ''}</span></div>
+      ${t.confirmed.length ? `<div class="pk-lab muted small"><span></span><span>股票</span><span class="r">现价</span><span class="r">今日</span><span>离 200 日线</span><span></span><span></span></div>${t.confirmed.map((r, i) => pickRow3(r, i + 1, maxD)).join('')}` : '<div class="muted small" style="padding:8px 0">今天没有股票满足条件。不会为了凑数降低标准。</div>'}
+      ${t.others && t.others.length ? `<div class="pk-more"><div class="small"><b>名单里的其他股票</b> <span class="muted">(共 ${t.others.length} 只)</span></div><div class="chips" style="margin-top:8px">${t.others.map(x => `<button class="chip" data-go="${esc(x)}">${esc(x)}</button>`).join('')}</div></div>` : ''}
+      ${t.invalidated && t.invalidated.length ? `<div class="pk-more"><div class="small"><b>最近失效(跌出放宽后的条件)</b></div>${t.invalidated.map(x => `<div class="muted small" style="margin-top:4px"><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> ${esc(x.name)}(${esc(x.date)})</div>`).join('')}</div>` : ''}
+    </section>
+    <section class="pk-bt"><div class="pk-rule-h">回测结论(如实披露)</div>
       <p style="margin:6px 0">用约 1200 只股票、10 年日线回测:这类条件在样本内外都有正的超额收益,但<b>不是稳赢</b>。</p>
       <details><summary class="muted">查看依据和限制</summary>
         <ul class="clist">
@@ -1139,9 +1156,15 @@ async function renderPicks() {
           <li>我们也测过其他条件(趋势+基本面、强势回调、超跌反转、短线「超跌-企稳-放量反弹」形态、短线 1 到 10 天的各种变量),样本外没有稳定优势,已不再使用。</li>
         </ul>
         <div class="muted">限制:只测了技术条件;样本外 2023 年起基本是牛市;试了很多参数组合,有运气成分。完整报告在代码仓库的 tools/signal_report.md、signal_validation.md、signal_validation2.md。</div>
-      </details></div>
-    <div class="muted small" style="padding:8px 4px;line-height:1.7">这是模型按事先写好的条件给出的信号,不保证收益,可能亏损,请自行判断风险。市场数据来自 Yahoo 免费接口,可能有延迟或错误。</div>`;
+      </details></section>
+    <div class="muted small" style="padding:18px 2px;line-height:1.7">这是模型按事先写好的条件给出的信号,不保证收益,可能亏损,请自行判断风险。市场数据来自 Yahoo 免费接口,可能有延迟或错误。</div></div>`;
 }
+document.addEventListener('click', e => {      // 推荐页:点一行展开/收起(点代码仍是打开个股)
+  const tg = e.target.closest('[data-pktg]');
+  if (tg && !e.target.closest('[data-go]')) { const b = tg.closest('.pk'), on = !b.classList.contains('open'); b.classList.toggle('open', on); tg.setAttribute('aria-expanded', on); on ? pickState.open.add(b.dataset.n) : pickState.open.delete(b.dataset.n); }
+});
+document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.pk-h')) { e.preventDefault(); e.target.click(); } });
+document.addEventListener('pointermove', e => { const t = e.target.closest && e.target.closest('.pk-h'); if (!t) return; const r = t.getBoundingClientRect(); t.style.setProperty('--mx', (e.clientX - r.left) + 'px'); t.style.setProperty('--my', (e.clientY - r.top) + 'px'); });
 // ===== 宏观 =====
 function spark(v, w = 120, h = 34) {
   if (!v || v.length < 2) return ''; const lo = Math.min(...v), hi = Math.max(...v), r = hi - lo || 1;
@@ -1175,7 +1198,7 @@ document.addEventListener('click', e => {
 
 // ===== 标签页 / 刷新 =====
 function switchTab(t) {
-  state.tab = t; if (t === 'sectors') secState.play = true;
+  state.tab = t; if (t === 'sectors') secState.play = true; if (t === 'picks') pickState.play = true;
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('hidden', v.id !== 'view-' + t));
   if (renderers[t]) renderers[t](); else { renderWatch(); renderDetail(); }

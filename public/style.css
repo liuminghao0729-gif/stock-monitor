@@ -348,3 +348,69 @@ kbd{font:500 11px "SF Mono",Menlo,monospace;border:1px solid var(--line);border-
 .sl-list.play .sl:nth-child(2){animation-delay:.04s}.sl-list.play .sl:nth-child(3){animation-delay:.08s}.sl-list.play .sl:nth-child(4){animation-delay:.12s}.sl-list.play .sl:nth-child(n+5){animation-delay:.16s}
 @media(max-width:820px){.sl-h{grid-template-columns:1fr auto 24px}.sl-m,.sl-t{display:none}.sl-r{grid-template-columns:1fr 78px 70px}.sl-r .sbar,.sl-r .scap{display:none}}
 @media(max-width:620px){.heat-g{grid-template-columns:repeat(2,1fr)}.heat{padding:12px 14px}.heat b{font-size:19px}}
+
+/* ===== 改版 第三阶段:股票推荐页(A 版式) ===== */
+.pk-head{padding:2px 0 20px}
+.pk-head h2{margin:0 0 16px;font:600 30px var(--disp);letter-spacing:.02em}
+.pk-tag{font:500 12px var(--ui);letter-spacing:.14em;color:var(--accent);border:1px solid rgba(207,167,108,.4);border-radius:99px;padding:2px 10px;margin-left:12px;vertical-align:middle}
+.pk-facts{display:flex;flex-wrap:wrap;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.pk-facts div{display:flex;flex-direction:column;gap:2px;padding:12px 26px 12px 0;margin-right:26px;border-right:1px solid rgba(255,255,255,.07)}
+.pk-facts div:last-child{border:0;margin-right:0}
+.pk-facts span{font-size:11px;letter-spacing:.12em;color:var(--muted)}
+.pk-facts b{font-weight:500;font-variant-numeric:tabular-nums}
+.pk-rule{padding:24px 0 6px;max-width:820px}
+.pk-rule-h{font:600 18px var(--disp);margin-bottom:14px}
+.pk-crit{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);max-width:640px;margin:0 0 16px}
+.pk-crit div{padding:14px 16px;border-right:1px solid var(--line);display:flex;flex-direction:column}
+.pk-crit div:last-child{border:0}
+.pk-crit b{font:500 26px var(--disp);color:var(--accent)}
+.pk-crit span{font-size:12px;color:var(--muted)}
+.pk-rule p{margin:8px 0;line-height:1.85}
+.pk-rule .pk-risk{padding:2px 0 2px 14px;border-left:2px solid rgba(224,164,88,.6);color:var(--muted)}
+.pk-risk b{color:#e0a458;font-weight:600;margin-right:10px;letter-spacing:.08em}
+.pk-list{padding-top:30px}
+.pk-list-h{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+.pk-list-h h3{margin:0}
+.pk-lab,.pk-h{display:grid;grid-template-columns:34px minmax(150px,1.5fr) 90px 78px minmax(110px,1.2fr) minmax(130px,1.5fr) 24px;gap:14px;align-items:center}
+.pk-lab{padding:10px;margin:0 -10px;font-size:11px;letter-spacing:.1em;border-bottom:1px solid var(--line)}
+.pk-lab .r{text-align:right}
+.pk{border-bottom:1px solid var(--line)}
+.pk-h{position:relative;padding:15px 10px;margin:0 -10px;cursor:pointer;border-radius:10px}
+.pk-h::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .3s;background:radial-gradient(260px circle at var(--mx,50%) var(--my,50%),rgba(207,167,108,.1),transparent 70%)}
+.pk-h:hover::before{opacity:1}
+.pk-n{font-family:var(--disp);color:var(--faint);font-variant-numeric:tabular-nums}
+.pk-id{display:flex;align-items:baseline;gap:10px;min-width:0}
+.pk-id b{font-size:16px;letter-spacing:.03em}
+.pk-id .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pk-px{text-align:right;font:600 18px var(--disp)}
+.pk-d{text-align:right;font-weight:500}
+.pk-dist{display:flex;align-items:center;gap:10px}
+.pk-dist em{font-style:normal;font-size:12px;color:var(--muted);min-width:44px;text-align:right}
+.pk-bar{flex:1;height:3px;background:rgba(255,255,255,.07);border-radius:2px;overflow:hidden}
+.pk-bar i{display:block;height:100%;background:var(--accent);border-radius:2px;transform-origin:left}
+.pk-fl{display:flex;flex-wrap:wrap;gap:4px 14px}
+.fl{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.fl::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--faint)}
+.fl.ok{color:var(--up)}.fl.ok::before{background:var(--up)}
+.fl.w{color:#e0a458}.fl.w::before{background:#e0a458}
+.pk-fold{display:grid;grid-template-rows:0fr;transition:grid-template-rows .4s cubic-bezier(.2,.7,.2,1)}
+.pk.open>.pk-fold{grid-template-rows:1fr}
+.pk-fold>div{overflow:hidden;min-height:0}
+.pk-det{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 26px;padding:6px 0 14px}
+.pk-det>div{display:flex;flex-direction:column;padding:8px 0}
+.pk-det b{font-weight:500}
+.pk-more{padding:22px 0 4px;border-bottom:1px solid var(--line)}
+.pk-bt{padding:24px 0 6px;max-width:900px}
+.pk-bt summary{cursor:pointer;line-height:1.7}
+.pk-bt summary:hover{color:var(--accent)}
+.pk-bt .clist{margin:12px 0 10px}
+.pk-wrap.play .pk{animation:rise .55s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0) * 45ms + .1s)}
+.pk-wrap.play .pk-bar i{animation:grow .8s cubic-bezier(.2,.7,.2,1) both .25s}
+@keyframes grow{from{transform:scaleX(0)}}
+@media(max-width:900px){.pk-lab,.pk-h{grid-template-columns:30px 1fr 84px 70px 24px}.pk-lab span:nth-child(5),.pk-lab span:nth-child(6),.pk-dist,.pk-fl{display:none}}
+@media(max-width:640px){.pk-crit{grid-template-columns:1fr}.pk-crit div{border-right:0;border-bottom:1px solid var(--line)}.pk-crit div:last-child{border:0}.pk-facts div{border:0;padding-right:0;margin-right:24px}}
+/* 图表 / 公司 子标签:与新版导航一致 */
+.dtabs{gap:30px}
+.dtabs button{font-size:15px;font-weight:600;color:#d9dcda}
+.dtabs button:hover{color:var(--accent)}
+.dtabs button.on{color:var(--text)}
