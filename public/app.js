@@ -98,10 +98,20 @@ async function loadIdxSpark() {      // 指数的迷你走势:逐个取一次日
   }
 }
 // ===== 自选股 =====
-function renderQuick() {      // 看盘页顶部:自选股快速切换(← → 也能切)
-  const el = $('#quick'); if (!el) return;
-  el.innerHTML = state.watch.map(s => `<button class="qk ${s === state.sel ? 'on' : ''}" data-go="${s}" title="${esc(Data.quote(s).name || s)}">${s}</button>`).join('');
+function renderQuick() {      // 搜索框右边:当前这只股票的「加入自选股」按钮(已加入就显示已加入)
+  const b = $('#addCur'); if (!b) return;
+  const s = state.sel;
+  if (!s || isIdx(s)) { b.hidden = true; return; }
+  const has = state.watch.includes(s);
+  b.hidden = false; b.disabled = has; b.className = 'addcur' + (has ? ' done' : '');
+  b.textContent = has ? `✓ ${s} 已在自选股` : `＋ 加入自选股 ${s}`;
 }
+document.addEventListener('click', e => {
+  if (e.target.id !== 'addCur') return;
+  const s = state.sel; if (!s || state.watch.includes(s)) return;
+  state.watch.push(s); store.set('watch', state.watch); renderWatch();
+  const h = $('#dhead'); if (h) h.innerHTML = headHTML(s);
+});
 function renderWatch() {
   renderHold(); renderQuick();
   $('#watchList').innerHTML = state.watch.map(s => {
@@ -1288,9 +1298,5 @@ document.addEventListener('keydown', e => {
   const t = e.target, typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
   if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === '/') { e.preventDefault(); if (state.tab !== 'watch') switchTab('watch'); $('#addInput').focus(); return; }
-  if (state.tab === 'watch' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && state.watch.length > 1) {
-    const i = state.watch.indexOf(state.sel), n = state.watch.length;
-    selectStock(state.watch[((i < 0 ? 0 : i) + (e.key === 'ArrowRight' ? 1 : -1) + n) % n]);
-  }
 });
 init();

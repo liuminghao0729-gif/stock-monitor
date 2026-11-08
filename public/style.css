@@ -423,3 +423,10 @@ kbd{font:500 11px "SF Mono",Menlo,monospace;border:1px solid var(--line);border-
 .brief .cp.up{background:rgba(126,211,164,.13)}.brief .cp.down{background:rgba(239,138,120,.13)}
 .brief:empty{display:none}
 #view-sectors>.brief,.pk-wrap>.brief{margin:2px 0 22px}
+
+/* 搜索联想要盖住下面的个股头部:搜索行本身必须高于下面的详情卡片 */
+.srow2{position:relative;z-index:50}
+.addcur{align-self:flex-start;padding:9px 18px;border-radius:99px;border:1px solid var(--accent);color:var(--accent);font-size:14px;white-space:nowrap}
+.addcur:hover{background:var(--accent);color:#000}
+.addcur.done{border-color:var(--line);color:var(--muted);cursor:default}.addcur.done:hover{background:none;color:var(--muted)}
+.addcur[hidden]{display:none}
