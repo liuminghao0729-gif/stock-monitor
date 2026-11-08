@@ -219,6 +219,7 @@ const finCache = {}, segCache = {};
 let finMode = 'Q', finAxis = 0;
 try { finMode = localStorage.getItem('finMode') === 'Y' ? 'Y' : 'Q'; } catch { }
 const FIN_METRICS = [['rev', '营收', 'm'], ['ni', '净利润', 'm'], ['ocf', '经营现金流', 'm'], ['fcf', '自由现金流', 'm'], ['gm', '毛利率', 'p'], ['om', '营业利润率', 'p'], ['nm', '净利率', 'p'], ['eps', '每股收益(摊薄)', 'e'], ['dr', '资产负债率', 'p'], ['cr', '流动比率', 'x'], ['cash', '现金', 'm'], ['debt', '长期债务', 'm']];
+const FIN_SHOW = ['rev', 'ni', 'fcf', 'gm'];      // 页面上只画最重要的四项;其余指标放进文字解读
 const finFmt = (v, t) => !Number.isFinite(v) ? '--' : t === 'p' ? v.toFixed(1) + '%' : t === 'e' ? fmt(v) : t === 'x' ? v.toFixed(2) : (v < 0 ? '-' : '') + bigN(Math.abs(v));
 const finLbl = (r, mode) => mode === 'Y' ? 'FY' + r.end.slice(0, 7) : r.end.slice(2, 7);
 function finSeries(f, mode, key) {            // 取最近 4 个季度 / 5 个财年,并附上去年同期(用来算同比)
@@ -239,31 +240,38 @@ function finChart(f, mode, [key, name, t]) {
   return `<div class="fincard"><div class="fch"><b>${name}</b><span class="small">${dtxt}</span></div><svg viewBox="0 0 ${W} ${H}" class="finsvg" role="img">${g}</svg></div>`;
 }
 const esc_ = x => x;
-function finRead(f, mode) {                   // 规则解读:所有结论都由代码按数字算出来
-  const L = [], S = (k) => finSeries(f, mode, k), last = k => { const a = S(k); return a[a.length - 1]; };
-  const yoy = k => { const x = last(k); return Number.isFinite(x.v) && Number.isFinite(x.p) && x.p > 0 ? (x.v / x.p - 1) * 100 : NaN; };
-  const per = mode === 'Y' ? '最近一个财年' : '最近一个季度', vs = mode === 'Y' ? '上一财年' : '去年同期';
-  const g = yoy('rev'), gn = yoy('ni');
-  if (Number.isFinite(g)) {
-    const seq = mode === 'Q' ? f.rows.slice(-4).map(r => r.rev_yoy).filter(Number.isFinite) : [], acc = seq.length === 4 ? (seq[3] > seq[0] + 3 ? '且增速在加快' : seq[3] < seq[0] - 3 ? '但增速在放慢' : '增速基本稳定') : '';
-    const lvl = g >= 25 ? ['强劲', 'up'] : g >= 8 ? ['稳健', 'up'] : g >= 0 ? ['偏弱', ''] : ['下滑', 'down'];
-    L.push([lvl, `营收${per}同比 ${sgn(g, 1)}%(对比${vs}),${lvl[0]}${acc ? ',' + acc : ''}。` + (mode === 'Y' && f.years.length >= 5 && f.years[0].rev > 0 ? `近 ${f.years.length - 1} 年年均增长 ${(((f.years[f.years.length - 1].rev / f.years[0].rev) ** (1 / (f.years.length - 1)) - 1) * 100).toFixed(1)}%。` : '')]);
-  }
-  if (Number.isFinite(gn) && Number.isFinite(g)) {
-    const lvl = gn >= g + 5 ? ['强劲', 'up'] : gn >= g - 5 ? ['稳健', 'up'] : gn >= 0 ? ['偏弱', ''] : ['下滑', 'down'];
-    L.push([lvl, `净利润同比 ${sgn(gn, 1)}%,${gn >= g + 5 ? '比营收涨得更快,说明每卖一块钱赚得更多(经营杠杆)。' : gn >= g - 5 ? '和营收增速接近,盈利能力基本稳定。' : '增速落后于营收,成本在吞噬利润,要看原因(涨价、投入加大还是一次性费用)。'}`]);
-  } else if (last('ni').v < 0) L.push([['亏损', 'down'], `${per}净利润为负(亏损),要看亏损是否在收窄、现金够烧多久。`]);
-  const gm = last('gm'), dgm = Number.isFinite(gm.v) && Number.isFinite(gm.p) ? gm.v - gm.p : NaN;
-  if (Number.isFinite(gm.v)) L.push([[gm.v >= 50 ? '强劲' : gm.v >= 30 ? '稳健' : '一般', gm.v >= 30 ? 'up' : ''], `毛利率 ${gm.v.toFixed(1)}%${Number.isFinite(dgm) ? `,较${vs} ${sgn(dgm, 1)} 个百分点` : ''}。毛利率越高,说明产品越有定价权${Number.isFinite(dgm) && dgm < -2 ? ';明显下滑,留意是否在降价抢份额或成本上升' : ''}。`]);
-  const t = f.ttm, nt = mode === 'Y' ? last('ni').v : t.ni, ft = mode === 'Y' ? last('fcf').v : t.fcf, ot = mode === 'Y' ? last('ocf').v : t.ocf;
-  if (Number.isFinite(ft) && Number.isFinite(nt)) {
-    const conv = nt > 0 ? ft / nt : NaN, cx = mode === 'Y' ? f.years[f.years.length - 1] : null;
-    const lvl = ft < 0 ? ['偏弱', 'down'] : conv >= 0.9 ? ['强劲', 'up'] : conv >= 0.6 ? ['稳健', 'up'] : ['偏弱', ''];
-    L.push([lvl, ft < 0 ? `${mode === 'Y' ? '这一财年' : '近 12 个月'}自由现金流为负(${finFmt(ft, 'm')}):经营赚的钱不够投资花,靠借债或存款撑着,要盯现金和负债。` : `${mode === 'Y' ? '这一财年' : '近 12 个月'}自由现金流 ${finFmt(ft, 'm')}(经营现金流减去设备投入,是真正能自由支配的钱)${Number.isFinite(conv) ? `,约为净利润的 ${(conv * 100).toFixed(0)}%${conv >= 0.9 ? ',利润含金量高' : conv < 0.6 ? ',利润变现能力一般,留意应收款和存货' : ''}` : ''}。`]);
-  }
-  const bs = mode === 'Y' ? f.years[f.years.length - 1] : f.rows[f.rows.length - 1];
-  if (bs && Number.isFinite(bs.dr)) { const nd = Number.isFinite(bs.debt) && Number.isFinite(bs.cash) ? bs.debt - bs.cash : NaN;
-    L.push([[bs.dr < 50 ? '稳健' : bs.dr < 70 ? '一般' : '偏高', bs.dr < 50 ? 'up' : bs.dr < 70 ? '' : 'down'], `资产负债率 ${bs.dr.toFixed(0)}%(${esc_(bs.end)}):每 100 元资产里有 ${bs.dr.toFixed(0)} 元是欠别人的${Number.isFinite(bs.cr) ? `;流动比率 ${bs.cr.toFixed(2)},${bs.cr >= 1.5 ? '短期还债能力充足' : bs.cr >= 1 ? '短期够用' : '短期偿债偏紧(小于 1)'}` : ''}${Number.isFinite(nd) ? `;现金 ${finFmt(bs.cash, 'm')} 对长期债务 ${finFmt(bs.debt, 'm')},${nd <= 0 ? '现金比债务多' : '净负债 ' + finFmt(nd, 'm')}` : ''}。`]); }
+function finRead(f, mode) {                   // 规则解读:所有结论都由代码按数字算出来,每条先给结论再给依据
+  const Y = mode === 'Y', all = Y ? f.years : f.rows, per = Y ? '最近一个财年' : '最近一个季度', vs = Y ? '上一财年' : '去年同期', gap = Y ? 1 : 4;
+  const cur = all[all.length - 1], old = all[all.length - 1 - gap];
+  const ch = (k) => cur && old && Number.isFinite(cur[k]) && Number.isFinite(old[k]) && old[k] > 0 ? (cur[k] / old[k] - 1) * 100 : NaN;
+  const pp = (k) => cur && old && Number.isFinite(cur[k]) && Number.isFinite(old[k]) ? cur[k] - old[k] : NaN;
+  const yoys = (k) => { const out = []; for (let i = Math.max(gap, all.length - (Y ? 4 : 4)); i < all.length; i++) { const a = all[i][k], b = all[i - gap] && all[i - gap][k]; if (Number.isFinite(a) && Number.isFinite(b) && b > 0) out.push((a / b - 1) * 100); } return out; };
+  const L = [], add = (lv, t) => L.push([lv, t]), Lv = { s: ['强劲', 'up'], m: ['稳健', 'up'], w: ['偏弱', ''], d: ['下滑', 'down'], a: ['留意', ''] };
+  const trend = a => a.length >= 3 ? (a[a.length - 1] > a[0] + 3 ? '增速在加快' : a[a.length - 1] < a[0] - 3 ? '增速在放慢' : '增速比较稳定') : '';
+  const tx = a => a.map(x => sgn(x, 1) + '%').join(' → ');
+  // 1 营收
+  const g = ch('rev'), gs = yoys('rev');
+  if (Number.isFinite(g)) { const lv = g >= 25 ? Lv.s : g >= 8 ? Lv.m : g >= 0 ? Lv.w : Lv.d;
+    add(lv, `【营收】${per}营收 ${finFmt(cur.rev, 'm')},同比 ${sgn(g, 1)}%。${lv[0]}:${g >= 25 ? '增长很快,生意在明显扩张' : g >= 8 ? '稳步增长' : g >= 0 ? '增长偏慢,接近停滞' : '收入在萎缩'}。${gs.length >= 3 ? `近 ${gs.length} 期同比依次为 ${tx(gs)},${trend(gs)}。` : ''}${Y && f.years.length >= 5 && f.years[0].rev > 0 ? `近 ${f.years.length - 1} 年年均增长 ${(((f.years[f.years.length - 1].rev / f.years[0].rev) ** (1 / (f.years.length - 1)) - 1) * 100).toFixed(1)}%。` : ''}`); }
+  // 2 净利润与每股收益
+  const gn = ch('ni'), ge = ch('eps');
+  if (Number.isFinite(gn) && Number.isFinite(g)) { const lv = gn >= g + 5 ? Lv.s : gn >= g - 5 ? Lv.m : gn >= 0 ? Lv.w : Lv.d;
+    add(lv, `【净利润】${finFmt(cur.ni, 'm')},同比 ${sgn(gn, 1)}%。${gn >= g + 5 ? '利润涨得比营收快,说明每卖一块钱赚得更多(经营杠杆)' : gn >= g - 5 ? '利润和营收同步增长,盈利能力基本稳定' : '利润增速落后于营收,成本或费用在吞噬利润,要查原因(涨价、加大投入还是一次性费用)'}。${Number.isFinite(ge) ? `每股收益 ${fmt(cur.eps)},同比 ${sgn(ge, 1)}%${ge < gn - 5 ? '(比净利润涨得慢,可能是股本增加摊薄了)' : ge > gn + 5 ? '(比净利润涨得快,回购减少股数起了作用)' : ''}。` : ''}`); }
+  else if (cur && cur.ni < 0) add(Lv.d, `【净利润】${per}亏损 ${finFmt(cur.ni, 'm')}。要看亏损在收窄还是扩大、账上现金能撑多久。`);
+  // 3 三层利润率
+  if (cur && Number.isFinite(cur.gm)) { const d1 = pp('gm'), d2 = pp('om'), d3 = pp('nm'), lv = cur.gm >= 50 ? Lv.s : cur.gm >= 30 ? Lv.m : Lv.w;
+    add(lv, `【赚钱效率】每卖 100 元:毛利 ${cur.gm.toFixed(0)} 元${Number.isFinite(d1) ? `(${sgn(d1, 1)} 个百分点)` : ''},扣完运营费用剩营业利润 ${Number.isFinite(cur.om) ? cur.om.toFixed(0) : '--'} 元${Number.isFinite(d2) ? `(${sgn(d2, 1)})` : ''},最终净利润 ${Number.isFinite(cur.nm) ? cur.nm.toFixed(0) : '--'} 元${Number.isFinite(d3) ? `(${sgn(d3, 1)})` : ''}。毛利率高说明产品有定价权${Number.isFinite(d1) && d1 < -2 ? ';毛利率明显下降,留意是否在降价抢份额或成本上升' : Number.isFinite(d1) && d1 > 2 ? ';毛利率明显提升,议价能力在变强' : ''}${Number.isFinite(d1) && Number.isFinite(d2) && d2 < d1 - 2 ? ';营业利润率降得比毛利率多,说明费用(研发、销售)涨得快' : ''}。`); }
+  // 4 现金流
+  const cg = ch('ocf'), conv = cur && cur.ni > 0 && Number.isFinite(cur.fcf) ? cur.fcf / cur.ni : NaN, cxr = cur && cur.ocf > 0 && Number.isFinite(cur.capex) ? Math.abs(cur.capex) / cur.ocf : NaN;
+  if (cur && Number.isFinite(cur.fcf)) { const lv = cur.fcf < 0 ? Lv.d : conv >= 0.9 ? Lv.s : conv >= 0.6 ? Lv.m : Lv.w, one = !Y ? '(单季数字波动大,看全年更准)' : '';
+    add(lv, `【现金流】经营现金流 ${finFmt(cur.ocf, 'm')}${Number.isFinite(cg) ? `(同比 ${sgn(cg, 1)}%)` : ''},花在设备厂房上 ${Number.isFinite(cur.capex) ? finFmt(Math.abs(cur.capex), 'm') : '--'},剩下自由现金流 ${finFmt(cur.fcf, 'm')}${one}。${cur.fcf < 0 ? '自由现金流为负:经营赚的钱不够投资花,靠借债或存款撑着,要盯现金和债务。' : Number.isFinite(conv) ? `自由现金流相当于净利润的 ${(conv * 100).toFixed(0)}%,${conv >= 0.9 ? '利润含金量高,赚的是真金白银' : conv >= 0.6 ? '利润大部分变成了现金' : '利润变现能力一般,留意应收款和存货是否堆积'}。` : ''}${Number.isFinite(cxr) && cxr >= 0.5 ? `设备投入占了经营现金流的 ${(cxr * 100).toFixed(0)}%,属于重投入阶段。` : ''}`); }
+  // 5 资产负债
+  const bs = Y ? f.years[f.years.length - 1] : f.rows[f.rows.length - 1];
+  if (bs && Number.isFinite(bs.dr)) { const nd = Number.isFinite(bs.debt) && Number.isFinite(bs.cash) ? bs.debt - bs.cash : NaN, lv = bs.dr < 50 ? Lv.m : bs.dr < 70 ? Lv.a : Lv.w;
+    add(lv, `【资产负债】资产负债率 ${bs.dr.toFixed(0)}%(每 100 元资产有 ${bs.dr.toFixed(0)} 元是欠别人的)${Number.isFinite(bs.cr) ? `;流动比率 ${bs.cr.toFixed(2)}(${bs.cr >= 1.5 ? '短期还债很宽裕' : bs.cr >= 1 ? '短期够用' : '小于 1,短期偿债偏紧'})` : ''}${Number.isFinite(nd) ? `;现金 ${finFmt(bs.cash, 'm')} 对长期债务 ${finFmt(bs.debt, 'm')},${nd <= 0 ? '现金比债务多(净现金)' : '净负债 ' + finFmt(nd, 'm')}` : ''}。${bs.dr >= 70 ? '负债率偏高;也可能是大额回购、分红压低了股东权益造成的,要和现金流、现金一起看。' : ''}(截至 ${bs.end})`); }
+  // 0 综合
+  const sc = L.reduce((a, [lv]) => a + (lv[0] === '强劲' ? 2 : lv[0] === '稳健' ? 1 : lv[0] === '下滑' ? -2 : lv[0] === '偏弱' ? -1 : 0), 0), n = L.length;
+  if (n >= 3) { const lv = sc >= n * 1.2 ? Lv.s : sc >= n * 0.5 ? Lv.m : sc >= 0 ? Lv.a : Lv.d; L.unshift([lv, `【一句话】按${Y ? '年度' : '季度'}数据,这家公司的财报整体${lv[0] === '强劲' ? '很强:增长、利润、现金流都在线' : lv[0] === '稳健' ? '稳健:没有明显短板' : lv[0] === '留意' ? '喜忧参半:有强项也有需要留意的地方' : '偏弱:多项指标在走弱'}。(只是对财报数字的客观归纳,不含估值和股价判断)`]); }
   return L;
 }
 function segHTML(sg) {
@@ -288,7 +296,7 @@ function finHTML(f, sg) {
   const last = f.rows[f.rows.length - 1], ck = f.check, lv = ck && { ok: ['✅', '与 Yahoo 一致'], warn: ['⚠️', '与 Yahoo 有小差异'], bad: ['❌', '与 Yahoo 差异大,请以 SEC 原文为准'] }[ck.level];
   const rd = finRead(f, finMode);
   let h = `<div class="fintoggle"><button data-fm="Q" class="${finMode === 'Q' ? 'on' : ''}">季报(最近 4 季)</button><button data-fm="Y" class="${finMode === 'Y' ? 'on' : ''}">年报(最近 5 年)</button></div>
-    <div class="fingrid">${FIN_METRICS.map(m => finChart(f, finMode, m)).join('')}</div>
+    <div class="fingrid">${FIN_METRICS.filter(m => FIN_SHOW.includes(m[0])).map(m => finChart(f, finMode, m)).join('')}</div>
     <h4 class="finh">财报解读 <span class="muted small">按${finMode === 'Y' ? '年度' : '季度'}数据,由代码按数字自动判断</span></h4>
     <ul class="finread">${rd.map(([lv_, t]) => `<li><span class="ftag ${lv_[1]}">${lv_[0]}</span>${esc(t)}</li>`).join('')}</ul>
     <h4 class="finh">收入从哪来 <span class="muted small">来自最新年报,看收入结构和增速</span></h4><div id="segbox">${segHTML(sg)}</div>
