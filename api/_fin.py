@@ -22,6 +22,9 @@ STOCK = {
     "debt": ["LongTermDebt", "LongTermDebtNoncurrent"],
     "equity": ["StockholdersEquity"],
     "assets": ["Assets"],
+    "liab": ["Liabilities"],
+    "ca": ["AssetsCurrent"],
+    "cl": ["LiabilitiesCurrent"],
 }
 _D = datetime.date.fromisoformat
 
@@ -102,7 +105,7 @@ def stock_series(rows):
 
 def annual(rows):
     rows = _dedupe([r for r in rows if r.get("start")])
-    return {r["end"]: r["val"] for r in rows if 350 <= _days(r["start"], r["end"]) <= 380}
+    return {r["end"]: (r["val"], r["first"]) for r in rows if 350 <= _days(r["start"], r["end"]) <= 380}
 
 
 def build(cf):
@@ -123,6 +126,7 @@ def build(cf):
             v = q[k].get(e)
             row[k] = None if v is None else v[0]
         row["fcf"] = None if row["ocf"] is None or row["capex"] is None else row["ocf"] - abs(row["capex"])
+        _bs(row)
         rows.append(row)
     # 同比 / TTM
     def prior(i, key):
@@ -156,7 +160,37 @@ def build(cf):
     t["om"] = None if not t["rev"] or t["oi"] is None else t["oi"] / t["rev"] * 100
     t["nm"] = None if not t["rev"] or t["ni"] is None else t["ni"] / t["rev"] * 100
     t["end"] = last.get("end")
-    return rows, t
+    return rows, t, _annual_rows(ann, q)
+
+
+def _bs(row):
+    """资产负债表比率:资产负债率 = 总负债 / 总资产;流动比率 = 流动资产 / 流动负债。没有披露「总负债」时用 总资产 − 股东权益 估算。"""
+    liab = row.get("liab")
+    if liab is None and row.get("assets") and row.get("equity") is not None:
+        liab = row["assets"] - row["equity"]
+    row["dr"] = None if liab is None or not row.get("assets") else liab / row["assets"] * 100
+    row["cr"] = None if not row.get("cl") or row.get("ca") is None else row["ca"] / row["cl"]
+
+
+def _annual_rows(ann, q):
+    """年度报表:取全年数(10-K 直接披露,不是四季相加);最近 6 个财年。"""
+    ends = sorted(ann["rev"])[-6:]
+    out = []
+    for e in ends:
+        row = {"end": e, "filed": ann["rev"][e][1]}
+        for k in FLOW:
+            v = ann[k].get(e)
+            row[k] = None if v is None else v[0]
+        row["fcf"] = None if row["ocf"] is None or row["capex"] is None else row["ocf"] - abs(row["capex"])
+        for k in ("cash", "debt", "equity", "assets", "liab", "ca", "cl"):
+            v = q[k].get(e)
+            row[k] = None if v is None else v[0]
+        _bs(row)
+        row["gm"] = None if not row["rev"] or row["gp"] is None else row["gp"] / row["rev"] * 100
+        row["om"] = None if not row["rev"] or row["oi"] is None else row["oi"] / row["rev"] * 100
+        row["nm"] = None if not row["rev"] or row["ni"] is None else row["ni"] / row["rev"] * 100
+        out.append(row)
+    return out
 
 
 def _yahoo_check(sym, rows):
@@ -213,8 +247,145 @@ def fin(sym):
     cf = C._get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{int(cik):010d}.json", 21600, h)
     if "us-gaap" not in cf.get("facts", {}):
         return {"error": "no_us_gaap"}                          # 外国公司(20-F)用国际会计准则,先不支持
-    rows, ttm = build(cf)
+    rows, ttm, years = build(cf)
     if len(rows) < 4:
         return {"error": "too_short"}
-    return {"name": cf.get("entityName"), "rows": rows, "ttm": ttm, "check": _yahoo_check(sym, rows),
+    return {"name": cf.get("entityName"), "rows": rows, "years": years, "ttm": ttm, "check": _yahoo_check(sym, rows),
             "source": "SEC EDGAR 官方财报数据(XBRL companyfacts)", "asof": rows[-1]["end"]}
+
+
+# ---------- 收入构成(按产品 / 业务分部 / 地区):读取最新 10-K 的 XBRL 原文 ----------
+import re
+import xml.etree.ElementTree as ET
+
+AXES = {"ProductOrServiceAxis": "按产品 / 服务", "StatementBusinessSegmentsAxis": "按业务分部", "StatementGeographicalAxis": "按地区"}
+ZH = {"IPhone": "iPhone", "IPad": "iPad", "Mac": "Mac", "WearablesHomeandAccessories": "可穿戴/家居/配件", "Service": "服务", "Product": "硬件产品",
+      "Americas": "美洲", "Europe": "欧洲", "GreaterChina": "大中华区", "Japan": "日本", "RestOfAsiaPacific": "亚太其他", "OtherCountries": "其他国家",
+      "UnitedStates": "美国", "US": "美国", "CN": "中国", "ForeignCountries": "海外", "Domestic": "美国", "International": "海外",
+      "DataCenter": "数据中心", "Gaming": "游戏", "ProfessionalVisualization": "专业可视化", "Automotive": "汽车", "OEMAndOther": "OEM 及其他",
+      "ComputeAndNetworking": "计算与网络", "Graphics": "图形",
+      "Subscription": "订阅", "Advertising": "广告", "Compute": "算力芯片", "Networking": "网络",
+      "TW": "台湾", "HK": "香港", "JP": "日本", "GB": "英国", "DE": "德国", "SG": "新加坡", "KR": "韩国", "IN": "印度", "FR": "法国", "CA": "加拿大", "IE": "爱尔兰",
+      "NonUs": "美国以外/其他", "ServiceOther": "服务及其他", "ServerProductsAndCloudServices": "服务器产品与云服务",
+      "MicrosoftThreeSixFiveCommercialProductsAndCloudServices": "Microsoft 365 商业版", "XBOX": "Xbox", "LinkedInCorporation": "LinkedIn",
+      "WindowsAndDevices": "Windows 与设备", "SearchAndNewsAdvertising": "搜索与新闻广告", "EnterpriseAndPartnerServices": "企业与合作伙伴服务",
+      "ProductivityAndBusinessProcesses": "生产力与业务流程", "IntelligentCloud": "智能云", "MorePersonalComputing": "更多个人计算",
+      "CloudInfrastructure": "云基础设施(OCI)", "CloudApplications": "云应用", "SoftwareSupport": "软件支持", "SoftwareLicense": "软件许可",
+      "Hardware": "硬件", "Services": "服务", "CloudRevenues": "云收入(合计)", "SoftwareRevenues": "软件收入(合计)",
+      "DRAMProducts": "DRAM 内存", "NANDProducts": "NAND 闪存", "OtherProductSales": "其他"}
+_AGG = {"Product", "Total", "Consolidated"}
+
+
+def _label(member):
+    name = member.split(":")[-1]
+    name = re.sub(r"Member$", "", name)
+    if name in ZH:
+        return ZH[name]
+    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", name)           # 没有中文对照就显示英文原名(驼峰拆开)
+
+
+def _latest_10k(h, cik):
+    sub = C._get(f"https://data.sec.gov/submissions/CIK{int(cik):010d}.json", 21600, h)["filings"]["recent"]
+    for i, f in enumerate(sub["form"]):
+        if f == "10-K":
+            acc, doc = sub["accessionNumber"][i].replace("-", ""), sub["primaryDocument"][i]
+            return {"url": f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc}/{doc.rsplit('.', 1)[0]}_htm.xml",
+                    "filed": sub["filingDate"][i], "doc": f"https://www.sec.gov/Archives/edgar/data/{int(cik)}/{acc}/{doc}"}
+    return None
+
+
+def parse_segments(xml_bytes):
+    ns = {"x": "http://www.xbrl.org/2003/instance", "d": "http://xbrl.org/2006/xbrldi"}
+    root = ET.fromstring(xml_bytes)
+    ctx = {}
+    for c in root.findall("x:context", ns):
+        p = c.find("x:period", ns)
+        s, e = p.find("x:startDate", ns), p.find("x:endDate", ns)
+        if s is None or e is None or c.findall(".//d:typedMember", ns):
+            continue
+        dims = [(m.get("dimension").split(":")[-1], m.text) for m in c.findall(".//d:explicitMember", ns)]
+        if len(dims) == 1 and 350 <= _days(s.text, e.text) <= 380:
+            ctx[c.get("id")] = (dims[0][0], dims[0][1], e.text)
+    revtags = {t for tags in [FLOW["rev"]] for t in tags}
+    total = {}                                                   # 无维度的总营收(用来判断各项加起来是否等于总数)
+    for c in root.findall("x:context", ns):
+        p = c.find("x:period", ns)
+        s_, e_ = p.find("x:startDate", ns), p.find("x:endDate", ns)
+        if s_ is not None and e_ is not None and not c.findall(".//d:explicitMember", ns) and 350 <= _days(s_.text, e_.text) <= 380:
+            total[c.get("id")] = e_.text
+    tot = {}
+    for el in root:
+        if el.tag.split("}")[-1] in revtags and el.get("contextRef") in total and el.text:
+            tot.setdefault(total[el.get("contextRef")], float(el.text))
+    data = {}
+    for el in root:
+        tag = el.tag.split("}")[-1]
+        if tag not in revtags or el.get("contextRef") not in ctx or not el.text:
+            continue
+        axis, mem, end = ctx[el.get("contextRef")]
+        if axis in AXES:
+            data.setdefault(axis, {}).setdefault(mem, {})[end] = float(el.text)
+    out = []
+    for axis, label in AXES.items():
+        mems = data.get(axis)
+        if not mems:
+            continue
+        ends = sorted({e for m in mems.values() for e in m})[-3:]
+        names = {m: _label(m) for m in mems}
+        if axis == "ProductOrServiceAxis" and len([m for m in mems if m.split(":")[-1] not in ("ProductMember", "ServiceMember")]) >= 2:
+            mems = {m: v for m, v in mems.items() if m.split(":")[-1] != "ProductMember"}      # 去掉「硬件产品」这个合计,避免重复计算
+        items = [{"name": names[m], "vals": [v.get(e) for e in ends]} for m, v in mems.items() if v.get(ends[-1])]
+        items = [i for i in items if i["vals"][-1] > 0]
+        if len(items) < 2:
+            continue
+        items.sort(key=lambda i: -i["vals"][-1])
+        T = tot.get(ends[-1])
+        pick, overlap = _pick_partition(items[:14], T) if T else (items[:8], True)
+        if len(pick) < 2:
+            continue
+        out.append({"axis": label, "ends": ends, "items": pick, "total": T, "overlap": overlap})
+    return out
+
+
+def _pick_partition(items, total):
+    """成员之间可能有包含关系(如「数据中心」包含「算力」和「网络」,「EMEA」包含「英国」)。
+    找一组互不重叠、加起来最接近总营收的成员(误差≤1.5%);误差差不多时取成员更多的。找不到就返回前几项并标注「可能重叠」。"""
+    from itertools import combinations
+    best, key = None, None
+    for n in range(2, len(items) + 1):
+        for combo in combinations(items, n):
+            err = abs(sum(i["vals"][-1] for i in combo) - total) / total
+            if err <= 0.015:
+                k = (round(err / 0.002), -n)
+                if key is None or k < key:
+                    best, key = list(combo), k
+    if best:
+        return sorted(best, key=lambda i: -i["vals"][-1]), False
+    return items[:8], True
+
+
+def segments(sym):
+    contact = (os.environ.get("SEC_CONTACT") or "").strip().strip("\"'“”‘’ ")
+    if not contact or not contact.isascii() or sym in C.ALIAS:
+        return {"error": "no_contact"}
+    h = {"User-Agent": "StocksMonitor " + contact}
+    tk = C._get("https://www.sec.gov/files/company_tickers.json", 86400, h)
+    cik = next((v["cik_str"] for v in tk.values() if v["ticker"] == sym.replace("-", ".")), None)
+    if cik is None:
+        return {"error": "no_cik"}
+    k = _latest_10k(h, cik)
+    if not k:
+        return {"error": "no_10k"}
+    key = "seg:" + k["url"]
+    hit = C._cache.get(key)
+    if hit and time.time() - hit[0] < 86400:
+        return hit[1]
+    req = C.urllib.request.Request(k["url"], headers=h)
+    try:
+        with C.urllib.request.urlopen(req, timeout=15) as r:
+            raw = r.read()
+    except Exception:
+        return {"error": "no_instance"}
+    res = {"views": parse_segments(raw), "filed": k["filed"], "doc": k["doc"], "source": "SEC 最新年报(10-K)原文"}
+    C._cache[key] = (time.time(), res)
+    return res

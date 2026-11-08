@@ -38,7 +38,7 @@ def test_52_week_quarters_and_ttm():
     ends = ["2023-03-31", "2023-06-30", "2023-09-30", "2023-12-31", "2024-03-31", "2024-06-30", "2024-09-30", "2024-12-31", "2025-03-31"]
     starts = ["2023-01-01", "2023-04-01", "2023-07-01", "2023-10-01", "2024-01-01", "2024-04-01", "2024-07-01", "2024-10-01", "2025-01-01"]
     rev = [fact(s, e, 100 + 10 * i, e[:4] + "-12-01") for i, (s, e) in enumerate(zip(starts, ends))]
-    rows, t = _fin.build(cf(rev, ni=[dict(r, val=r["val"] / 10) for r in rev]))
+    rows, t, _ = _fin.build(cf(rev, ni=[dict(r, val=r["val"] / 10) for r in rev]))
     assert t["rev"] == sum(100 + 10 * i for i in range(5, 9))                        # 最近四季求和
     assert rows[-1]["rev_yoy"] is not None and abs(rows[-1]["rev_yoy"] - (180 / 140 - 1) * 100) < 1e-9
 

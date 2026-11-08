@@ -214,51 +214,123 @@ function extraHTML(c) {
   return h;
 }
 
-// ===== 财报趋势(SEC 官方数据)=====
-const finCache = {};
-function finBars(rows, keys, colors, w = 330, h = 120) {
-  // 分组柱状图:每个季度一组;正数向上,负数向下;不画坐标线,鼠标悬停显示数值
-  const n = rows.length, vals = rows.flatMap(r => keys.map(k => r[k]).filter(Number.isFinite)); if (!vals.length) return '';
-  const mx = Math.max(...vals, 0), mn = Math.min(...vals, 0), pad = 14, span = (mx - mn) || 1, y0 = pad + (mx / span) * (h - pad * 2), gw = (w - 8) / n, bw = Math.max(2, Math.min(14, gw / keys.length - 1));
-  let g = `<line x1="0" x2="${w}" y1="${y0}" y2="${y0}" stroke="var(--line)"/>`;
-  rows.forEach((r, i) => keys.forEach((k, j) => { const v = r[k]; if (!Number.isFinite(v)) return;
-    const bh = Math.abs(v) / span * (h - pad * 2), x = 4 + i * gw + j * (bw + 1) + (gw - keys.length * (bw + 1)) / 2;
-    g += `<rect x="${x.toFixed(1)}" y="${(v >= 0 ? y0 - bh : y0).toFixed(1)}" width="${bw}" height="${Math.max(1, bh).toFixed(1)}" fill="${colors[j]}" rx="1"><title>${r.end} ${bigN(v)}</title></rect>`; }));
-  return `<svg viewBox="0 0 ${w} ${h}" class="finsvg" role="img">${g}</svg><div class="finaxis"><span>${esc(rows[0].end.slice(0, 7))}</span><span>${esc(rows[n - 1].end.slice(0, 7))}</span></div>`;
+// ===== 财报趋势(SEC 官方数据):每个指标一张图,可切换季报 / 年报;下方有解读和收入构成 =====
+const finCache = {}, segCache = {};
+let finMode = 'Q', finAxis = 0;
+try { finMode = localStorage.getItem('finMode') === 'Y' ? 'Y' : 'Q'; } catch { }
+const FIN_METRICS = [['rev', '营收', 'm'], ['ni', '净利润', 'm'], ['ocf', '经营现金流', 'm'], ['fcf', '自由现金流', 'm'], ['gm', '毛利率', 'p'], ['om', '营业利润率', 'p'], ['nm', '净利率', 'p'], ['eps', '每股收益(摊薄)', 'e'], ['dr', '资产负债率', 'p'], ['cr', '流动比率', 'x'], ['cash', '现金', 'm'], ['debt', '长期债务', 'm']];
+const finFmt = (v, t) => !Number.isFinite(v) ? '--' : t === 'p' ? v.toFixed(1) + '%' : t === 'e' ? fmt(v) : t === 'x' ? v.toFixed(2) : (v < 0 ? '-' : '') + bigN(Math.abs(v));
+const finLbl = (r, mode) => mode === 'Y' ? 'FY' + r.end.slice(0, 7) : r.end.slice(2, 7);
+function finSeries(f, mode, key) {            // 取最近 4 个季度 / 5 个财年,并附上去年同期(用来算同比)
+  const all = mode === 'Y' ? f.years : f.rows, n = mode === 'Y' ? 5 : 4, gap = mode === 'Y' ? 1 : 4, out = [];
+  for (let i = Math.max(0, all.length - n); i < all.length; i++) out.push({ r: all[i], v: all[i][key], p: i - gap >= 0 ? all[i - gap][key] : null });
+  return out;
 }
-function finHTML(f) {
+function finChart(f, mode, [key, name, t]) {
+  const ser = finSeries(f, mode, key), vals = ser.map(x => x.v).filter(Number.isFinite); if (!vals.length) return `<div class="fincard"><div class="muted small">${name}</div><div class="muted small">暂无数据</div></div>`;
+  const W = 150, H = 112, top = 16, bot = 16, mx = Math.max(...vals, 0), mn = Math.min(...vals, 0), span = (mx - mn) || 1, y0 = top + mx / span * (H - top - bot), gw = W / ser.length, bw = Math.min(24, gw * .6);
+  let g = `<line x1="0" x2="${W}" y1="${y0.toFixed(1)}" y2="${y0.toFixed(1)}" stroke="var(--line)"/>`;
+  ser.forEach((x, i) => { if (!Number.isFinite(x.v)) return; const bh = Math.max(1.5, Math.abs(x.v) / span * (H - top - bot)), cx = i * gw + gw / 2, y = x.v >= 0 ? y0 - bh : y0, last = i === ser.length - 1;
+    g += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${x.v < 0 ? 'var(--down)' : 'var(--accent)'}" opacity="${last ? 1 : .55}"/>
+      <text x="${cx.toFixed(1)}" y="${(x.v >= 0 ? y - 4 : y + bh + 11).toFixed(1)}" text-anchor="middle" class="finv">${finFmt(x.v, t)}</text>
+      <text x="${cx.toFixed(1)}" y="${H - 2}" text-anchor="middle" class="finx">${esc(finLbl(x.r, mode))}</text>`; });
+  const l = ser[ser.length - 1], d = (t === 'p' || t === 'x') ? (Number.isFinite(l.v) && Number.isFinite(l.p) ? l.v - l.p : NaN) : (Number.isFinite(l.v) && Number.isFinite(l.p) && l.p > 0 ? (l.v / l.p - 1) * 100 : NaN);
+  const dtxt = Number.isFinite(d) ? `<span class="${cls(d)}">${mode === 'Y' ? '较上年' : '较去年同期'} ${t === 'p' ? sgn(d, 1) + ' 个百分点' : t === 'x' ? sgn(d, 2) : sgn(d, 1) + '%'}</span>` : `<span class="muted">${l.p != null && l.p <= 0 ? '基数为负,不算同比' : '无同比数据'}</span>`;
+  return `<div class="fincard"><div class="fch"><b>${name}</b><span class="small">${dtxt}</span></div><svg viewBox="0 0 ${W} ${H}" class="finsvg" role="img">${g}</svg></div>`;
+}
+const esc_ = x => x;
+function finRead(f, mode) {                   // 规则解读:所有结论都由代码按数字算出来
+  const L = [], S = (k) => finSeries(f, mode, k), last = k => { const a = S(k); return a[a.length - 1]; };
+  const yoy = k => { const x = last(k); return Number.isFinite(x.v) && Number.isFinite(x.p) && x.p > 0 ? (x.v / x.p - 1) * 100 : NaN; };
+  const per = mode === 'Y' ? '最近一个财年' : '最近一个季度', vs = mode === 'Y' ? '上一财年' : '去年同期';
+  const g = yoy('rev'), gn = yoy('ni');
+  if (Number.isFinite(g)) {
+    const seq = mode === 'Q' ? f.rows.slice(-4).map(r => r.rev_yoy).filter(Number.isFinite) : [], acc = seq.length === 4 ? (seq[3] > seq[0] + 3 ? '且增速在加快' : seq[3] < seq[0] - 3 ? '但增速在放慢' : '增速基本稳定') : '';
+    const lvl = g >= 25 ? ['强劲', 'up'] : g >= 8 ? ['稳健', 'up'] : g >= 0 ? ['偏弱', ''] : ['下滑', 'down'];
+    L.push([lvl, `营收${per}同比 ${sgn(g, 1)}%(对比${vs}),${lvl[0]}${acc ? ',' + acc : ''}。` + (mode === 'Y' && f.years.length >= 5 && f.years[0].rev > 0 ? `近 ${f.years.length - 1} 年年均增长 ${(((f.years[f.years.length - 1].rev / f.years[0].rev) ** (1 / (f.years.length - 1)) - 1) * 100).toFixed(1)}%。` : '')]);
+  }
+  if (Number.isFinite(gn) && Number.isFinite(g)) {
+    const lvl = gn >= g + 5 ? ['强劲', 'up'] : gn >= g - 5 ? ['稳健', 'up'] : gn >= 0 ? ['偏弱', ''] : ['下滑', 'down'];
+    L.push([lvl, `净利润同比 ${sgn(gn, 1)}%,${gn >= g + 5 ? '比营收涨得更快,说明每卖一块钱赚得更多(经营杠杆)。' : gn >= g - 5 ? '和营收增速接近,盈利能力基本稳定。' : '增速落后于营收,成本在吞噬利润,要看原因(涨价、投入加大还是一次性费用)。'}`]);
+  } else if (last('ni').v < 0) L.push([['亏损', 'down'], `${per}净利润为负(亏损),要看亏损是否在收窄、现金够烧多久。`]);
+  const gm = last('gm'), dgm = Number.isFinite(gm.v) && Number.isFinite(gm.p) ? gm.v - gm.p : NaN;
+  if (Number.isFinite(gm.v)) L.push([[gm.v >= 50 ? '强劲' : gm.v >= 30 ? '稳健' : '一般', gm.v >= 30 ? 'up' : ''], `毛利率 ${gm.v.toFixed(1)}%${Number.isFinite(dgm) ? `,较${vs} ${sgn(dgm, 1)} 个百分点` : ''}。毛利率越高,说明产品越有定价权${Number.isFinite(dgm) && dgm < -2 ? ';明显下滑,留意是否在降价抢份额或成本上升' : ''}。`]);
+  const t = f.ttm, nt = mode === 'Y' ? last('ni').v : t.ni, ft = mode === 'Y' ? last('fcf').v : t.fcf, ot = mode === 'Y' ? last('ocf').v : t.ocf;
+  if (Number.isFinite(ft) && Number.isFinite(nt)) {
+    const conv = nt > 0 ? ft / nt : NaN, cx = mode === 'Y' ? f.years[f.years.length - 1] : null;
+    const lvl = ft < 0 ? ['偏弱', 'down'] : conv >= 0.9 ? ['强劲', 'up'] : conv >= 0.6 ? ['稳健', 'up'] : ['偏弱', ''];
+    L.push([lvl, ft < 0 ? `${mode === 'Y' ? '这一财年' : '近 12 个月'}自由现金流为负(${finFmt(ft, 'm')}):经营赚的钱不够投资花,靠借债或存款撑着,要盯现金和负债。` : `${mode === 'Y' ? '这一财年' : '近 12 个月'}自由现金流 ${finFmt(ft, 'm')}(经营现金流减去设备投入,是真正能自由支配的钱)${Number.isFinite(conv) ? `,约为净利润的 ${(conv * 100).toFixed(0)}%${conv >= 0.9 ? ',利润含金量高' : conv < 0.6 ? ',利润变现能力一般,留意应收款和存货' : ''}` : ''}。`]);
+  }
+  const bs = mode === 'Y' ? f.years[f.years.length - 1] : f.rows[f.rows.length - 1];
+  if (bs && Number.isFinite(bs.dr)) { const nd = Number.isFinite(bs.debt) && Number.isFinite(bs.cash) ? bs.debt - bs.cash : NaN;
+    L.push([[bs.dr < 50 ? '稳健' : bs.dr < 70 ? '一般' : '偏高', bs.dr < 50 ? 'up' : bs.dr < 70 ? '' : 'down'], `资产负债率 ${bs.dr.toFixed(0)}%(${esc_(bs.end)}):每 100 元资产里有 ${bs.dr.toFixed(0)} 元是欠别人的${Number.isFinite(bs.cr) ? `;流动比率 ${bs.cr.toFixed(2)},${bs.cr >= 1.5 ? '短期还债能力充足' : bs.cr >= 1 ? '短期够用' : '短期偿债偏紧(小于 1)'}` : ''}${Number.isFinite(nd) ? `;现金 ${finFmt(bs.cash, 'm')} 对长期债务 ${finFmt(bs.debt, 'm')},${nd <= 0 ? '现金比债务多' : '净负债 ' + finFmt(nd, 'm')}` : ''}。`]); }
+  return L;
+}
+function segHTML(sg) {
+  if (!sg) return '<div class="muted small">正在读取收入构成…</div>';
+  if (sg.error || !sg.views || !sg.views.length) return `<div class="muted small">${sg.error === 'no_cik' ? '' : '这家公司的年报没有按产品 / 分部 / 地区披露收入,或格式暂不支持。'}</div>`;
+  const v = sg.views[Math.min(finAxis, sg.views.length - 1)], n = v.ends.length, tot = v.items.reduce((a, i) => a + i.vals[n - 1], 0);
+  const rowH = v.items.map((i, k) => { const cur = i.vals[n - 1], pr = n > 1 ? i.vals[n - 2] : null, g = pr > 0 ? (cur / pr - 1) * 100 : NaN, sh = cur / tot * 100, psh = pr > 0 && n > 1 ? pr / v.items.reduce((a, x) => a + (x.vals[n - 2] || 0), 0) * 100 : NaN;
+    return `<div class="segrow"><span class="segn">${esc(i.name)}</span><span class="segbar"><i style="width:${Math.max(1, sh).toFixed(1)}%"></i></span><span class="segs"><b>${sh.toFixed(1)}%</b> ${bigN(cur)}</span><span class="segg ${cls(g)}">${Number.isFinite(g) ? sgn(g, 1) + '%' : '--'}</span></div>`; }).join('');
+  const rd = [], big = v.items[0], bsh = big.vals[n - 1] / tot * 100;
+  rd.push(`最大的一块是「${esc(big.name)}」,占 ${bsh.toFixed(0)}%${bsh >= 50 ? '(依赖度较高)' : ''}。`);
+  const gs = v.items.filter(i => n > 1 && i.vals[n - 2] > 0).map(i => ({ n: i.name, g: (i.vals[n - 1] / i.vals[n - 2] - 1) * 100, sh: i.vals[n - 1] / tot * 100 })).sort((a, b) => b.g - a.g);
+  if (gs.length >= 2) { rd.push(`增长最快的是「${esc(gs[0].n)}」(${sgn(gs[0].g, 1)}%)${gs[gs.length - 1].g < 0 ? `;在下滑的是「${esc(gs[gs.length - 1].n)}」(${sgn(gs[gs.length - 1].g, 1)}%)` : ''}。`);
+    const dr = gs.filter(x => x.sh >= 5 && x.g >= 20); if (dr.length && dr[0].n !== gs[0].n) rd.push(`「${esc(dr[0].n)}」也在快速增长(${sgn(dr[0].g, 1)}%)。`); }
+  return `<div class="segtabs">${sg.views.map((x, k) => `<button data-seg="${k}" class="${k === finAxis ? 'on' : ''}">${esc(x.axis)}</button>`).join('')}</div>
+    <div class="seghead muted small"><span>项目</span><span></span><span>占比 / 金额(财年末 ${esc(v.ends[n - 1])})</span><span>同比</span></div>${rowH}
+    <p class="small segrd">${rd.join(' ')}</p>${v.overlap ? '<div class="muted small">注意:这几项之间可能有重叠,占比仅供参考。</div>' : ''}
+    <div class="muted small">来源:${esc(sg.source)}(<a href="${esc(sg.doc)}" target="_blank" rel="noopener noreferrer">${esc(sg.filed)} 提交</a>)。名称按年报原文;没有中文对照的显示英文。</div>`;
+}
+function finHTML(f, sg) {
   if (!f) return '<div class="muted small">正在读取 SEC 财报…</div>';
   if (f.error) return `<div class="muted small">${{ no_cik: 'ETF / 指数没有公司财报', no_us_gaap: '这是外国公司,使用国际会计准则(20-F),暂不支持', no_contact: '后台还没设置 SEC_CONTACT', not_stock: '指数没有公司财报', too_short: '上市时间太短,财报不足 4 个季度', mock: '演示模式没有财报数据' }[f.error] || '暂无财报数据'}</div>`;
-  const rows = f.rows.slice(-20), t = f.ttm, last = f.rows[f.rows.length - 1];
-  const kv = (l, v, y) => `<div><span class="muted small">${l}</span><b>${v}</b>${Number.isFinite(y) ? `<span class="small ${cls(y)}">同比 ${sgn(y, 1)}%</span>` : ''}</div>`;
-  const pc = v => Number.isFinite(v) ? v.toFixed(1) + '%' : '--';
-  let h = `<div class="kv">${kv('近 12 个月营收', bigN(t.rev), t.rev_yoy)}${kv('净利润', bigN(t.ni), t.ni_yoy)}${kv('经营现金流', bigN(t.ocf), t.ocf_yoy)}${kv('自由现金流', bigN(t.fcf), t.fcf_yoy)}${kv('毛利率', pc(t.gm))}${kv('营业利润率', pc(t.om))}${kv('净利率', pc(t.nm))}${kv('每股收益(摊薄)', Number.isFinite(t.eps) ? fmt(t.eps) : '--', t.eps_yoy)}</div>
-    <div class="finrow"><div><div class="muted small">每季度营收</div>${finBars(rows, ['rev'], ['var(--accent)'])}</div><div><div class="muted small">净利润 <i class="dot" style="background:var(--accent)"></i> · 自由现金流 <i class="dot" style="background:#8aa7c9"></i></div>${finBars(rows, ['ni', 'fcf'], ['var(--accent)', '#8aa7c9'])}</div></div>
-    <table><thead><tr><th>季度末</th><th>公告日</th><th class="r">营收</th><th class="r">同比</th><th class="r">净利润</th><th class="r">毛利率</th><th class="r">自由现金流</th></tr></thead><tbody>${f.rows.slice(-8).reverse().map(r => `<tr><td>${esc(r.end)}${r.est ? '<span class="muted small" title="第四季或现金流数据由全年数减前三季推算"> *</span>' : ''}</td><td class="muted small">${esc(r.filed)}</td><td class="r">${bigN(r.rev)}</td><td class="r ${cls(r.rev_yoy)}">${Number.isFinite(r.rev_yoy) ? sgn(r.rev_yoy, 1) + '%' : '--'}</td><td class="r">${bigN(r.ni)}</td><td class="r">${pc(r.gm)}</td><td class="r">${bigN(r.fcf)}</td></tr>`).join('')}</tbody></table>`;
-  const ck = f.check, lv = ck && { ok: ['✅', '与 Yahoo 一致'], warn: ['⚠️', '与 Yahoo 有小差异'], bad: ['❌', '与 Yahoo 差异大,请以 SEC 原文为准'] }[ck.level];
-  h += `<div class="muted small finfoot">来源:${esc(f.source)};最新一期 ${esc(f.asof)}(${esc(last.filed)} 公告)。带 * 的为推算值。${lv ? `数据核对:${lv[0]} ${lv[1]}(核对 ${ck.n} 项,最大误差 ${ck.worst}%)。` : '数据核对:Yahoo 暂时没有可比数据。'}</div>`;
+  const last = f.rows[f.rows.length - 1], ck = f.check, lv = ck && { ok: ['✅', '与 Yahoo 一致'], warn: ['⚠️', '与 Yahoo 有小差异'], bad: ['❌', '与 Yahoo 差异大,请以 SEC 原文为准'] }[ck.level];
+  const rd = finRead(f, finMode);
+  let h = `<div class="fintoggle"><button data-fm="Q" class="${finMode === 'Q' ? 'on' : ''}">季报(最近 4 季)</button><button data-fm="Y" class="${finMode === 'Y' ? 'on' : ''}">年报(最近 5 年)</button></div>
+    <div class="fingrid">${FIN_METRICS.map(m => finChart(f, finMode, m)).join('')}</div>
+    <h4 class="finh">财报解读 <span class="muted small">按${finMode === 'Y' ? '年度' : '季度'}数据,由代码按数字自动判断</span></h4>
+    <ul class="finread">${rd.map(([lv_, t]) => `<li><span class="ftag ${lv_[1]}">${lv_[0]}</span>${esc(t)}</li>`).join('')}</ul>
+    <h4 class="finh">收入从哪来 <span class="muted small">来自最新年报,看收入结构和增速</span></h4><div id="segbox">${segHTML(sg)}</div>
+    <div class="muted small finfoot">来源:${esc(f.source)};最新一期 ${esc(f.asof)}(${esc(last.filed)} 公告)。季度里第四季或现金流数据由全年数减前三季推算。${lv ? `数据核对:${lv[0]} ${lv[1]}(核对 ${ck.n} 项,最大误差 ${ck.worst}%)。` : '数据核对:Yahoo 暂时没有可比数据。'}</div>`;
   return h;
 }
-async function fillFin(s) {
+function paintFin(s) {
   const box = $('#finbox'); if (!box || state.sel !== s) return;
-  box.innerHTML = '<h3>财报趋势</h3>' + finHTML(finCache[s]);
+  box.innerHTML = '<h3>财报趋势</h3>' + finHTML(finCache[s], segCache[s]); pfData(s);
+  box.onclick = e => { const m = e.target.closest('[data-fm]'), g = e.target.closest('[data-seg]');
+    if (m) { finMode = m.dataset.fm; try { localStorage.setItem('finMode', finMode); } catch { } paintFin(s); }
+    if (g) { finAxis = +g.dataset.seg; paintFin(s); } };
+}
+async function fillFin(s) {
+  paintFin(s);
   if (finCache[s] === undefined) {
     let f; try { f = await Data.loadFin(s); } catch { f = { error: 'fail' }; }
-    finCache[s] = f; if (state.sel === s && state.dt === 'company' && $('#finbox')) $('#finbox').innerHTML = '<h3>财报趋势</h3>' + finHTML(f);
+    finCache[s] = f; if (state.sel === s && state.dt === 'company') paintFin(s);
+  }
+  if (finCache[s] && !finCache[s].error && segCache[s] === undefined && Data.loadSeg) {
+    let g; try { g = await Data.loadSeg(s); } catch { g = { error: 'fail' }; }
+    segCache[s] = g; if (state.sel === s && state.dt === 'company') paintFin(s);
   }
 }
 
 function profileHTML(s) {
   const p = typeof PROFILES !== 'undefined' && PROFILES[s]; if (!p) return '';
-  return `<div class="csec"><h3>通俗解读 <span class="muted small">补充 · ${esc(GRADE_TXT[p.grade] || '')} · 整理于 ${PROFILE_ASOF}</span></h3>
-    <p class="intro"><b>${esc(p.one)}</b></p>
+  return `<div class="csec"><h3>通俗解读 <span class="muted small">${esc(GRADE_TXT[p.grade] || '')} · ${PROFILE_ASOF}</span></h3>
+    <p class="intro"><b>${esc(p.one)}</b></p><div id="pfdata"></div>
     <div class="pf"><div><span class="muted small">靠什么赚钱</span>${list(p.money)}</div>
     <div><span class="muted small">强在哪</span><p>${esc(p.strong)}</p></div>
     <div><span class="muted small">产业链位置 / 卡脖子</span><p>${esc(p.choke)}</p></div>
-    <div><span class="muted small">未来订单线索(合同不等于收入)</span><p>${esc(p.orders)}</p></div>
-    <div><span class="muted small">主要风险 / 最有力的反方</span>${list(p.risk)}</div>
+    <div><span class="muted small">订单线索(合同≠收入)</span><p>${esc(p.orders)}</p></div>
+    <div><span class="muted small">主要风险</span>${list(p.risk)}</div>
     <div><span class="muted small">接下来盯什么</span><p>${esc(p.watch)}</p></div></div>
-    <div class="muted small">${esc(p.note)}依据:公司公开披露的一般信息,数字以上方 SEC 财报数据为准,未逐条核对最新电话会。</div></div>`;
+    <div class="muted small">${esc(p.note)}定性内容为一般性介绍;上方数字来自 SEC 财报,自动更新。</div></div>`;
+}
+function pfData(s) {                      // 通俗解读里的「关键数字」:全部来自 SEC 数据,不手写
+  const box = $('#pfdata'), f = finCache[s]; if (!box || !f || f.error) return;
+  const t = f.ttm, sg = segCache[s], v = sg && sg.views && sg.views[0], n = v ? v.ends.length : 0, tot = v ? v.items.reduce((a, i) => a + i.vals[n - 1], 0) : 0;
+  const bs = f.rows[f.rows.length - 1], chip = (l, x, y) => `<div><span class="muted small">${l}</span><b>${x}</b>${Number.isFinite(y) ? `<span class="small ${cls(y)}">${sgn(y, 1)}%</span>` : ''}</div>`;
+  box.innerHTML = `<div class="kv pfkv">${chip('近 12 个月营收', finFmt(t.rev, 'm'), t.rev_yoy)}${chip('净利润', finFmt(t.ni, 'm'), t.ni_yoy)}${chip('毛利率', finFmt(t.gm, 'p'))}${chip('自由现金流', finFmt(t.fcf, 'm'), t.fcf_yoy)}${Number.isFinite(bs.dr) ? chip('资产负债率', finFmt(bs.dr, 'p')) : ''}${v ? chip('最大业务', esc(v.items[0].name) + ' ' + (v.items[0].vals[n - 1] / tot * 100).toFixed(0) + '%') : ''}</div>`;
 }
 const list = a => `<ul class="clist">${(a || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
 function companyHTML(s, c) {

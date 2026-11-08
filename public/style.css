@@ -207,3 +207,13 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 .finfoot{margin-top:8px;line-height:1.7}.kv .small{margin-top:-2px}
 @media(max-width:640px){.finrow{grid-template-columns:1fr}}
 .pf{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px;margin:12px 0}.pf p{margin:2px 0 6px}.pf .clist{margin:2px 0 6px}@media(max-width:640px){.pf{grid-template-columns:1fr}}
+
+.fintoggle{display:inline-flex;gap:0;border:1px solid var(--line);border-radius:999px;padding:3px;margin:2px 0 14px}.fintoggle button{padding:6px 16px;border-radius:999px;color:var(--muted);font-size:13px}.fintoggle button.on{background:var(--accent);color:#14110b}
+.fingrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.fincard{border:1px solid var(--line);border-radius:12px;padding:10px 10px 4px}.fch{display:flex;flex-direction:column;gap:2px;margin-bottom:2px}.fch b{font-weight:600;font-size:13px}
+.finv{font-size:10.5px;fill:var(--text)}.finx{font-size:10px;fill:var(--faint)}
+.finh{margin:22px 0 8px;font-size:15px}.finread{list-style:none;padding:0;margin:0}.finread li{display:flex;gap:10px;padding:6px 0;line-height:1.7}.ftag{flex:none;font-size:11px;border:1px solid var(--line);border-radius:6px;padding:0 7px;height:20px;line-height:19px;margin-top:3px;color:var(--muted)}.ftag.up{color:var(--up);border-color:var(--up)}.ftag.down{color:var(--down);border-color:var(--down)}
+.segtabs{display:flex;gap:8px;margin:4px 0 10px}.segtabs button{padding:4px 12px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--muted)}.segtabs button.on{color:var(--accent);border-color:var(--accent)}
+.segrow,.seghead{display:grid;grid-template-columns:minmax(90px,1.4fr) 1.6fr 1.3fr 64px;gap:10px;align-items:center;padding:5px 0}.segn{font-size:13px;overflow:hidden;text-overflow:ellipsis}.segbar{height:8px;background:rgba(255,255,255,.07);border-radius:4px;overflow:hidden}.segbar i{display:block;height:100%;background:var(--accent);border-radius:4px}.segs{font-size:12px;text-align:right}.segs b{font-weight:600;margin-right:4px}.segg,.seghead span:last-child{text-align:right;font-size:12px}.seghead span:nth-child(3){text-align:right}.segrd{margin:10px 0 4px;line-height:1.8}
+@media(max-width:900px){.fingrid{grid-template-columns:repeat(2,1fr)}}@media(max-width:560px){.segrow,.seghead{grid-template-columns:1.2fr 1fr 1.2fr 56px}}
+.finv{font-size:9px}.finx{font-size:8.5px}
+.pfkv{margin:10px 0 4px;grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}.pfkv .small{margin-top:-2px}

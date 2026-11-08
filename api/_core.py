@@ -541,7 +541,7 @@ def route(name, q):
             return 200, company(q["symbol"].upper()), 600
         if name == "fin":
             import _fin
-            return 200, _fin.fin(q["symbol"].upper()), 3600
+            return 200, (_fin.segments if q.get("part") == "seg" else _fin.fin)(q["symbol"].upper()), 3600
         if name == "detail":
             return 200, detail(q["symbol"].upper()), 15
         if name == "status":
