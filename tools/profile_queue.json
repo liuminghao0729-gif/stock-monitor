@@ -24,11 +24,6 @@
 "name": "Alphabet Inc."
 },
 {
-"sym": "GOOG",
-"cap": 3490635317248,
-"name": "Alphabet Inc."
-},
-{
 "sym": "AMZN",
 "cap": 2803846610944,
 "name": "Amazon.com, Inc."
@@ -1809,11 +1804,6 @@
 "name": "PulteGroup, Inc."
 },
 {
-"sym": "FOX",
-"cap": 25097183232,
-"name": "Fox Corporation"
-},
-{
 "sym": "ON",
 "cap": 24645601280,
 "name": "ON Semiconductor Corporation"
@@ -2212,11 +2202,6 @@
 "sym": "INVH",
 "cap": 15673315328,
 "name": "Invitation Homes Inc."
-},
-{
-"sym": "NWS",
-"cap": 15546548224,
-"name": "News Corporation"
 },
 {
 "sym": "SOLV",
