@@ -414,3 +414,12 @@ kbd{font:500 11px "SF Mono",Menlo,monospace;border:1px solid var(--line);border-
 .dtabs button{font-size:15px;font-weight:600;color:#d9dcda}
 .dtabs button:hover{color:var(--accent)}
 .dtabs button.on{color:var(--text)}
+
+/* ===== 改版 第四阶段:每页概括句(代码按数字生成) ===== */
+.brief{font:400 clamp(17px,1.9vw,21px)/1.85 var(--disp);max-width:880px;margin:14px 0 6px;color:var(--muted)}
+.brief b{color:var(--text);font-weight:600}
+.brief em{font-style:normal;color:var(--accent)}
+.brief .cp{font-family:var(--ui);font-size:.8em;font-weight:500;padding:1px 9px;border-radius:99px;background:var(--sel);margin:0 2px;white-space:nowrap}
+.brief .cp.up{background:rgba(126,211,164,.13)}.brief .cp.down{background:rgba(239,138,120,.13)}
+.brief:empty{display:none}
+#view-sectors>.brief,.pk-wrap>.brief{margin:2px 0 22px}

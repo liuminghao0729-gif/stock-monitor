@@ -209,6 +209,28 @@ function hbar(lo, hi, cur, ticks, la, lb) {      // 位置条:圆点是现价,�
   if (p === null) return `<div class="hbar na"><div class="hb-t"></div><div class="hb-l"><span>${la}</span><span>${lb}</span></div></div>`;
   return `<div class="hbar"><div class="hb-t"><i class="fill" style="width:${p.toFixed(1)}%"></i>${(ticks || []).map(([v, t]) => { const k = barPos(v, lo, hi); return k === null ? '' : `<i class="tk" title="${t}" style="left:${k.toFixed(1)}%"></i>`; }).join('')}<i class="mk" style="left:${p.toFixed(1)}%"></i></div><div class="hb-l"><span>${la}</span><span>${lb}</span></div></div>`;
 }
+const BRIEF_TIP = '这句话由代码按页面上的数字自动生成,不是 AI 写的';
+const bChip = (v, d = 2) => `<span class="cp ${cls(v)}">${sgn(v, d)}%</span>`;
+function briefHTML(s) {      // 看盘页概括句:今天涨跌 / 近 20 日 / 52 周位置 / 趋势 / 量能。缺哪项就不写哪项,不编数字
+  const q = Data.quote(s), d = (Data.detail && Data.detail(s)) || {}, idx = isIdx(s);
+  if (!Number.isFinite(q.price)) return '';
+  const nm = (idx ? (Data.INDICES.find(i => i[0] === s) || [])[1] : zhName(s)) || q.name || s, dec = decOf(q.price), parts = [];
+  const B = Data.bars && Data.bars(s, 'D'), bars = B && B.bars;
+  if (bars && bars.length >= 21) {
+    const c = bars.map(b => b.c); if (Number.isFinite(q.price)) c[c.length - 1] = q.price;
+    parts.push(`近 20 个交易日 ${bChip((c[c.length - 1] / c[c.length - 21] - 1) * 100, 1)}`);
+    if (c.length >= 50) {
+      const m20 = sma(c, 20)[c.length - 1], m50 = sma(c, 50)[c.length - 1], px = c[c.length - 1];
+      parts.push(`趋势<em>${px > m20 && m20 > m50 ? '多头排列' : px < m20 && m20 < m50 ? '空头排列' : '震荡'}</em>`);
+    }
+  }
+  if (Number.isFinite(d.wk52h) && Number.isFinite(d.wk52l) && d.wk52h > d.wk52l) {
+    const pos = (q.price - d.wk52l) / (d.wk52h - d.wk52l) * 100;
+    parts.splice(1, 0, `在 52 周区间的<em>${pos >= 80 ? '高位' : pos <= 30 ? '低位' : '中段'}</em>(位置 ${pos.toFixed(0)}%)`);
+  }
+  if (!idx && Number.isFinite(d.volRatio)) parts.push(`成交<em>${d.volRatio >= 1.3 ? '放量' : d.volRatio <= .8 ? '缩量' : '正常'}</em>(量比 ${fmt(d.volRatio)})`);
+  return `<b>${esc(nm)}</b>${/[A-Za-z0-9)]$/.test(nm) ? ' ' : ''}今天 ${bChip(q.pct)},现价 <b class="num">${fmt(q.price, dec)}</b>。${parts.length ? parts.join(',') + '。' : ''}`;
+}
 function sigChips(s) {      // 信号胶囊:全部由代码按数字算出(趋势用日K的 20/50 日均线,量能用量比,位置用 52 周高点)
   const q = Data.quote(s), d = (Data.detail && Data.detail(s)) || {}, idx = isIdx(s), out = [];
   const B = Data.bars && Data.bars(s, 'D'), bars = B && B.bars;
@@ -224,7 +246,7 @@ function sigChips(s) {      // 信号胶囊:全部由代码按数字算出(趋�
 async function fillSigs(s) {      // 趋势需要日K:没缓存就取一次,取到后只更新胶囊
   if (!$('#sigs')) return;
   if (!(Data.bars && Data.bars(s, 'D') && Data.bars(s, 'D').bars)) { try { await Data.loadBars(s, 'D'); } catch { return; } }
-  if (state.sel === s && state.tab === 'watch' && $('#sigs')) $('#sigs').innerHTML = sigChips(s);
+  if (state.sel === s && state.tab === 'watch' && $('#sigs')) { $('#sigs').innerHTML = sigChips(s); if ($('#brief')) $('#brief').innerHTML = briefHTML(s); }
 }
 function headHTML(s) {
   const q = Data.quote(s), d = (Data.detail && Data.detail(s)) || {}, dec = Number.isFinite(q.price) ? decOf(q.price) : 2, P = v => Number.isFinite(v) ? fmt(v, dec) : '--';
@@ -240,6 +262,7 @@ function headHTML(s) {
   return `<div class="dh"><div><h2>${s} <span class="muted" style="font-size:14px;font-weight:400">${esc(q.name)}</span></h2></div>${state.watch.includes(s) || idx ? '' : '<button class="tb on" data-act="addwatch">＋ 加入自选</button>'}</div>
   <div class="px-big ${cls(q.change)}"><span class="big">${P(q.price)}</span><span class="arr">${Number.isFinite(q.price) ? arrow : ''}</span></div>
   <div class="${cls(q.change)} px-sub">${sgn(q.change, dec)} &nbsp; ${sgn(q.pct)}%</div>
+  <p class="brief" id="brief" title="${BRIEF_TIP}">${briefHTML(s)}</p>
   <div class="hsigs" id="sigs">${sigChips(s)}</div>
   <div class="hg4 ${open || idx ? '' : 'compact'}">${idx ? day + pos : day + pos + vol + val}</div>
   ${idx ? '' : `<button class="sfold" data-act="stats" title="${open ? '收起' : '展开'}">${open ? '︿' : '﹀'}</button>`}`;
@@ -997,7 +1020,9 @@ const secAvg = items => { const v = items.filter(x => Number.isFinite(x.pct)); r
 function secTiles(list) {      // 顶部:所有板块一格一块,颜色深浅跟着涨跌;点一格跳到下面对应的板块并展开
   const rows = list.map(s => ({ ...s, a: secAvg(s.items) }));
   if (secState.sort === 'chg') rows.sort((x, y) => y.a - x.a);
-  return `<div class="muted small" style="margin-bottom:12px">今日板块强弱 · 点方块跳到对应板块</div><div class="heat-g${secState.play ? ' play' : ''}">${rows.map((r, i) => {
+  const nUp = rows.filter(r => r.a > 0).length, all = rows.flatMap(r => r.items).filter(x => Number.isFinite(x.pct)), sUp = all.filter(x => x.pct > 0).length, hi = rows.slice().sort((x, y) => y.a - x.a)[0], lo = rows.slice().sort((x, y) => x.a - y.a)[0];
+  const brief = rows.length ? `<p class="brief" title="${BRIEF_TIP}">今天 <b>${rows.length}</b> 个板块里 <span class="up">${nUp} 个上涨</span>、<span class="down">${rows.length - nUp} 个下跌</span>。领涨的是<b>${esc(hi.name)}</b>(${bChip(hi.a)}),拖后腿的是<b>${esc(lo.name)}</b>(${bChip(lo.a)})。列出的 ${all.length} 只股票里 ${sUp} 只上涨、${all.length - sUp} 只下跌。</p>` : '';
+  return `${brief}<div class="muted small" style="margin-bottom:12px">板块涨跌按各板块市值最大的几只股票的平均计算 · 点方块跳到对应板块</div><div class="heat-g${secState.play ? ' play' : ''}">${rows.map((r, i) => {
     const a = Math.min(Math.abs(r.a) / 3, 1), v = r.items.filter(x => Number.isFinite(x.pct)).sort((x, y) => y.pct - x.pct), best = v[0];
     return `<button class="heat" data-jump="${esc(r.name)}" style="--a:${(.05 + a * .28).toFixed(2)};--c:${r.a >= 0 ? '126,211,164' : '239,138,120'};--i:${i}"><span class="hn">${esc(r.name)}</span><b class="${cls(r.a)}">${sgn(r.a)}%</b><span class="hs">${best ? '领涨 ' + esc(best.sym) + ' ' + sgn(best.pct) + '%' : '&nbsp;'}</span></button>`;
   }).join('')}</div>`;
@@ -1121,6 +1146,12 @@ function pickRow3(r, i, maxD) {      // 改版:一行一只,点开看全部指�
     </div>
     <div class="pk-fold"><div><div class="pk-det">${kv('离 200 日线', sgn(r.dist200 * 100, 0) + '%(同类前 ' + (100 - (rk.dist200 || 0) * 100).toFixed(0) + '%)')}${kv('3 个月', sgn(r.mom63 * 100, 0) + '%')}${kv('6 个月', sgn(r.mom126 * 100, 0) + '%')}${kv('市值', capStr(r.cap))}${kv('日波动 ATR', p(r.atrp, 1))}${kv('beta', r.beta)}${kv('RSI', r.rsi)}${kv('离 52 周高点回撤', p(r.dd52))}${kv('入选于', esc(r.since))}</div></div></div></article>`;
 }
+function pickBrief(t) {      // 推荐页概括句:名单数量、新入选、离 200 日线最远、beta 与波动最高
+  const cf = t.confirmed || [];
+  if (!cf.length) return '';
+  const by = f => cf.slice().sort((a, b) => f(b) - f(a))[0], nNew = cf.filter(r => r.status === 'NEW').length, far = by(r => r.dist200 || 0), hb = by(r => r.beta || 0), ha = by(r => r.atrp || 0);
+  return `<p class="brief" title="${BRIEF_TIP}">名单共 <b>${t.confirmedTotal}</b> 只${t.confirmedTotal > cf.length ? `,下面列出离 200 日线最远的前 ${cf.length} 只` : ''},其中 ${nNew} 只是新入选。离 200 日线最远的是 <b>${esc(far.sym)}</b>(<span class="up num">${sgn(far.dist200 * 100, 0)}%</span>);beta 最高的是 <b>${esc(hb.sym)}</b>(${hb.beta}),日波动最大的是 <b>${esc(ha.sym)}</b>(ATR ${(ha.atrp * 100).toFixed(1)}%)。</p>`;
+}
 async function renderPicks() {
   const el = $('#view-picks'); loading(el);
   let P = null; if (Data.loadPicks) { try { P = await Data.loadPicks(); } catch { } }
@@ -1133,6 +1164,7 @@ async function renderPicks() {
   el.innerHTML = `<div class="pk-wrap${play ? ' play' : ''}">
     <header class="pk-head"><h2>每日推荐 · 强趋势龙头<span class="pk-tag">中期</span></h2>
       <div class="pk-facts">${fact('行情日期', esc(P.dataDate) + (P.session ? ' · ' + esc(SESSION[P.session] || '') : ''))}${fact('更新于', esc(P.asof))}${fact('合格股票', P.universe + ' 只')}${fact('市场环境', esc(REGIME[P.regime] || P.regime))}</div></header>
+    ${pickBrief(t)}
     <section class="pk-rule">
       <div class="pk-rule-h">这个组合选什么</div>
       <div class="pk-crit"><div><b>${top('dist200')}</b><span>离 200 日线的距离</span></div><div><b>${top('atrp')}</b><span>日波动(ATR%)</span></div><div><b>${top('mom63')}</b><span>3 个月涨幅</span></div></div>
