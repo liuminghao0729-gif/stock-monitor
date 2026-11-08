@@ -430,3 +430,11 @@ kbd{font:500 11px "SF Mono",Menlo,monospace;border:1px solid var(--line);border-
 .addcur:hover{background:var(--accent);color:#000}
 .addcur.done{border-color:var(--line);color:var(--muted);cursor:default}.addcur.done:hover{background:none;color:var(--muted)}
 .addcur[hidden]{display:none}
+
+/* 宏观:五个指标,每个一整块,左边数值和走势,右边三段解释 */
+.macgrid{display:flex;flex-direction:column;gap:14px;margin-bottom:14px}
+.mac2 .mhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px}
+.mac2 .mv b{font-family:Fraunces,serif;font-size:30px;font-weight:600}
+.mac2 .mtxt{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;border-top:1px solid var(--line);padding-top:12px}
+.mac2 .mtxt p{margin:4px 0 0;line-height:1.75;font-size:13px}
+@media(max-width:860px){.mac2 .mtxt{grid-template-columns:1fr;gap:12px}}

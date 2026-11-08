@@ -333,12 +333,12 @@ def screen(q):
 
 
 def movers():
-    """全市场涨幅榜 / 跌幅榜 / 成交最活跃,各 30 只(Yahoo 筛选器,不需要 Key)。过滤掉市值低于 20 亿美元或股价低于 5 美元的小票。"""
+    """全市场涨幅榜 / 跌幅榜 / 成交最活跃,各 20 只(Yahoo 筛选器,不需要 Key)。过滤掉市值低于 20 亿美元或股价低于 5 美元的小票。"""
     base = [{"operator": "gt", "operands": ["intradaymarketcap", 2e9]}, {"operator": "gt", "operands": ["intradayprice", 5]}]
     out = {}
     for key, sort, desc in [("gainers", "percentchange", True), ("losers", "percentchange", False), ("actives", "dayvolume", True)]:
         try:
-            rows = _yh_screen(base, sort, desc, 30, 120)
+            rows = _yh_screen(base, sort, desc, 20, 120)
         except Exception as e:
             DBG["movers"] = f"{key}: {type(e).__name__}"
             rows = []
@@ -466,9 +466,13 @@ def _yh_extra(sym):
 
 
 # FRED 宏观数据:(代码, 名称, 单位, 变换, 取多少期画走势)
-MACRO = [("DGS10", "10年期美债收益率", "%", None, 90), ("DGS2", "2年期美债收益率", "%", None, 90), ("T10Y2Y", "10年-2年利差", "%", None, 90),
-         ("FEDFUNDS", "联邦基金利率", "%", None, 24), ("CPIAUCSL", "CPI 通胀(同比)", "%", "pc1", 24), ("UNRATE", "失业率", "%", None, 24),
-         ("PAYEMS", "非农新增就业", "千人", "chg", 24)]
+MACRO = [("DGS10", "10年期美债收益率", "%", None, 90), ("PAYEMS", "非农新增就业", "千人", "chg", 24), ("UNRATE", "失业率", "%", None, 24),
+         ("CPIAUCSL", "CPI 通胀(同比)", "%", "pc1", 24), ("FEDFUNDS", "联邦基金利率", "%", None, 24)]
+# 未来预期:美联储官员每季度发布的经济预测(FOMC 经济预测摘要,中位数)和市场隐含通胀,都来自 FRED。取不到的就不显示。
+EXPECT = {"DGS10": [("T10YIE", "市场隐含的未来 10 年平均通胀", "latest"), ("FEDTARMDLR", "官员预测的长期利率(中性水平)", "latest")],
+          "UNRATE": [("UNRATEMD", "官员预测的年底失业率(中位数)", "years")],
+          "CPIAUCSL": [("PCECTPIMD", "官员预测的年底 PCE 通胀(中位数,美联储盯的是 PCE)", "years"), ("T10YIE", "市场隐含的未来 10 年平均通胀", "latest")],
+          "FEDFUNDS": [("FEDTARMD", "官员预测的年底利率(中位数)", "years"), ("FEDTARMDLR", "官员预测的长期利率(中性水平)", "latest")]}
 RELEASES = {"Consumer Price Index": "CPI 通胀数据", "Employment Situation": "非农就业报告", "Gross Domestic Product": "GDP",
             "Personal Income and Outlays": "PCE 通胀数据", "Producer Price Index": "PPI 生产者物价", "Advance Monthly Sales for Retail": "零售销售",
             "Job Openings and Labor Turnover": "JOLTS 职位空缺"}
@@ -497,8 +501,26 @@ def macro():
         except Exception as e:
             DBG["fred_" + sid] = f"{type(e).__name__}: {str(e)[:60]}"
             return None
+    def expect(spec):
+        sid, label, mode = spec
+        try:
+            obs = [o for o in _fred("series/observations", {"series_id": sid, "sort_order": "desc", "limit": 8}, 21600)["observations"] if o["value"] != "."]
+            if not obs:
+                return None
+            if mode == "latest":
+                return {"label": label, "points": [{"k": obs[0]["date"], "v": float(obs[0]["value"])}]}
+            this = str(datetime.date.today().year)
+            pts = sorted(({"k": o["date"][:4], "v": float(o["value"])} for o in obs if o["date"][:4] >= this), key=lambda p: p["k"])[:4]
+            return {"label": label, "points": pts} if pts else None
+        except Exception as e:
+            DBG["fred_exp_" + sid] = f"{type(e).__name__}: {str(e)[:60]}"
+            return None
     with ThreadPoolExecutor(4) as ex:
         items = [x for x in ex.map(one, MACRO) if x]
+        specs = [(m[0], s) for m in MACRO for s in EXPECT.get(m[0], [])]
+        res = list(ex.map(lambda ms: (ms[0], expect(ms[1])), specs))
+    for it in items:
+        it["expect"] = [r for k, r in res if k == it["id"] and r]
     cal = []
     try:
         today = datetime.date.today()

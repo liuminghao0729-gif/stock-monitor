@@ -1031,7 +1031,7 @@ function secTiles(list) {      // 顶部:所有板块一格一块,颜色深浅�
   const rows = list.map(s => ({ ...s, a: secAvg(s.items) }));
   if (secState.sort === 'chg') rows.sort((x, y) => y.a - x.a);
   const nUp = rows.filter(r => r.a > 0).length, all = rows.flatMap(r => r.items).filter(x => Number.isFinite(x.pct)), sUp = all.filter(x => x.pct > 0).length, hi = rows.slice().sort((x, y) => y.a - x.a)[0], lo = rows.slice().sort((x, y) => x.a - y.a)[0];
-  const brief = rows.length ? `<p class="brief" title="${BRIEF_TIP}">今天 <b>${rows.length}</b> 个板块里 <span class="up">${nUp} 个上涨</span>、<span class="down">${rows.length - nUp} 个下跌</span>。领涨的是<b>${esc(hi.name)}</b>(${bChip(hi.a)}),拖后腿的是<b>${esc(lo.name)}</b>(${bChip(lo.a)})。列出的 ${all.length} 只股票里 ${sUp} 只上涨、${all.length - sUp} 只下跌。</p>` : '';
+  const brief = rows.length ? `<p class="brief" title="${BRIEF_TIP}">今天 <b>${rows.length}</b> 个板块里 <span class="up">${nUp} 个上涨</span>、<span class="down">${rows.length - nUp} 个下跌</span>。领涨的是<b>${esc(hi.name)}</b>(${bChip(hi.a)}),拖后腿的是<b>${esc(lo.name)}</b>(${bChip(lo.a)})。</p>` : '';
   return `${brief}<div class="muted small" style="margin-bottom:12px">板块涨跌按各板块市值最大的几只股票的平均计算 · 点方块跳到对应板块</div><div class="heat-g${secState.play ? ' play' : ''}">${rows.map((r, i) => {
     const a = Math.min(Math.abs(r.a) / 3, 1), v = r.items.filter(x => Number.isFinite(x.pct)).sort((x, y) => y.pct - x.pct), best = v[0];
     return `<button class="heat" data-jump="${esc(r.name)}" style="--a:${(.05 + a * .28).toFixed(2)};--c:${r.a >= 0 ? '126,211,164' : '239,138,120'};--i:${i}"><span class="hn">${esc(r.name)}</span><b class="${cls(r.a)}">${sgn(r.a)}%</b><span class="hs">${best ? '领涨 ' + esc(best.sym) + ' ' + sgn(best.pct) + '%' : '&nbsp;'}</span></button>`;
@@ -1126,7 +1126,7 @@ async function renderMovers() {
   if (M) {   // 全市场榜单(已过滤 5 美元以下的小壳股)
     const mrow = x => `<tr><td><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> <span class="muted small">${esc(x.name)}</span></td><td class="r">${fmt(x.price)}</td><td class="r ${cls(x.pct)}">${sgn(x.pct)}%</td><td class="r muted small">${Number.isFinite(x.vol) && Number.isFinite(x.price) ? '成交额 ' + capStr(x.vol * x.price) : ''}</td></tr>`;
     const box = (t, b) => `<div class="card"><h3 style="margin-top:0">${t}</h3>${b.items.length ? `<table><tbody>${b.items.map(mrow).join('')}</tbody></table>` : '<div class="muted small">过滤小壳股后暂无</div>'}</div>`;
-    el.innerHTML = `<div class="grid2">${box('涨幅榜 · 前 30', M.gainers)}${box('跌幅榜 · 前 30', M.losers)}${box('成交榜 · 前 30(按成交量)', M.actives)}</div><div class="muted small" style="padding:10px 4px">已过滤市值低于 20 亿美元或股价低于 5 美元的股票;数据来自 Yahoo,可能有延迟。</div>`;
+    el.innerHTML = `<div class="grid2">${box('涨幅榜 · 前 20', M.gainers)}${box('跌幅榜 · 前 20', M.losers)}${box('成交榜 · 前 20(按成交量)', M.actives)}</div><div class="muted small" style="padding:10px 4px">只列市值 20 亿美元以上、股价 5 美元以上的股票;数据来自 Yahoo,可能有延迟。</div>`;
     return;
   }
   try { await Data.refreshQuotes(universe()); } catch { }
@@ -1213,17 +1213,43 @@ function spark(v, w = 120, h = 34) {
   const pts = v.map((y, i) => (i / (v.length - 1) * w).toFixed(1) + ',' + (h - 3 - (y - lo) / r * (h - 6)).toFixed(1)).join(' ');
   return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 }
+const MAC_TXT = {
+  DGS10: { what: '借钱给美国政府 10 年,每年能拿到的利息率。它是全球资产定价的「地板」:无风险的钱都能拿这个利率,股票就得提供更高回报才有吸引力。',
+    mean: '收益率上升:股票(尤其高估值的成长股)压力变大,资金容易流向债券;收益率下降:通常利好成长股,但如果是因为担心衰退才下降,要警惕。',
+    watch: '看通胀能不能继续回落、美联储降息的节奏,以及美国政府发债(赤字)的规模,这几件事都会推动它。' },
+  PAYEMS: { what: '美国每个月比上个月多出多少个非农就业岗位(千人),是美国经济热度最直观的数字,每月第一个周五公布。',
+    mean: '太强:市场担心通胀回升、美联储不敢降息,股票可能反而跌;太弱:担心衰退。最理想的是不冷不热。新增岗位长期低于约 10 万,常被看作劳动力市场在降温(各机构口径不同)。',
+    watch: '除了这个数,还要看失业率、薪资增速和前两个月数据的修正,修正有时比新数还重要。' },
+  UNRATE: { what: '想找工作却没找到工作的人占劳动力的比例。它是美联储两大目标之一(充分就业)。',
+    mean: '失业率低:经济强但工资压力大,通胀不易降;失业率快速上升:降息预期会升温,但也说明经济在变差。常用的衰退信号之一(萨姆规则):失业率 3 个月均值比过去一年的低点高出 0.5 个百分点。',
+    watch: '看它是缓慢爬升还是突然跳升;跳升比绝对水平更要紧。' },
+  CPIAUCSL: { what: '居民日常消费品和服务价格,和一年前相比涨了多少(同比)。它是衡量通胀最常用的数字,每月中旬公布。',
+    mean: '通胀高:美联储不会降息,甚至要加息,压制股票估值;通胀回落:给降息打开空间。美联储正式盯的指标是 PCE 通胀,目标是 2%,CPI 一般比 PCE 略高一点。',
+    watch: '看「核心 CPI」(剔除食品和能源)和房租项,它们更能反映通胀是否真的在下来。' },
+  FEDFUNDS: { what: '美联储的政策利率,指银行之间隔夜互相拆借的实际利率(这里是月平均值)。它决定了整个经济的资金成本。',
+    mean: '降息:钱变便宜,对股票估值、房地产、小盘股偏利好;加息或维持高位:资金成本高,压制估值。市场交易的往往不是当下的利率,而是「未来会降几次」。',
+    watch: '看美联储每年 8 次的议息会议、会后的新闻发布会和每季度的利率预测(点阵图);下方的「未来预期」就来自官员的预测。' }
+};
 async function renderMacro() {
   const el = $('#view-macro'); loading(el);
   let M = null; if (Data.loadMacro) { try { M = await Data.loadMacro(); } catch { } }
   if (state.tab !== 'macro') return;
   if (!M || !M.items.length) { el.innerHTML = '<div class="card muted">暂无宏观数据</div>'; return; }
-  const card = i => { const d = i.prev == null ? NaN : i.value - i.prev;
-    return `<div class="card mac"><div class="muted small">${esc(i.name)}</div><div class="mv"><b>${fmt(i.value, i.unit === '千人' ? 0 : 2)}</b><span class="muted small"> ${esc(i.unit)}</span></div>
-      <div class="mrow"><span class="${Number.isFinite(d) ? cls(d) : 'muted'} small">${Number.isFinite(d) ? '较上期 ' + sgn(d, i.unit === '千人' ? 0 : 2) : ''}</span><span class="spk">${spark(i.hist)}</span></div><div class="muted small">${esc(i.date)}</div></div>`; };
-  el.innerHTML = `<div class="grid3">${M.items.map(card).join('')}</div>
+  const exp = i => {
+    const blocks = (i.expect || []).map(e => {
+      const pts = e.points.map(q => /^\d{4}$/.test(q.k) ? `${q.k} 年底 <b>${q.v.toFixed(2)}%</b>` : `<b>${q.v.toFixed(2)}%</b>`).join(' · ');
+      return `<div class="small">${esc(e.label)}:${pts}</div>`;
+    }).join('');
+    return blocks || '<div class="small muted">这项暂时没有可用的官方预测数据</div>';
+  };
+  const card = i => { const d = i.prev == null ? NaN : i.value - i.prev, t = MAC_TXT[i.id] || {}, dec = i.unit === '千人' ? 0 : 2;
+    return `<div class="card mac2"><div class="mhead"><div><div class="muted small">${esc(i.name)}</div><div class="mv"><b>${fmt(i.value, dec)}</b><span class="muted small"> ${esc(i.unit)}</span>
+      <span class="${Number.isFinite(d) ? cls(d) : 'muted'} small" style="margin-left:10px">${Number.isFinite(d) ? '较上期 ' + sgn(d, dec) : ''}</span></div><div class="muted small">${esc(i.date)}</div></div><span class="spk">${spark(i.hist)}</span></div>
+      <div class="mtxt"><div><span class="muted small">这是什么</span><p>${esc(t.what || '')}</p></div><div><span class="muted small">对市场意味着什么</span><p>${esc(t.mean || '')}</p></div>
+      <div><span class="muted small">未来预期</span>${exp(i)}<p class="muted small" style="margin-top:6px">${esc(t.watch || '')}</p></div></div></div>`; };
+  el.innerHTML = `<div class="macgrid">${M.items.map(card).join('')}</div>
     <div class="card"><h3 style="margin-top:0">未来一个月重要数据发布</h3>${M.calendar.length ? `<table><tbody>${M.calendar.map(x => `<tr><td class="muted">${esc(x.date)}</td><td>${esc(x.name)}</td></tr>`).join('')}</tbody></table>` : '<div class="muted small">暂无</div>'}</div>
-    <div class="muted small" style="padding:6px 4px">数据来自美联储圣路易斯分行 FRED,发布日期以官方为准。</div>`;
+    <div class="muted small" style="padding:6px 4px;line-height:1.7">数据来自美联储圣路易斯分行 FRED,发布日期以官方为准。「未来预期」是美联储官员(FOMC 经济预测摘要中位数)和债券市场的预期,不是预测保证,也不是投资建议;预测会随新数据调整。解释文字是一般性介绍。</div>`;
 }
 // ===== 推送提醒 =====
 async function renderAlerts() {
