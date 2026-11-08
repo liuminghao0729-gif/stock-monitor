@@ -26,6 +26,8 @@ FACTORS = [  # (代码, 中文说明)
     ("dist50", "离 50 日线的距离"), ("dist200", "离 200 日线的距离"), ("slope50", "50 日线 20 天斜率"), ("trend_r2", "60 日趋势拟合度(带方向)"),
     ("adx_dir", "ADX(带方向)"), ("rsi14", "RSI14"), ("ret5", "5 日涨幅"), ("dd20", "离 20 日高点回撤"),
     ("vol60", "60 日波动率"), ("atrp", "ATR%"), ("beta126", "126 日 beta"), ("dvol", "成交额(对数)"), ("vr20", "量比(当日/20日均量)"), ("updn20", "20 日上涨日成交量占比"),
+    ("pctb", "布林带位置 %B(0=下轨,1=上轨)"), ("bb_low", "离布林下轨的距离(收盘/下轨-1)"), ("macd_hn", "MACD 柱/价格(%)"), ("macd_x3", "近 3 日 MACD 金叉(+1)/死叉(-1)"),
+    ("cons_down", "连续下跌天数"), ("clv", "收盘在当日区间的位置"), ("ll20", "离 20 日最低价的涨幅"), ("gap", "今日开盘跳空"), ("rng", "当日振幅"), ("rmin5", "近 5 日最低 RSI"),
 ]
 NF = len(FACTORS)
 
@@ -54,6 +56,12 @@ def build():
         for d in ds:
             last = spy["a"][sidx[d]] if d in sidx else last
             sa.append(last)
+        ml = S.macd_line(c)
+        sg = S.ema(ml, 9)
+        bl = BT.roll_boll_lower(c)
+        cdn = [0] * n
+        for i in range(1, n):
+            cdn[i] = cdn[i - 1] + 1 if c[i] < c[i - 1] else 0
         r = [0.0] + [a[i] / a[i - 1] - 1 for i in range(1, n)]
         sr = [0.0] + [sa[i] / sa[i - 1] - 1 if sa[i - 1] else 0.0 for i in range(1, n)]
         pr, ps, prs, pss, pr2, pcv, pup, pdn = ([0.0] for _ in range(8))
@@ -83,6 +91,15 @@ def build():
                     (a[t] / a[t - 63]) / (sa[t] / sa[t - 63]) - 1, (a[t] / a[t - 126]) / (sa[t] / sa[t - 126]) - 1, px / hi252, (px - lo252) / (hi252 - lo252) if hi252 > lo252 else 0.5,
                     px / s50[t] - 1, px / s200[t] - 1, s50[t] / s50[t - 20] - 1, r2 * (1 if sl > 0 else -1), adx[t] * (1 if pdi[t] > mdi[t] else -1), rs[t], a[t] / a[t - 5] - 1,
                     1 - px / max(h_[t - 19:t + 1]), v60, atr[t] / px, cov / var if var > 0 else 1.0, math.log(adv), v[t] / avg20 if avg20 > 0 else 1.0, ups / (ups + dns) if ups + dns > 0 else 0.5]
+            up_b = 2 * s20[t] - bl[t] if bl[t] is not None else None
+            xs = 0
+            for i in (t - 2, t - 1, t):
+                if ml[i - 1] <= sg[i - 1] and ml[i] > sg[i]:
+                    xs = 1
+                elif ml[i - 1] >= sg[i - 1] and ml[i] < sg[i]:
+                    xs = -1
+            vals += [(px - bl[t]) / (up_b - bl[t]) if up_b and up_b > bl[t] else 0.5, px / bl[t] - 1 if bl[t] else 0.0, (ml[t] - sg[t]) / px * 100, xs, cdn[t],
+                     (px - l_[t]) / (h_[t] - l_[t]) if h_[t] > l_[t] else 0.5, px / min(l_[t - 19:t + 1]) - 1, ao[t] / a[t - 1] - 1, (h_[t] - l_[t]) / px, min(x for x in rs[t - 4:t + 1] if x is not None)]
             date_i.append(i1 - 1)          # 信号日在 SPY 日期里的位置(入场在其后一天)
             stock_i.append(si)
             for k, x in enumerate(vals):
