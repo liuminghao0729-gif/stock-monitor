@@ -349,6 +349,45 @@ function paintFin(s) {
     if (m) { finMode = m.dataset.fm; try { localStorage.setItem('finMode', finMode); } catch { } paintFin(s); }
     if (g) { finAxis = +g.dataset.seg; paintFin(s); } };
 }
+// ===== 财务健康体检 / 质量分 / 风险分 / 内在价值 / 财报前预期波动 =====
+const healthCache = {}, emCache = {};
+const RATE = { good: ['良好', 'up'], ok: ['一般', ''], bad: ['偏弱', 'down'] };
+function healthHTML(h, em) {
+  if (!h || h.error) return '';
+  let o = '';
+  const cu = h.checkup, cnt = k => cu.filter(x => x.rate === k).length;
+  o += `<div class="csec"><h3>财务健康体检 <span class="muted small">财年截至 ${esc(h.asof)} · 良好 ${cnt('good')} · 一般 ${cnt('ok')} · 偏弱 ${cnt('bad')}</span></h3>
+    <table class="hc"><tbody>${cu.map(x => { const r = RATE[x.rate] || ['--', 'muted']; return `<tr><td class="hn">${esc(x.name)}</td><td class="r"><b>${esc(x.val)}</b></td><td><span class="ftag ${r[1]}">${r[0]}</span></td><td class="muted small">${esc(x.why)}</td></tr>`; }).join('')}</tbody></table>
+    <div class="muted small">良好 / 一般 / 偏弱只表示相对常见经验区间,不是买卖结论;不同行业标准不同(银行、保险等没有毛利率这类指标)。数据:${esc(h.source)}。</div></div>`;
+  const f = h.fscore, z = h.zscore;
+  o += `<div class="csec"><h3>质量分与风险分</h3><div class="grid2">
+    <div class="card"><div class="dh"><b>质量分 Piotroski F-Score</b>${f.of >= 5 ? `<span class="${f.score >= 7 ? 'up' : f.score >= 4 ? '' : 'down'}"><b style="font-size:20px">${f.score}</b> / ${f.of}${f.level ? ' · ' + f.level : ''}</span>` : '<span class="muted">数据不足</span>'}</div>
+      <div class="muted small" style="margin-bottom:6px">9 条是/否检验,每满足一条加 1 分:7 分以上财务质量强,3 分以下偏弱。</div>
+      ${f.checks.map(c => `<div class="small">${c.ok === null ? '<span class="muted">—</span>' : c.ok ? '<span class="up">✓</span>' : '<span class="down">✗</span>'} ${esc(c.name)} <span class="muted">· ${esc(c.why)}</span></div>`).join('')}</div>
+    <div class="card"><div class="dh"><b>风险分 Altman Z 分数</b>${z.error ? '<span class="muted">不适用</span>' : `<span class="${z.zone === '安全区' ? 'up' : z.zone === '危险区' ? 'down' : ''}"><b style="font-size:20px">${z.z}</b> · ${z.zone}</span>`}</div>
+      ${z.error ? `<div class="muted small">${esc(z.msg)}</div>` : `<div class="muted small" style="margin-bottom:6px">衡量未来两年陷入财务困境的风险:高于 2.6 安全,1.1 到 2.6 是灰色地带,低于 1.1 危险。</div>
+      ${z.parts.map(p => `<div class="small">${esc(p[0])} <span class="muted">${p[1]}</span></div>`).join('')}`}</div></div></div>`;
+  const d = h.dcf;
+  o += `<div class="csec"><h3>内在价值区间 <span class="muted small">现金流折现模型,仅供学习,不是目标价</span></h3>`;
+  if (d.error) o += `<div class="muted small">${esc(d.msg)}</div>`;
+  else {
+    const sc = d.scenarios;
+    o += `<div class="kv">${sc.map(x => `<div><span class="muted small">${x.name}(增速 ${x.g}% · 折现率 ${x.r}%)</span><b>$${x.value}</b></div>`).join('')}<div><span class="muted small">当前股价</span><b>$${fmt(d.price)}</b>${d.ratio ? `<span class="small muted">是中性估值的 ${d.ratio} 倍</span>` : ''}</div></div>
+    <div class="muted small" style="line-height:1.7">假设:起点自由现金流 ${bigN(d.base_fcf)}(最近一年为主,加近 3 年均值);未来 10 年增速从起始值线性降到 3%,之后永续增长 2.5%;起始增速取过去 5 年营收年均增速(${d.hist_growth}%,限制在 3%–25%),保守 / 中性 / 乐观分别取 50% / 75% / 100%。加上现金、减去有息负债,除以最新股数。<br><b>局限:</b>对增速很快或现金流波动大的公司会严重低估,对稳定成熟的公司更可靠;这是一个把假设摆出来的算术练习,改一个假设结果就大变,不能当作买卖依据。</div>`;
+  }
+  o += '</div>';
+  if (em && em.msg && em.error !== 'no_options') o += `<div class="csec"><h3>财报前预期波动</h3><div class="muted small">${esc(em.msg)}</div></div>`;
+  else if (em && !em.error) o += `<div class="csec"><h3>财报前预期波动 <span class="muted small">来自期权价格</span></h3><div class="kv"><div><span class="muted small">下次财报</span><b>${esc(em.earn)}</b>${em.estimate ? '<span class="small muted">(日期为预估)</span>' : ''}</div><div><span class="muted small">期权隐含波动(到 ${esc(em.expiry)} 到期)</span><b>±${em.pct}%</b></div><div><span class="muted small">平值跨式组合价格</span><b>$${em.straddle}</b><span class="small muted">行权价 ${em.strike}</span></div></div>
+    <div class="muted small" style="line-height:1.7">算法:同时买入平值看涨和看跌期权的总价 ÷ 现价,大致就是市场预期到期前股价会波动的幅度(不分涨跌方向)。这个数字也包含了财报之前这 ${em.dte} 天的日常波动,所以会比纯财报当天的波动略大;盘后或休市时报价可能不准。</div></div>`;
+  return o;
+}
+async function fillHealth(s) {
+  const box = $('#hbox'); if (!box || !Data.loadHealth) return;
+  const paint = () => { const b = $('#hbox'); if (b && state.sel === s && state.dt === 'company') b.innerHTML = healthHTML(healthCache[s], emCache[s]); };
+  if (healthCache[s] === undefined) { box.innerHTML = '<div class="csec muted small">体检数据加载中…</div>'; try { healthCache[s] = await Data.loadHealth(s); } catch { healthCache[s] = { error: 'fail' }; } }
+  paint();
+  if (healthCache[s] && !healthCache[s].error && emCache[s] === undefined) { try { emCache[s] = await Data.loadEM(s); } catch { emCache[s] = { error: 'fail' }; } paint(); }
+}
 async function fillFin(s) {
   paintFin(s);
   if (finCache[s] === undefined) {
@@ -404,7 +443,7 @@ function companyHTML(s, c) {
   if (c && c.target) h += `<div class="csec"><h3>分析师目标价</h3>${targetHTML(c)}</div>`;      // 没数据(如 ETF)就不显示这一栏
   if (c && Array.isArray(c.grades) && c.grades.length) h += `<div class="csec"><h3>最近机构评级变动</h3>${gradesHTML(c)}</div>`;
   if (peers.length) h += `<div class="csec"><h3>竞争对手</h3><div class="chips">${chips}</div></div>`;
-  if (!isIdx(s)) h += '<div class="csec" id="finbox"></div>';
+  if (!isIdx(s)) h += '<div class="csec" id="finbox"></div><div id="hbox"></div>';
   h += extraHTML(c);
   if (!k && backlogHTML(c)) h += `<div class="csec"><h3>在手订单</h3>${backlogHTML(c)}</div>`;
   if (k) {
@@ -420,9 +459,9 @@ function companyHTML(s, c) {
 }
 async function renderCompany() {
   const s = state.sel, box = $('#dcompany'); if (!box) return;
-  box.innerHTML = companyHTML(s, null); fillFin(s);
+  box.innerHTML = companyHTML(s, null); fillFin(s); fillHealth(s);
   let c; try { c = await Data.loadCompany(s); } catch { c = { error: 'fail' }; }
-  if (state.sel === s && state.dt === 'company' && $('#dcompany')) { $('#dcompany').innerHTML = companyHTML(s, c); fillFin(s); }
+  if (state.sel === s && state.dt === 'company' && $('#dcompany')) { $('#dcompany').innerHTML = companyHTML(s, c); fillFin(s); fillHealth(s); }
 }
 function loadStats(s) { if (Data.loadDetail) Data.loadDetail(s).then(() => { if (state.sel === s && state.tab === 'watch' && $('#dhead')) $('#dhead').innerHTML = headHTML(s); }).catch(() => { }); }
 function newsHTML(list) {
@@ -883,6 +922,29 @@ async function renderSectorDetail(name) {
     <div class="card"><table><thead><tr><th>#</th><th>股票</th><th class="r">现价</th><th class="r">涨跌</th><th class="r">市值</th></tr></thead><tbody>${S.items.map((x, i) => `<tr><td class="muted">${i + 1}</td><td><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> <span class="muted small">${esc(x.name)}</span></td><td class="r">${fmt(x.price)}</td><td class="r ${cls(x.pct)}">${sgn(x.pct)}%</td><td class="r muted small">${capStr(x.cap)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 document.addEventListener('click', e => { const b = e.target.closest('[data-sec]'); if (b) { window.scrollTo({ top: 0 }); renderSectorDetail(b.dataset.sec); return; } if (e.target.closest('[data-secback]')) { state.secView = null; renderSectors(); } });
+// ===== 条件筛选(新手选行业和市值,点「筛选」)=====
+const SCR_SECTORS = [['', '全部行业'], ['Technology', '科技'], ['Communication Services', '通信与传媒'], ['Consumer Cyclical', '可选消费'], ['Consumer Defensive', '必需消费'], ['Healthcare', '医疗健康'], ['Financial Services', '金融'], ['Industrials', '工业'], ['Energy', '能源'], ['Utilities', '公用事业'], ['Real Estate', '房地产'], ['Basic Materials', '基础材料']];
+const SCR_INDUSTRIES = [['', '不限细分'], ['Semiconductors', '半导体'], ['Semiconductor Equipment & Materials', '半导体设备'], ['Computer Hardware', 'AI 硬件/存储'], ['Information Technology Services', 'IT 服务'], ['Communication Equipment', '通信设备'], ['Internet Content & Information', '互联网内容'], ['Entertainment', '娱乐/流媒体'], ['Telecom Services', '电信运营'], ['Internet Retail', '电商零售'], ['Specialty Retail', '专营零售'], ['Restaurants', '餐饮'], ['Auto Manufacturers', '汽车整车'], ['Airlines', '航空'], ['Biotechnology', '生物科技'], ['Medical Devices', '医疗器械'], ['Capital Markets', '投行与券商'], ['Credit Services', '信用卡/支付'], ['Insurance Brokers', '保险经纪'], ['Aerospace & Defense', '航空航天与国防'], ['Railroads', '铁路'], ['Oil & Gas Integrated', '综合油气'], ['Gold', '黄金矿业']];
+const SCR_CAPS = [['2e9|1e14', '20 亿以上(全部)'], ['2e11|1e14', '超大盘 · 2000 亿以上'], ['1e10|2e11', '大盘 · 100 亿–2000 亿'], ['2e9|1e10', '中盘 · 20 亿–100 亿'], ['3e8|2e9', '小盘 · 3 亿–20 亿(波动大)']];
+const SCR_SORT = [['cap', '市值从大到小'], ['pct', '今日涨幅最大'], ['pctdown', '今日跌幅最大'], ['vol', '成交量最大'], ['pe', '市盈率从低到高']];
+const SCR_PE = [['0', '估值不限'], ['15', '市盈率 15 以下'], ['25', '市盈率 25 以下'], ['40', '市盈率 40 以下']];
+const scr = { sector: '', industry: '', cap: '2e9|1e14', sort: 'cap', pe: '0', profit: false, res: null, busy: false };
+function renderScreen() {
+  const el = $('#view-screen'), sel = (id, opts, v) => `<label class="sf"><span class="muted small">${id}</span><select data-sf="${id}">${opts.map(o => `<option value="${esc(o[0])}" ${o[0] === v ? 'selected' : ''}>${esc(o[1])}</option>`).join('')}</select></label>`;
+  const R = scr.res, row = (x, i) => `<tr><td class="muted">${i + 1}</td><td><span class="sym" data-go="${esc(x.sym)}">${esc(x.sym)}</span> <span class="muted small">${esc(x.name)}</span></td><td class="r">${fmt(x.price)}</td><td class="r ${cls(x.pct)}">${sgn(x.pct)}%</td><td class="r muted small">${capStr(x.cap)}</td><td class="r muted small">${Number.isFinite(x.pe) ? x.pe.toFixed(1) : '--'}</td><td class="r muted small">${Number.isFinite(x.fpe) ? x.fpe.toFixed(1) : '--'}</td></tr>`;
+  el.innerHTML = `<div class="card"><div class="scrform">${sel('行业', SCR_SECTORS, scr.sector)}${sel('细分', SCR_INDUSTRIES, scr.industry)}${sel('市值', SCR_CAPS, scr.cap)}${sel('排序', SCR_SORT, scr.sort)}${sel('估值', SCR_PE, scr.pe)}
+    <label class="sf chk"><input type="checkbox" data-sf="profit" ${scr.profit ? 'checked' : ''}> <span class="small">只看盈利的公司</span></label><button class="tb on" id="scrGo">${scr.busy ? '筛选中…' : '筛选'}</button></div>
+    <div class="muted small">选「行业」是大类,「细分」是更具体的赛道,两个可以一起选。市值单位是美元。结果最多 30 只,点股票进入详情。</div></div>
+    ${R ? (R.error ? `<div class="card muted">筛选失败,稍后再试。</div>` : R.items.length ? `<div class="card"><table><thead><tr><th>#</th><th>股票</th><th class="r">现价</th><th class="r">今日</th><th class="r">市值</th><th class="r">市盈率</th><th class="r">预期市盈率</th></tr></thead><tbody>${R.items.map(row).join('')}</tbody></table><div class="muted small" style="margin-top:8px">共 ${R.items.length} 只 · 市盈率 = 股价 ÷ 近 12 个月每股收益,「预期」是按分析师预测的未来 12 个月算;数据来自 Yahoo,可能有延迟。这只是条件筛选,不是推荐。</div></div>` : '<div class="card muted">没有符合条件的股票,放宽条件再试。</div>') : ''}`;
+}
+async function runScreen() {
+  if (scr.busy) return; scr.busy = true; renderScreen();
+  const [cmin, cmax] = scr.cap.split('|'), qs = new URLSearchParams({ part: 'screen', sector: scr.sector, industry: scr.industry, cmin, cmax, sort: scr.sort, pemax: scr.pe, profit: scr.profit ? '1' : '' });
+  try { scr.res = await Data.screen(qs.toString()); } catch { scr.res = { error: 'fail' }; }
+  scr.busy = false; if (state.tab === 'screen') renderScreen();
+}
+document.addEventListener('change', e => { const k = e.target.dataset && e.target.dataset.sf; if (!k) return; const map = { 行业: 'sector', 细分: 'industry', 市值: 'cap', 排序: 'sort', 估值: 'pe' }; if (k === 'profit') scr.profit = e.target.checked; else scr[map[k]] = e.target.value; });
+document.addEventListener('click', e => { if (e.target.id === 'scrGo') runScreen(); });
 // ===== 财报日历 =====
 async function renderEarnings() {
   const el = $('#view-earnings'), days = [...Array(7)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() + i); return d; }).filter(d => d.getDay() % 6);
@@ -980,7 +1042,7 @@ async function renderAlerts() {
   let l; try { l = await Data.loadNews(''); } catch { l = { error: '新闻加载失败' }; }
   if (state.tab === 'alerts') $('#macroNews').innerHTML = newsHTML(l);
 }
-const renderers = { mylist: renderWatch, sectors: renderSectors, earnings: renderEarnings, movers: renderMovers, picks: renderPicks, macro: renderMacro, alerts: renderAlerts };
+const renderers = { screen: () => { const v = $('#view-screen'); if (!v.innerHTML.trim() || !v.contains(document.activeElement)) renderScreen(); }, mylist: renderWatch, sectors: renderSectors, earnings: renderEarnings, movers: renderMovers, picks: renderPicks, macro: renderMacro, alerts: renderAlerts };
 document.addEventListener('click', e => {
   const go = e.target.closest('[data-go]'); if (go) selectStock(go.dataset.go);
   if (e.target.dataset.day !== undefined) { state.day = +e.target.dataset.day; renderEarnings(); }

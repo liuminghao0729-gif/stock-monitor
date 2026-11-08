@@ -269,7 +269,7 @@ def _yh_screen(conds, sort, desc=True, size=30, ttl=240):
                                  data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
     q = json.load(op.open(req, timeout=15))["finance"]["result"][0]
     out = [{"sym": x["symbol"], "name": x.get("shortName") or x.get("longName") or x["symbol"], "price": x.get("regularMarketPrice"),
-            "pct": x.get("regularMarketChangePercent"), "vol": x.get("regularMarketVolume"), "cap": x.get("marketCap")} for x in q.get("quotes", []) if not re.search(r"-P[A-Z]?$", x["symbol"])]      # 去掉优先股
+            "pct": x.get("regularMarketChangePercent"), "vol": x.get("regularMarketVolume"), "cap": x.get("marketCap"), "pe": x.get("trailingPE"), "fpe": x.get("forwardPE")} for x in q.get("quotes", []) if not re.search(r"-P[A-Z]?$", x["symbol"])]      # 去掉优先股
     _cache[key] = (time.time(), out)
     return out
 
@@ -298,6 +298,38 @@ def sectors(n=10, only=None, ttl=600):
     with ThreadPoolExecutor(6) as ex:
         res = list(ex.map(one, defs))
     return {"sectors": res}
+
+
+SCREEN_SECTORS = {"Technology", "Communication Services", "Consumer Cyclical", "Consumer Defensive", "Healthcare", "Financial Services", "Industrials", "Energy", "Utilities", "Real Estate", "Basic Materials"}
+SCREEN_INDUSTRIES = {d[2] for d in SECTOR_DEFS if d[1] == "industry"} | {"Credit Services", "Gold", "Airlines", "Restaurants", "Specialty Retail", "Internet Content & Information", "Communication Equipment",
+                     "Insurance Brokers", "Oil & Gas Integrated", "Telecom Services", "Entertainment", "Information Technology Services", "Railroads"}
+
+
+def screen(q):
+    """条件筛选:行业(大类/细分)+ 市值范围 + 排序 + 估值上限 + 只要盈利公司。返回最多 30 只。"""
+    conds = [{"operator": "gt", "operands": ["intradayprice", 1]}]
+    sec, ind = q.get("sector", ""), q.get("industry", "")
+    if sec:
+        if sec not in SCREEN_SECTORS:
+            return {"error": "bad sector"}
+        conds.append({"operator": "eq", "operands": ["sector", sec]})
+    if ind:
+        if ind not in SCREEN_INDUSTRIES:
+            return {"error": "bad industry"}
+        conds.append({"operator": "eq", "operands": ["industry", ind]})
+    try:
+        lo, hi = float(q.get("cmin") or 2e9), float(q.get("cmax") or 1e14)
+        pemax = float(q.get("pemax") or 0)
+    except ValueError:
+        return {"error": "bad number"}
+    conds.append({"operator": "btwn", "operands": ["intradaymarketcap", max(lo, 3e8), hi]})
+    if pemax > 0 or q.get("profit") == "1":
+        conds.append({"operator": "btwn", "operands": ["peratio.lasttwelvemonths", 0.1, pemax if pemax > 0 else 1e6]})
+    sort = {"cap": ("intradaymarketcap", True), "pct": ("percentchange", True), "pctdown": ("percentchange", False), "vol": ("dayvolume", True),
+            "pe": ("peratio.lasttwelvemonths", False)}.get(q.get("sort", "cap"), ("intradaymarketcap", True))
+    if sort[0].startswith("peratio") and not any(c["operands"][0].startswith("peratio") for c in conds):
+        conds.append({"operator": "btwn", "operands": ["peratio.lasttwelvemonths", 0.1, 1e6]})
+    return {"items": _yh_screen(conds, sort[0], sort[1], 30, 180)}
 
 
 def movers():
@@ -606,12 +638,13 @@ def route(name, q):
         if name == "macro":
             return 200, macro(), 600
         if name == "movers":
-            return 200, (sectors(10) if q.get("part") == "sectors" else sectors(50, q.get("name", "")) if q.get("part") == "sector" else movers()), 120
+            return 200, (screen(q) if q.get("part") == "screen" else sectors(10) if q.get("part") == "sectors" else sectors(50, q.get("name", "")) if q.get("part") == "sector" else movers()), 120
         if name == "company":
             return 200, company(q["symbol"].upper()), 600
         if name == "fin":
-            import _fin
-            return 200, (_fin.segments if q.get("part") == "seg" else _fin.fin)(q["symbol"].upper()), 3600
+            import _fin, _health
+            fn = {"seg": _fin.segments, "health": _health.health, "em": _health.expected_move}.get(q.get("part"), _fin.fin)
+            return 200, fn(q["symbol"].upper()), 3600 if q.get("part") != "em" else 600
         if name == "search":
             return 200, search(q.get("q", "")), 60
         if name == "detail":

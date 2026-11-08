@@ -230,3 +230,6 @@ button.chip:hover{border-color:var(--accent);color:var(--accent)}
 .sgr{display:flex;gap:8px;align-items:center}.sgadd{width:26px;height:26px;border-radius:50%;border:1px solid var(--accent);color:var(--accent);padding:0;line-height:1;font-size:16px}.sgadd:hover{background:var(--accent);color:#000}
 .secgo{color:var(--accent);padding:2px 6px;font-size:13px}.secmore{display:block;width:100%;margin-top:8px;padding:10px;color:var(--accent);border-top:1px solid var(--line);border-radius:0;text-align:center;font-size:13px}
 .secback{display:flex;gap:12px;align-items:center;margin-bottom:14px}.secback button{color:var(--accent);padding:4px 8px}
+.hc td{padding:8px 6px;vertical-align:top}.hc .hn{white-space:nowrap;font-weight:500}.hc td:last-child{max-width:420px}
+@media(max-width:700px){.hc td:last-child{display:none}}
+.scrform{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:10px}.sf{display:flex;flex-direction:column;gap:4px}.sf select{min-width:150px}.sf.chk{flex-direction:row;align-items:center;gap:6px;padding-bottom:8px}
