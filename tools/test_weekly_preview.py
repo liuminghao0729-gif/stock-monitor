@@ -74,4 +74,15 @@ assert "提前收盘" not in M.build_weekly_preview(datetime.date(2026, 11, 8), 
 assert M.gate("weekly_preview", datetime.datetime(2026, 11, 8, 17, 0, tzinfo=PT))
 assert not M.gate("weekly_preview", datetime.datetime(2026, 11, 7, 17, 0, tzinfo=PT))
 assert not M.gate("weekly_preview", datetime.datetime(2026, 11, 8, 15, 0, tzinfo=PT))
-print("下周前瞻 + 周末回顾:全部通过")
+# 5) 本周总结:周日手动触发时,「本周」是刚结束的周一到周五
+assert M.last_friday(datetime.date(2026, 11, 8)) == datetime.date(2026, 11, 6)       # 周日 → 周五
+assert M.last_friday(datetime.date(2026, 11, 6)) == datetime.date(2026, 11, 6)       # 周五 → 当天
+assert M.last_friday(datetime.date(2026, 11, 9)) == datetime.date(2026, 11, 6)       # 周一 → 上周五
+assert M.week_dates(M.last_friday(datetime.date(2026, 11, 8)))[0] == datetime.date(2026, 11, 2)
+sctx = {"indices": [("标普", 1.2), ("纳指", -0.4)], "watch": [("AAPL", 2.0), ("NVDA", -3.0)], "levels": ["VIX 26.40", "10年债 4.86%"], "earnings": [], "macro_snapshot": ["10年债 4.86%"],
+        "news": [], "picks_changes": {}, "picks": None,
+        "sectors": [(n, v) for n, v in [("科技", -1.0), ("金融", 2.0), ("能源", 3.0), ("医疗", 0.5), ("可选消费", -0.5), ("必需消费", 0.2), ("工业", 1.0), ("材料", 0.1)]]}
+st, sm = M.build_weekly_summary(datetime.date(2026, 11, 6), sctx)
+for must in ("本周总结 11/02–11/06", "【指数本周】标普 +1.20%", "【板块本周】领涨 能源+3.00%", "落后 科技-1.00%", "【波动与利率】VIX 26.40", "【自选本周】", "【宏观最新值】"):
+    assert must in sm, (must, sm)
+print("下周前瞻 + 周末回顾 + 本周总结:全部通过")

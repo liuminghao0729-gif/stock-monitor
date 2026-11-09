@@ -287,6 +287,11 @@ def week_change(sym, ref_date):
         return None
 
 
+def last_friday(d):
+    """d 当天或之前最近的一个周五(周日手动触发总结时,「本周」指刚结束的这一周)。"""
+    return d - datetime.timedelta(days=(d.weekday() - 4) % 7)
+
+
 def week_dates(friday):
     mon = friday - datetime.timedelta(days=4)
     return [mon + datetime.timedelta(days=i) for i in range(5)]
@@ -326,6 +331,12 @@ def build_weekly_summary(friday, ctx):
     ds = week_dates(friday)
     lines = [f"本周总结 {ds[0].strftime('%m/%d')}–{ds[-1].strftime('%m/%d')}"]
     lines.append("【指数本周】" + "  ".join(f"{n} {pct_str(p)}" for n, p in ctx["indices"] if p is not None))
+    sec = sorted(((n, p) for n, p in ctx.get("sectors", []) if p is not None), key=lambda r: -r[1])
+    if len(sec) >= 6:
+        lines.append("【板块本周】领涨 " + "、".join(f"{n}{pct_str(p)}" for n, p in sec[:3]) + ";落后 " + "、".join(f"{n}{pct_str(p)}" for n, p in sec[-3:][::-1]))
+    lv = ctx.get("levels") or []
+    if lv:
+        lines.append("【波动与利率】" + "  ".join(lv))
     w = [(s, p) for s, p in ctx["watch"] if p is not None]
     if w:
         best, worst = max(w, key=lambda x: x[1]), min(w, key=lambda x: x[1])
@@ -522,9 +533,16 @@ def main(argv):
     elif cmd == "post":
         t, m = build_post({"picks": load_picks(), "prev_picks": prev})
     elif cmd == "weekly_summary":
-        d = now.date()
-        ctx = {"indices": [(n, week_change(s, d)) for n, s in [("标普", "SPX"), ("纳指", "IXIC"), ("道指", "DJI")]], "watch": [(s, week_change(s, d)) for s in watch],
-               "earnings": earnings_surprises(week_dates(d)), "macro_snapshot": macro_snapshot(), "news": fresh_news(5 * 24 * 60, watch),
+        d = last_friday(now.date())
+        idx = [("道指", "DJI"), ("标普", "SPX"), ("纳指", "IXIC"), ("罗素2000", "^RUT"), ("费城半导体", "^SOX")]
+        lv = []
+        for n, sy in (("VIX", "VIX"), ("10年债", "US10Y")):
+            q = quote(sy)
+            if q:
+                lv.append(f"{n} {q['price']:.2f}{'%' if n == '10年债' else ''}")
+        ctx = {"indices": [(n, week_change(sy, d)) for n, sy in idx], "watch": [(s, week_change(s, d)) for s in watch],
+               "sectors": [(n, week_change(sy, d)) for n, sy in [("科技", "XLK"), ("金融", "XLF"), ("能源", "XLE"), ("医疗", "XLV"), ("可选消费", "XLY"), ("必需消费", "XLP"), ("工业", "XLI"), ("材料", "XLB"), ("公用事业", "XLU"), ("房地产", "XLRE"), ("通信", "XLC"), ("半导体", "SMH")]],
+               "levels": lv, "earnings": earnings_surprises(week_dates(d)), "macro_snapshot": macro_snapshot(), "news": fresh_news(7 * 24 * 60, watch),
                "picks_changes": history_changes(week_dates(d)[0]), "picks": load_picks()}
         t, m = build_weekly_summary(d, ctx)
     elif cmd == "weekly_preview":
