@@ -4,7 +4,7 @@
 用法:
   python3 push/market_push.py gate <brief|hourly|mid|post>   判断现在该不该运行(写入 GITHUB_OUTPUT 的 run=true/false)
   python3 push/market_push.py brief                          盘前早报(美西 6:00 左右)
-  python3 push/market_push.py hourly                         每小时摘要(7:30–12:30)
+  python3 push/market_push.py hourly                         每小时摘要(7:30–12:30),并给开启了提醒的登录用户各发一条自己的持仓摘要
   python3 push/market_push.py mid                            盘中摘要 + 选股更新(10:30)
   python3 push/market_push.py post                           盘后选股推送
   python3 push/market_push.py weekly_summary                 周五总结(美西 15:00 左右)
@@ -526,6 +526,30 @@ def main(argv):
     else:
         print(__doc__)
         return
+    if cmd in ("hourly", "mid"):                       # 开了提醒的登录用户:收自己的持仓摘要,不再重复收共用的那条
+        served = set()
+        try:
+            import personal
+            def user_news(syms):
+                out = {}
+                for sc, tag, a in fresh_news(60, [x for x in syms if x not in OPT["etfs"]][:30]):
+                    if tag in syms:
+                        out.setdefault(tag, []).append(zh(a["headline"])[:56])
+                return out
+            head = ["【指数】" + index_line(ctx["indices"])]
+            if ctx["options"]:
+                head += ["【期权异常】"] + [f"· {option_line(r)}" for r in ctx["options"][:4]]
+            extra = picks_section(ctx["picks"], ctx.get("prev_picks"), title="选股更新(盘中,未收盘)") if cmd == "mid" else None
+            served = personal.run(now, quote, user_news, dry=dry, head=head, extra=extra) or set()
+        except Exception as e:
+            print("按人推送整体失败,共用摘要照常发给所有人:", type(e).__name__, str(e)[:80])
+        if served:
+            rest = personal.remaining_chats(os.environ.get("TELEGRAM_CHAT_ID"), served)
+            if not rest and not (dry or os.environ.get("DRY_RUN")):
+                print("所有收件人都已收到个人版,共用摘要不再重复发送")
+                return
+            if rest:
+                os.environ["TELEGRAM_CHAT_ID"] = rest
     send(t, m, SITE + ("/#picks" if cmd in ("mid", "post") else ""), dry)
 
 
