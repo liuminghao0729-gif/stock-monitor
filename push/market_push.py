@@ -8,7 +8,7 @@
   python3 push/market_push.py mid                            盘中摘要 + 选股更新(10:30)
   python3 push/market_push.py post                           盘后选股推送
   python3 push/market_push.py weekly_summary                 周五总结(美西 15:00 左右)
-  python3 push/market_push.py weekly_preview                 周日晚前瞻(美西 17:00 左右)
+  python3 push/market_push.py weekly_preview                 周日晚前瞻 + 周末新闻回顾(美西 17:00 左右)
   加 --dry 只打印不发送;加 --force 忽略时间和休市日检查。
 模型信号与信息摘要,不保证收益,请自行判断风险。期权"异常"只是按成交量/未平仓量/金额的粗略规则筛出,不代表方向或内幕。
 """
@@ -348,12 +348,70 @@ def build_weekly_summary(friday, ctx):
     return f"本周总结 {friday.strftime('%m/%d')}", "\n".join(lines)
 
 
+WK_CN = "一二三四五六日"
+EARLY_CLOSE = {"2026-11-27": "美西 10:00 收盘", "2026-12-24": "美西 10:00 收盘", "2027-11-26": "美西 10:00 收盘"}   # 提前收盘日,需要每年更新
+
+
+def weekend_news(now, watch):
+    """周末新闻回顾:上周五美股收盘(美西 13:00)到现在发生的重大新闻。
+    只做关键词筛选(宏观关键词 + 重大事件关键词,如战争、爆炸、断网、黑客、破产、灾害),不是人工挑选,可能漏掉或重复。
+    返回 {"items": [(时间戳, 标签, 中文标题, 来源)], "ok": 是否取到了数据}。"""
+    c, N = core(), news_scoring()
+    fri = now.date() - datetime.timedelta(days=(now.weekday() - 4) % 7)
+    cut = datetime.datetime.combine(fri, datetime.time(13, 0), tzinfo=PT).timestamp()
+    ok, cand = False, []
+    try:
+        gen = c._fh("news", {"category": "general"}, 120)
+        ok = gen is not None
+        for a in gen or []:
+            if a["datetime"] < cut:
+                continue
+            txt = a["headline"] + " " + a.get("summary", "")
+            sc = N.score(a["headline"], a.get("summary", ""), CFG["macro_keywords"]) + 2 * N.score(a["headline"], a.get("summary", ""), CFG.get("event_keywords", []))
+            if sc >= CFG.get("weekend_recap_min_score", 2):
+                cand.append((sc, "宏观/事件", a))
+    except Exception:
+        pass
+    for sym in watch:
+        if sym in OPT["etfs"]:
+            continue
+        try:
+            for a in c._fh("company-news", {"symbol": sym, "from": str(fri), "to": str(now.date())}, 120) or []:
+                if a["datetime"] >= cut and N.score(a["headline"], "", CFG["stock_keywords"]) >= 1 and sym.lower() in (a["headline"] + " " + a.get("related", "")).lower():
+                    cand.append((3, sym, a))
+        except Exception:
+            pass
+    cand.sort(key=lambda x: (-x[0], -x[2]["datetime"]))
+    seen, out = set(), []
+    for sc, tag, a in cand:
+        key = "".join(ch for ch in a["headline"].lower() if ch.isalnum())[:28]
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append((a["datetime"], tag, zh(a["headline"]), a.get("source", "")))
+        if len(out) >= CFG.get("weekend_recap_max", 8):
+            break
+    out.sort(key=lambda x: x[0])
+    return {"items": out, "ok": ok}
+
+
 def build_weekly_preview(sunday, ctx):
     mon = sunday + datetime.timedelta(days=1)
     ds = [mon + datetime.timedelta(days=i) for i in range(5)]
     lines = [f"下周前瞻 {ds[0].strftime('%m/%d')}–{ds[-1].strftime('%m/%d')}"]
     f, o = ctx["indices"]
     lines.append("【期货(周日晚已开盘)】" + (index_line(f) or "暂无") + (" | " + " ".join(o) if o else ""))
+    wkd = ctx.get("weekend")
+    lines.append("【周末发生了什么(周五收盘后至今)】")
+    if wkd is None or not wkd["ok"]:
+        lines.append("· 暂时取不到周末新闻")
+    elif not wkd["items"]:
+        lines.append("· 没有抓到符合条件的重大新闻(只按关键词筛选,可能漏掉)")
+    else:
+        for ts, tag, head, src in wkd["items"]:
+            t = datetime.datetime.fromtimestamp(ts, PT)
+            lines.append(f"· 周{WK_CN[t.weekday()]} {t.strftime('%H:%M')} " + (f"[{tag}] " if tag not in ("宏观/事件",) else "") + head[:80] + (f"({src})" if src else ""))
+        lines.append("(按关键词自动筛选,可能有遗漏或重复,以原文为准)")
     wk = "一二三四五"
     lines.append("【财报(市值>50亿美元)】")
     busiest = (None, 0)
@@ -361,12 +419,15 @@ def build_weekly_preview(sunday, ctx):
         e = ctx["earnings"].get(d, [])
         if len(e) > busiest[1]:
             busiest = (i, len(e))
-        lines.append(f"· 周{wk[i]}:" + ("、".join(x["sym"] for x in e[:5]) + (f" 等{len(e)}家" if len(e) > 5 else "") if e else "无"))
+        lines.append(f"· 周{wk[i]}({d.strftime('%m/%d')}):" + ("、".join(x["sym"] + ("盘前" if x["when"] == "盘前" else "") for x in e[:6]) + (f" 等{len(e)}家" if len(e) > 6 else "") if e else "无"))
     mine = [(wk[i], x["sym"], x["when"]) for i, d in enumerate(ds) for x in ctx["earnings"].get(d, []) if x["sym"] in ctx["watch"]]
     if mine:
         lines.append("【你的自选股财报】" + "、".join(f"{s} 周{w}{wh}" for w, s, wh in mine))
+    snap = ctx.get("macro_snapshot")
+    if snap:
+        lines.append("【当前宏观】" + "、".join(snap))
     ev = ctx["macro_events"]
-    lines.append("【宏观数据】" + ("无" if not ev else ""))
+    lines.append("【本周宏观数据发布】" + ("无" if not ev else ""))
     lines += [f"· {d.strftime('%m/%d')} 周{'一二三四五六日'[d.weekday()]} {n}" for d, n in ev]
     hol = [d for d in ds if d.isoformat() in HOLIDAYS]
     notes = []
@@ -377,7 +438,9 @@ def build_weekly_preview(sunday, ctx):
     for n, q in ctx.get("levels", []):
         if n == "VIX" and q and q["price"] >= 25:
             notes.append(f"VIX {q['price']:.1f} 偏高,波动可能较大")
-    notes.append("提前收盘日(感恩节次日、平安夜)请自行留意")
+    early = [f"{d.strftime('%m/%d')} 提前收盘,{EARLY_CLOSE[d.isoformat()]}" for d in ds if d.isoformat() in EARLY_CLOSE]
+    if early:
+        notes.append("、".join(early))
     lines.append("【需要注意】" + ";".join(notes))
     lines += picks_section(ctx["picks"], title="当前选股(上周五收盘后)")
     lines.append("模型信号与信息前瞻,不保证收益,请自行判断风险")
@@ -458,7 +521,7 @@ def main(argv):
         mon = d + datetime.timedelta(days=1)
         days = [mon + datetime.timedelta(days=i) for i in range(5)]
         ctx = {"indices": premarket_indices(), "earnings": {x: earnings_today(x) for x in days}, "watch": watch, "macro_events": macro_events_between(days[0], days[-1]),
-               "levels": [("VIX", quote("VIX"))], "picks": load_picks()}
+               "levels": [("VIX", quote("VIX"))], "picks": load_picks(), "macro_snapshot": macro_snapshot(), "weekend": weekend_news(now, watch)}
         t, m = build_weekly_preview(d, ctx)
     else:
         print(__doc__)
