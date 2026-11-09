@@ -122,5 +122,6 @@
     "arrest"
   ],
   "weekend_recap_min_score": 2,
-  "weekend_recap_max": 8
+  "weekend_recap_max": 8,
+  "personal_move_pct": 3.0
 }

@@ -4,7 +4,7 @@
 用法:
   python3 push/market_push.py gate <brief|hourly|mid|post>   判断现在该不该运行(写入 GITHUB_OUTPUT 的 run=true/false)
   python3 push/market_push.py brief                          盘前早报(美西 6:00 左右)
-  python3 push/market_push.py hourly                         每小时摘要(7:30–12:30),并给开启了提醒的登录用户各发一条自己的持仓摘要
+  python3 push/market_push.py hourly                         每小时摘要(7:30–12:30),并给开启了提醒的登录用户各发一条个人版摘要(大盘、催化剂、资金异动、持仓雷达、集中度、关注、风险提示)
   python3 push/market_push.py mid                            盘中摘要 + 选股更新(10:30)
   python3 push/market_push.py post                           盘后选股推送
   python3 push/market_push.py weekly_summary                 周五总结(美西 15:00 左右)
@@ -482,6 +482,17 @@ def send(title, message, click="", dry=False):
     print("已推送:", title)
 
 
+def earnings_with_results(d):
+    """今天发财报的大公司(市值≥50亿美元):代码、盘前盘后、实际和预期每股收益(Finnhub)。"""
+    c = core()
+    r = c._fh("calendar/earnings", {"from": d.isoformat(), "to": d.isoformat()}, 600) or {}
+    rows = [x for x in r.get("earningsCalendar", []) if x.get("hour") != "dmh"]
+    caps = c._yh_caps([x["symbol"] for x in rows])
+    keep = sorted((x for x in rows if (caps.get(x["symbol"]) or {}).get("cap", 0) >= 5e9), key=lambda x: -caps[x["symbol"]]["cap"])[:40]
+    hour = {"bmo": "盘前", "amc": "盘后"}
+    return [{"sym": x["symbol"], "when": hour.get(x.get("hour"), "盘后"), "act": x.get("epsActual"), "est": x.get("epsEstimate")} for x in keep]
+
+
 def main(argv):
     cmd = argv[1] if len(argv) > 1 else ""
     dry, force = "--dry" in argv, "--force" in argv
@@ -529,20 +540,16 @@ def main(argv):
     if cmd in ("hourly", "mid"):                       # 开了提醒的登录用户:收自己的持仓摘要,不再重复收共用的那条
         served = set()
         try:
-            import personal
-            def user_news(syms):
-                out = {}
-                for sc, tag, a in fresh_news(60, [x for x in syms if x not in OPT["etfs"]][:30]):
-                    if tag in syms:
-                        out.setdefault(tag, []).append(zh(a["headline"])[:56])
-                return out
-            head = ["【指数】" + index_line(ctx["indices"])]
-            if ctx["options"]:
-                head += ["【期权异常】"] + [f"· {option_line(r)}" for r in ctx["options"][:4]]
-            extra = picks_section(ctx["picks"], ctx.get("prev_picks"), title="选股更新(盘中,未收盘)") if cmd == "mid" else None
-            served = personal.run(now, quote, user_news, dry=dry, head=head, extra=extra) or set()
+            import personal, digest
+            users = personal.fetch_users() if personal.configured() else []
+            if users:
+                D = digest.RealData(core(), fresh_news, zh, lambda: earnings_with_results(now.date()), None)
+                opts = ["期权异常:" + option_line(r) for r in ctx["options"][:4]]
+                served = digest.run(now, cmd, D, users, ctx["picks"], opts, dry=(dry or bool(os.environ.get("DRY_RUN")))) or set()
+            elif not personal.configured():
+                print("没有设置 SUPABASE_URL / SUPABASE_SERVICE_KEY,跳过个人摘要")
         except Exception as e:
-            print("按人推送整体失败,共用摘要照常发给所有人:", type(e).__name__, str(e)[:80])
+            print("个人摘要整体失败,共用摘要照常发给所有人:", type(e).__name__, str(e)[:100])
         if served:
             rest = personal.remaining_chats(os.environ.get("TELEGRAM_CHAT_ID"), served)
             if not rest and not (dry or os.environ.get("DRY_RUN")):
