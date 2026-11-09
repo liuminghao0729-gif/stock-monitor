@@ -20,9 +20,14 @@ function paintTg() {
   if (!CLOUD.user) { el.innerHTML = '<h3 style="margin-top:0">Telegram 盘中提醒</h3><div class="muted small">登录 Google 后,可以把你的自选股和持仓变化,在美股交易时段每小时发到你的 Telegram。</div>'; return; }
   const t = CLOUD.tg;
   el.innerHTML = `<h3 style="margin-top:0">Telegram 盘中提醒</h3>
-    <div class="muted small" style="line-height:1.8">美股交易时段(美西 7:30–12:30)每小时,把你的自选股和持仓变化发到你的 Telegram。只含信息,不是买卖建议。<br>
-    设置三步:① 在 Telegram 里搜索并打开管理员告诉你的机器人,点 Start,发一句话;② 搜索 <b>@userinfobot</b>,点 Start,它会回复你的 Id(一串数字);③ 把这串数字填到下面,点保存。</div>
-    <form id="tgForm" class="holdform" style="margin-top:8px"><input id="tgId" placeholder="你的 Telegram Id(数字)" inputmode="numeric" autocomplete="off" value="${esc(t.id)}"><label class="small" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="tgOn" ${t.on ? 'checked' : ''}>开启每小时摘要</label><button type="submit">保存</button></form>
+    <div class="small" style="line-height:1.9">美股交易日每小时(美西 7:30–12:30),把你的自选股和持仓变化发到你的 Telegram。只含信息,不是买卖建议。</div>
+    <ol class="small" style="line-height:1.9;margin:8px 0 10px;padding-left:20px;font-family:inherit">
+      <li>没有 Telegram 的话,先在手机应用商店搜索“Telegram”,下载并用手机号注册。</li>
+      <li>打开我们的机器人:<a href="https://t.me/LeoStockMonitor_bot" target="_blank" rel="noopener"><b>t.me/LeoStockMonitor_bot</b></a>(也可以在 Telegram 里搜索 <b>@LeoStockMonitor_bot</b>)。点下面的 <b>Start</b>(开始),再随便发一句话。</li>
+      <li>在 Telegram 里搜索 <b>@userinfobot</b>,点进去,点 <b>Start</b>,它会回复一串数字(Id),长按复制这串数字。</li>
+      <li>回到这里,把数字粘贴到下面的框里,点 <b>保存</b>,看到“已保存”就完成。</li>
+    </ol>
+    <form id="tgForm" class="holdform"><input id="tgId" placeholder="你的 Telegram Id(数字)" inputmode="numeric" autocomplete="off" value="${esc(t.id)}"><label class="small" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="tgOn" ${t.on ? 'checked' : ''}>开启每小时摘要</label><button type="submit">保存</button></form>
     <div id="tgMsg" class="muted small">${t.ready ? '' : '读取中…'}</div>`;
 }
 
