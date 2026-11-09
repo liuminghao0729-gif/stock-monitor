@@ -28,11 +28,12 @@ function paintTg() {
       <li>回到这里,把数字粘贴到下面的框里,点 <b>保存</b>,看到“已保存”就完成。</li>
     </ol>
     <form id="tgForm" class="holdform"><input id="tgId" placeholder="你的 Telegram Id(数字)" inputmode="numeric" autocomplete="off" value="${esc(t.id)}"><label class="small" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="tgOn" ${t.on ? 'checked' : ''}>开启每小时摘要</label><button type="submit">保存</button></form>
-    <div id="tgMsg" class="muted small">${t.ready ? '' : '读取中…'}</div>`;
+    <div id="tgMsg" class="muted small">${t.ready ? '' : '读取中…'}</div>
+    <div class="muted small" style="margin-top:4px">${t.ready && t.nw != null ? `云端已保存:自选股 ${t.nw} 只、持仓 ${t.nh} 只(提醒按这份内容发;刚改完等几秒再刷新页面看)` : ''}</div>`;
 }
 
 async function loadTg() {                          // 单独读取:数据库还没加这两列时,不影响自选股和持仓同步
-  const { data, error } = await CLOUD.sb.from('user_data').select('tg_chat_id,tg_hourly').eq('user_id', CLOUD.user.id).maybeSingle();
+  const { data, error } = await CLOUD.sb.from('user_data').select('tg_chat_id,tg_hourly,watch,holdings').eq('user_id', CLOUD.user.id).maybeSingle();
   if (error) { CLOUD.tg = { id: '', on: true, ready: true }; paintTg(); const m = document.getElementById('tgMsg'); if (m) m.textContent = '这项功能还没开通(管理员需要先在数据库里加两列)。'; return; }
   CLOUD.tg = { id: (data && data.tg_chat_id) || '', on: !data || data.tg_hourly !== false, ready: true }; paintTg();
 }
@@ -45,7 +46,7 @@ document.addEventListener('submit', async e => {
   msg.textContent = '保存中…';
   const { error } = await CLOUD.sb.from('user_data').upsert({ user_id: CLOUD.user.id, tg_chat_id: id || null, tg_hourly: on, updated_at: new Date().toISOString() });
   if (error) { msg.textContent = '保存失败:' + error.message; return; }
-  CLOUD.tg = { id, on, ready: true }; msg.textContent = id ? '已保存。下一个交易时段整点前后,你会在 Telegram 收到摘要。' : '已清除,不再发送。';
+  CLOUD.tg = Object.assign({}, CLOUD.tg, { id, on, ready: true }); msg.textContent = id ? '已保存。下一个交易时段整点前后,你会在 Telegram 收到摘要。' : '已清除,不再发送。';
 });
 
 async function cloudLoad() {                       // 登录后:云端有数据就用云端;云端没有的部分,把本机的传上去

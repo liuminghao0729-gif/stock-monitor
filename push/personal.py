@@ -52,7 +52,8 @@ def build(t, u, quotes, news=None, head=None, extra=None):
             if not q:
                 missing.append(h["sym"]); continue
             px, pct = q["price"], q["pct"]
-            prev = px / (1 + pct / 100) if pct is not None and pct > -100 else px
+            pct = pct or 0.0
+            prev = px / (1 + pct / 100) if pct > -100 else px
             v, c, d = h["qty"] * px, h["qty"] * h["cost"], h["qty"] * (px - prev)
             tv += v; tc += c; day += d
             rows.append((abs(d), f"· {h['sym']} {px:,.2f}({pct:+.2f}%) 今日 {usd(d, True)},累计 {(px / h['cost'] - 1) * 100:+.1f}%"))
@@ -61,11 +62,16 @@ def build(t, u, quotes, news=None, head=None, extra=None):
         if missing:
             lines.append("(没取到报价:" + "、".join(missing) + ")")
     rest = [s for s in u["watch"] if s not in held]
-    if rest:
-        parts = [f"{s} {quotes[s]['price']:,.2f}({quotes[s]['pct']:+.2f}%)" for s in rest if s in quotes]
-        lines.append("【自选】" + ("  ".join(parts) if parts else "暂时取不到报价"))
     if not u["hold"] and not u["watch"]:
         return None
+    if rest:
+        parts = [f"{s} {quotes[s]['price']:,.2f}({(quotes[s]['pct'] or 0):+.2f}%)" for s in rest if s in quotes]
+        lines.append("【自选】" + ("  ".join(parts) if parts else "暂时取不到报价"))
+    elif u["watch"]:
+        lines.append("【自选】你的自选股都已在上面的持仓里")
+    else:
+        lines.append("【自选】云端还没有你的自选股(在网页里添加后等几秒,下一次就会出现)")
+    lines.append(f"(云端已同步:自选 {len(u['watch'])} 只、持仓 {len(u['hold'])} 只)")
     if news:
         lines.append("【和你的股票有关的要闻】")
         lines += [f"· [{tag}] {head}" for tag, head in news[:3]]

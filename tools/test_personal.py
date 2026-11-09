@@ -31,6 +31,10 @@ m = sent[0][1]
 # NVDA:+2% → 前收 205.88,100 股 → 今日 +$411.8;MU +5% → 50 股 → +$285.7;合计 +$697;累计:NVDA +40%,MU +20%
 for must in ("【持仓】今日 +$697(+2.65%)", "NVDA 210.00(+2.00%)", "MU 120.00(+5.00%)", "累计 +40.0%", "没取到报价:ZZZZ", "【自选】AAPL 190.00(-1.00%)  VOO 600.00(+0.50%)", "英伟达获新订单", "不是买卖建议"):
     assert must in m, (must, m)
+assert "云端已同步:自选 2 只、持仓 3 只" in m
+assert "云端还没有你的自选股" in P.build(T, {"chat": "1", "watch": [], "hold": [{"sym": "NVDA", "qty": 1, "cost": 1}]}, Q)[1]
+assert "自选股都已在上面的持仓里" in P.build(T, {"chat": "1", "watch": ["NVDA"], "hold": [{"sym": "NVDA", "qty": 1, "cost": 1}]}, Q)[1]
+assert P.build(T, {"chat": "1", "watch": ["AAPL"], "hold": []}, {"AAPL": {"price": 1.0, "pct": None}}) is not None     # 涨跌幅取不到不报错
 assert "【持仓】" not in sent[1][1] and "【自选】AAPL" in sent[1][1]
 assert "NVDA" not in sent[2][1].split("【自选】")[0] and "【自选】AAPL" in sent[2][1]
 # 一个人发送失败,不影响其他人
