@@ -1,7 +1,7 @@
-"""新闻推送程序:抓取 Finnhub 新闻 -> 判断重要性 -> 通过 ntfy 推送到手机。
+"""新闻推送程序:抓取 Finnhub 新闻 -> 判断重要性 -> 通过 Telegram 推送到手机。
 环境变量(都是保密信息,绝不写进代码):
   FINNHUB_KEY  Finnhub API Key
-  NTFY_TOPIC   你的 ntfy 主题名(相当于你的专属频道,别人知道就能给你发消息,要保密)
+  TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID  Telegram 机器人令牌和收消息的聊天编号(见 push/tg.py)
   DRY_RUN=1    只打印,不真的推送
 用法:python3 push/notify.py            正常运行
       python3 push/notify.py --selftest  用样例新闻测试判断逻辑(不联网)
@@ -55,8 +55,8 @@ def fh(path, **params):
 def send(title, message, click="", priority=3):
     if os.environ.get("DRY_RUN"):
         print("[DRY]", title, "|", message[:80]); return
-    body = json.dumps({"topic": os.environ["NTFY_TOPIC"], "title": title, "message": message, "click": click, "priority": priority}).encode()
-    urllib.request.urlopen(urllib.request.Request("https://ntfy.sh/", data=body, headers={"Content-Type": "application/json"}), timeout=20).read()
+    import tg
+    tg.send_tg(title, message, click)
 
 
 def in_quiet(t, cfg=CFG):
@@ -132,7 +132,7 @@ def selftest():
 
 
 def test_push():
-    send("美股推送测试", "收到这条说明:GitHub → ntfy → 手机 这条链路是通的。")
+    send("美股推送测试", "收到这条说明:GitHub → Telegram → 手机 这条链路是通的。")
     print("已发送测试推送")
 
 

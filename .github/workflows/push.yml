@@ -32,5 +32,6 @@ jobs:
       - name: 运行推送程序
         env:
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python3 push/notify.py ${{ inputs.test && '--test' || '' }}

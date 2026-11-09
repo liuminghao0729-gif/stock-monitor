@@ -32,13 +32,15 @@ jobs:
         if: ${{ steps.gs.outputs.run == 'true' || inputs.which == 'summary' }}
         env:
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           FRED_KEY: ${{ secrets.FRED_KEY }}
         run: python3 push/market_push.py weekly_summary ${{ inputs.which == 'summary' && '--force' || '' }}
       - name: 发送下周前瞻
         if: ${{ steps.gp.outputs.run == 'true' || inputs.which == 'preview' }}
         env:
           FINNHUB_KEY: ${{ secrets.FINNHUB_KEY }}
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           FRED_KEY: ${{ secrets.FRED_KEY }}
         run: python3 push/market_push.py weekly_preview ${{ inputs.which == 'preview' && '--force' || '' }}

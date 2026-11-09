@@ -1,6 +1,6 @@
-"""盘前早报 / 每小时盘中摘要 / 选股推送(盘中、盘后)。通过 ntfy 推送到手机。
+"""盘前早报 / 每小时盘中摘要 / 选股推送(盘中、盘后)。通过 Telegram 推送到手机。
 所有时间按美西时间(America/Los_Angeles)。美股美西 6:30 开盘,13:00 收盘。
-环境变量(保密信息,只放在 GitHub Secrets):FINNHUB_KEY、NTFY_TOPIC;可选 FRED_KEY(宏观日历)。
+环境变量(保密信息,只放在 GitHub Secrets):FINNHUB_KEY、TELEGRAM_BOT_TOKEN、TELEGRAM_CHAT_ID;可选 FRED_KEY(宏观日历)。
 用法:
   python3 push/market_push.py gate <brief|hourly|mid|post>   判断现在该不该运行(写入 GITHUB_OUTPUT 的 run=true/false)
   python3 push/market_push.py brief                          盘前早报(美西 6:00 左右)
@@ -411,12 +411,11 @@ def send(title, message, click="", dry=False):
     if dry or os.environ.get("DRY_RUN"):
         print("====", title, "====\n" + message + "\n")
         return
-    topic = os.environ.get("NTFY_TOPIC")
-    if not topic:
-        print("没有设置 NTFY_TOPIC,跳过推送")
+    import tg
+    if not tg.configured():
+        print("没有设置 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID,跳过推送")
         return
-    body = json.dumps({"topic": topic, "title": title, "message": message[:3900], "click": click or SITE, "priority": 3}).encode()
-    urllib.request.urlopen(urllib.request.Request("https://ntfy.sh/", data=body, headers={"Content-Type": "application/json"}), timeout=20).read()
+    tg.send_tg(title, message, click or SITE)
     print("已推送:", title)
 
 

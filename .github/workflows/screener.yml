@@ -63,6 +63,7 @@ jobs:
         if: ${{ inputs.notify_only || steps.gate.outputs.run == 'true' }}
         continue-on-error: true
         env:
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           PREV_SCREENER: /tmp/prev_screener.json
         run: python3 push/market_push.py post --force
