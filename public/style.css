@@ -438,3 +438,11 @@ kbd{font:500 11px "SF Mono",Menlo,monospace;border:1px solid var(--line);border-
 .mac2 .mtxt{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;border-top:1px solid var(--line);padding-top:12px}
 .mac2 .mtxt p{margin:4px 0 0;line-height:1.75;font-size:13px}
 @media(max-width:860px){.mac2 .mtxt{grid-template-columns:1fr;gap:12px}}
+/* 画图:一个下拉菜单 + 画图时的提示行 */
+.dtools{margin:0 0 6px;min-height:0}
+.dtools:empty{display:none}
+.dwcs{display:flex;gap:10px;padding:6px 10px}
+.dwc{width:18px;height:18px;border-radius:50%;border:2px solid transparent;padding:0;cursor:pointer}
+.pop button.dwc{display:inline-block;width:18px;padding:0}
+.dwc.on{border-color:#fff}
+.pop button:disabled{opacity:.35;cursor:default}

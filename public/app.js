@@ -284,6 +284,7 @@ async function renderDetail() {
   <div class="dtabs" id="dtabs"><button data-dt="chart">图表</button>${isIdx(s) ? '' : '<button data-dt="company">公司</button>'}</div>
   <div id="dchart">
     <div class="tbar" id="tb"></div>
+    <div class="dtools" id="dtools"></div>
     <div class="legend" id="legend"></div>
     <div class="chartwrap" id="cw"><canvas id="cv"></canvas><div id="cload" class="cload">图表加载中…</div></div>
     <h3>${isIdx(s) ? '市场新闻' : s + ' 相关新闻'}</h3>
@@ -615,8 +616,11 @@ function renderToolbar() {
       <div class="pop hidden" id="popMin">${Object.entries(MINUTES).map(([k, n]) => `<button data-p="${k}" class="${p === k ? 'on' : ''}">${n}</button>`).join('')}</div></span></div>
     <div class="tr"><button class="tb" data-act="type" title="切换蜡烛图 / 折线图">${state.type === 'candle' ? '蜡烛图' : '折线图'}</button>
       <button class="tb ic" data-act="zout" title="缩小">−</button><button class="tb ic" data-act="zin" title="放大">＋</button><button class="tb ic" data-act="reset" title="复位到最新">⟲</button>
+      <span class="pwrap"><button class="tb" id="dwBtn" data-act="drawmenu">画图 ▾</button>
+        <div class="pop right hidden" id="popDraw"></div></span>
       <span class="pwrap"><button class="tb" data-act="indmenu">指标</button>
         <div class="pop right hidden" id="popInd"><div class="pt">主图</div>${IND_ITEMS.map(chk).join('')}<div class="pt">副图</div>${SUB_ITEMS.map(chk).join('')}</div></span></div>`;
+  dwTools();
 }
 function syncChecks() { document.querySelectorAll('#popInd input[data-ind]').forEach(i => i.checked = !!indOn(i.dataset.ind)); }
 function closePops() { document.querySelectorAll('.pop').forEach(p => p.classList.add('hidden')); }
@@ -633,7 +637,7 @@ $('#detail').addEventListener('click', e => {
   if (t.dataset.act === 'preset') return applyPreset(t.dataset.v);
   if (t.dataset.p) return setPeriod(t.dataset.p);
   const a = t.dataset.act, pop = t.parentElement.querySelector('.pop');
-  if (a === 'minmenu' || a === 'indmenu') { const was = pop.classList.contains('hidden'); closePops(); pop.classList.toggle('hidden', !was); e.stopPropagation(); return; }
+  if (a === 'minmenu' || a === 'indmenu' || a === 'drawmenu') { const was = pop.classList.contains('hidden'); closePops(); pop.classList.toggle('hidden', !was); e.stopPropagation(); return; }
   if (a === 'stats') { store.set('statsOpen', !store.get('statsOpen', true)); $('#dhead').innerHTML = headHTML(state.sel); return; }
   closePops(); if (!V) return;
   if (a === 'type') { state.type = state.type === 'candle' ? 'line' : 'candle'; store.set('ctype', state.type); renderToolbar(); }
@@ -652,7 +656,7 @@ document.addEventListener('click', e => { if (!e.target.closest('.pwrap')) close
 // ===== 图表:数据、视图(缩放/拖动)、布局 =====
 let V = null;                                    // 当前图表数据与布局
 const view = { start: 0, count: 100 };           // 可见窗口:第 start 根K线开始,共 count 根(可为小数,左右允许留白)
-const ptr = { map: new Map(), drag: null, pinch: null, my: -1, moved: false };
+const ptr = { map: new Map(), drag: null, pinch: null, mx: -1, my: -1, moved: false };
 const PL = 4, PR = 58;                           // 绘图区左右边距(右侧放价格轴)
 
 // ===== 副图信号:放量、MACD 金叉死叉、RSI / MACD 顶底背离 =====
@@ -879,7 +883,7 @@ function paint() {
     if (p.id === 'price') {
       let l = Infinity, h = -Infinity; for (let i = i0; i <= i1; i++) { l = Math.min(l, B[i].l); h = Math.max(h, B[i].h); }
       if (!isFinite(l)) { l = 0; h = 1; } const pad = (h - l) * .08 || h * .01 || 1; scale(l >= 0 ? Math.max(0, l - pad) : l - pad, h + pad);   // 价格不会为负
-      const dec = decOf(B[ref].c); p.dec = dec; p.fv = v => fmt(v, dec);
+      const dec = decOf(B[ref].c); p.dec = dec; p.fv = v => fmt(v, dec); p.Yf = Y;
       grid([0, 1, 2, 3, 4].map(k => lo + (hi - lo) * k / 4), p.fv);
       const last = B[n - 1].c, prev = n > 1 ? B[n - 2].c : B[n - 1].o;
       clipPlot(top, bot);
@@ -911,6 +915,7 @@ function paint() {
         drawPatterns(ctx, { X, Y, top, bot, W, PL, PR, off: V._pat.off, ext: Math.max(2, cnt * .12), list: V._pat.list, up: UP, down: DOWN, accent: C.accent, last: i1 });
       }
       if ((I.sr || I.trend) && n >= 40) drawSR(ctx, { X, Y, top, bot, W, PL, PR, i1, ext: Math.max(2, cnt * .12), I, lo, hi });
+      drawUser(ctx, { X, Y, top, bot, W, PL, PR });
       // 窗口内最高/最低价标注
       let ih = i0, il = i0; for (let i = i0; i <= i1; i++) { if (B[i].h > B[ih].h) ih = i; if (B[i].l < B[il].l) il = i; }
       ctx.font = '11px sans-serif'; ctx.fillStyle = '#c9d1d9';
@@ -993,7 +998,7 @@ function bindChart() {
     } else if (ptr.drag && had && (e.pointerType !== 'mouse' || (e.buttons & 1))) {
       const dx = q.x - ptr.drag.x; if (Math.abs(dx) > 3) ptr.moved = true;
       if (ptr.moved) { cv.style.cursor = 'grabbing'; state.hover = -1; view.start = ptr.drag.start - dx / (plotW() / view.count); clampView(); paint(); }
-    } else if (e.pointerType === 'mouse') { ptr.my = q.y; state.hover = idxAt(q.x); paint(); }
+    } else if (e.pointerType === 'mouse') { ptr.mx = q.x; ptr.my = q.y; state.hover = idxAt(q.x); paint(); }
   });
   const up = e => {
     if (!V) return; ptr.map.delete(e.pointerId); cv.style.cursor = 'crosshair';
@@ -1004,13 +1009,18 @@ function bindChart() {
       if (e.type === 'pointerup' && !ptr.moved) {
         const hit = (V.hits || []).find(h => q.x >= h.x0 && q.x <= h.x1 && q.y >= h.y0 && q.y <= h.y1);
         if (hit) { state.ind[hit.id] = 0; store.set('ind2', state.ind); syncChecks(); layout(); state.hover = -1; paint(); }
-        else if (e.pointerType !== 'mouse') { state.hover = state.hover >= 0 && Math.abs(state.hover - idxAt(q.x)) < 1 ? -1 : idxAt(q.x); ptr.my = q.y; paint(); }
+        else if (dwClick(q)) { dwTools(); paint(); }                       // 画图工具:点一下落一个点
+        else {
+          const id = dwHit(q, e.pointerType);                             // 光标模式:点中某条画线就选中它
+          if (id !== draw.sel) { draw.sel = id; dwTools(); paint(); }
+          if (!id && e.pointerType !== 'mouse') { state.hover = state.hover >= 0 && Math.abs(state.hover - idxAt(q.x)) < 1 ? -1 : idxAt(q.x); ptr.my = q.y; paint(); }
+        }
       }
       ptr.drag = null;
     }
   };
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
-  cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && !ptr.drag) { state.hover = -1; ptr.my = -1; if (V) paint(); } });
+  cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && !ptr.drag) { state.hover = -1; ptr.mx = -1; ptr.my = -1; if (V) paint(); } });
   cv.addEventListener('wheel', e => {
     if (!V) return; e.preventDefault(); const q = pos(e);
     if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) { view.start += e.deltaX / (plotW() / view.count); clampView(); }
@@ -1018,6 +1028,107 @@ function bindChart() {
     paint();
   }, { passive: false });
   cv.addEventListener('dblclick', () => { if (V) { resetView(); paint(); } });
+}
+
+// ===== 画图工具(基础版):趋势线、射线、水平线、垂直线、矩形、斐波那契回撤 =====
+// 每条画线只记录「第几根K线的时间 + 价格」,所以放大缩小、数据刷新后仍然贴在原位;按「股票 + 周期」存在本浏览器里(不上传)。
+const DW_TOOLS = [['cur', '光标'], ['trend', '趋势线'], ['ray', '射线'], ['hline', '水平线'], ['vline', '垂直线'], ['rect', '矩形'], ['fib', '斐波那契']];
+const DW_COLORS = ['#4c8dff', '#f5c542', '#b57bee', '#e6edf3'], DW_FIB = [0, .236, .382, .5, .618, .786, 1], DW_MAX = 60;
+const draw = { tool: 'cur', color: store.get('dwColor', DW_COLORS[0]), pend: null, sel: null, key: '', list: [] };
+const dwOk = d => d && typeof d.id === 'string' && ['trend', 'ray', 'hline', 'vline', 'rect', 'fib'].includes(d.type) && d.a && typeof d.a.t === 'string' && Number.isFinite(d.a.p)
+  && (['hline', 'vline'].includes(d.type) || (d.b && typeof d.b.t === 'string' && Number.isFinite(d.b.p)));
+function dwList() {
+  const k = 'dw|' + state.sel + '|' + state.period;
+  if (draw.key !== k) { draw.key = k; const l = store.get(k, []); draw.list = Array.isArray(l) ? l.filter(dwOk).slice(-DW_MAX) : []; draw.pend = null; draw.sel = null; }
+  return draw.list;
+}
+const dwSave = () => store.set(draw.key, draw.list);
+function dwIdx(t) {   // 画线端点的时间 → 当前K线序号(找不到就取最近的一根)
+  const B = V.bars; let lo = 0, hi = B.length - 1; if (hi < 0) return 0; if (t >= B[hi].t) return hi;
+  while (lo < hi) { const m = (lo + hi) >> 1; B[m].t >= t ? hi = m : lo = m + 1; } return lo;
+}
+function dwPoint(x, y) {   // 鼠标位置 → {时间, 价格};靠近开高低收时自动吸附
+  const p = V && V.L && V.L.panels.find(q => q.id === 'price'); if (!p || !p.Yf || !p.inv || y < p.y + p.head || y > p.y + p.h - 4) return null;
+  const b = V.bars[idxAt(x)]; if (!b) return null;
+  let price = p.inv(y), best = 12; [b.o, b.h, b.l, b.c].forEach(v => { const d = Math.abs(p.Yf(v) - y); if (d < best) { best = d; price = v; } });
+  return { t: b.t, p: price };
+}
+function dwAdd(o) {
+  const l = dwList(); if (l.length >= DW_MAX) l.shift();
+  o.id = Date.now().toString(36) + Math.random().toString(36).slice(2, 5); o.color = draw.color; l.push(o); dwSave();
+  draw.sel = o.id; draw.tool = 'cur'; draw.pend = null;
+}
+function dwDelSel() { const l = dwList(), i = l.findIndex(d => d.id === draw.sel); if (i >= 0) { l.splice(i, 1); dwSave(); } draw.sel = null; }
+function dwClick(q) {   // 返回 true = 这次点击被画图工具用掉了
+  if (draw.tool === 'cur') return false;
+  const a = dwPoint(q.x, q.y); if (!a) return true;
+  const T = draw.tool;
+  if (T === 'hline' || T === 'vline') { dwAdd({ type: T, a }); return true; }
+  if (!draw.pend) { draw.pend = { type: T, a }; return true; }
+  const A = draw.pend.a; if (A.t === a.t && A.p === a.p) return true;
+  dwAdd({ type: T, a: A, b: a }); return true;
+}
+function dwHit(q, kind) {   // 点中了哪条画线(离线 7 像素内;手指 14 像素)
+  let best = kind === 'mouse' ? 7 : 14, id = null;
+  (V.dgeo || []).forEach(g => g.segs.forEach(([x0, y0, x1, y1]) => {
+    const dx = x1 - x0, dy = y1 - y0, L = dx * dx + dy * dy, t = L ? Math.max(0, Math.min(1, ((q.x - x0) * dx + (q.y - y0) * dy) / L)) : 0, d = Math.hypot(q.x - (x0 + t * dx), q.y - (y0 + t * dy));
+    if (d < best) { best = d; id = g.id; }
+  }));
+  return id;
+}
+function dwTools() {
+  const one = draw.tool === 'hline' || draw.tool === 'vline', cur = DW_TOOLS.find(t => t[0] === draw.tool), on = draw.tool !== 'cur';
+  const hint = draw.pend ? '再点一下,确定第二个点' : on ? (one ? '在图上点一下' : '在图上点第一个点') : draw.sel ? '已选中这条线,按 Delete 键删除' : '';
+  const btn = $('#dwBtn'), pop = $('#popDraw'), el = $('#dtools');
+  if (btn) { btn.className = 'tb' + (on ? ' on' : ''); btn.textContent = on ? '画图:' + cur[1] + ' ▾' : '画图 ▾'; }
+  if (pop) pop.innerHTML = '<div class="pt">划线</div>' + DW_TOOLS.filter(t => t[0] !== 'cur').map(([k, n]) => `<button class="${draw.tool === k ? 'on' : ''}" data-dw="${k}">${n}</button>`).join('')
+    + '<div class="pt">颜色</div><div class="dwcs">' + DW_COLORS.map(c => `<button class="dwc ${draw.color === c ? 'on' : ''}" data-dwc="${c}" style="background:${c}" title="颜色" aria-label="颜色"></button>`).join('') + '</div>'
+    + '<div class="pt">其他</div><button data-dw="cur">退出画图(光标)</button><button data-dw="undo">撤销上一条</button><button data-dw="del" ' + (draw.sel ? '' : 'disabled') + '>删除选中的线</button><button data-dw="clear">清空全部画线</button>';
+  if (el) el.innerHTML = hint ? `<span class="muted small">${hint}(Esc 取消)</span>` : '';
+}
+document.addEventListener('click', e => {
+  const c = e.target.closest('[data-dwc]');
+  if (c) { draw.color = c.dataset.dwc; store.set('dwColor', draw.color); const s = dwList().find(d => d.id === draw.sel); if (s) { s.color = draw.color; dwSave(); } dwTools(); if (V) paint(); return; }
+  const b = e.target.closest('[data-dw]'); if (!b) return;
+  const k = b.dataset.dw, l = dwList();
+  if (k === 'undo') { l.pop(); dwSave(); draw.sel = null; draw.pend = null; }
+  else if (k === 'del') dwDelSel();
+  else if (k === 'clear') { if (l.length && confirm('清空这只股票在当前周期上的全部画线?')) { l.length = 0; dwSave(); } draw.sel = null; draw.pend = null; }
+  else { draw.tool = draw.tool === k ? 'cur' : k; draw.pend = null; draw.sel = null; }
+  closePops(); dwTools(); if (V) paint();
+});
+function drawUser(ctx, g) {   // 在价格图上画出所有画线(已经处于绘图区裁剪范围内)
+  const { X, Y, top, bot, W, PL, PR } = g, R = W - PR, items = dwList().map(d => ({ d, pending: false }));
+  V.dgeo = [];
+  if (draw.pend) {   // 画到一半:虚线跟着鼠标;还没有鼠标位置(手机)就只画第一个点
+    const q = ptr.mx >= 0 && ptr.my >= 0 ? dwPoint(ptr.mx, ptr.my) : null;
+    if (q) items.push({ d: { type: draw.pend.type, a: draw.pend.a, b: q, color: draw.color }, pending: true });
+    else { ctx.save(); ctx.fillStyle = draw.color; ctx.beginPath(); ctx.arc(X(dwIdx(draw.pend.a.t)), Y(draw.pend.a.p), 4, 0, 7); ctx.fill(); ctx.restore(); }
+  }
+  items.forEach(({ d, pending }) => {
+    const xa = X(dwIdx(d.a.t)), ya = Y(d.a.p), two = !!d.b, xb = two ? X(dwIdx(d.b.t)) : 0, yb = two ? Y(d.b.p) : 0, sel = d.id === draw.sel;
+    if (![xa, ya, xb, yb].every(Number.isFinite)) return;
+    const segs = []; ctx.save(); ctx.strokeStyle = ctx.fillStyle = d.color; ctx.lineWidth = sel ? 2.4 : 1.5; ctx.font = '11px sans-serif'; ctx.textBaseline = 'middle'; if (pending) ctx.setLineDash([5, 4]);
+    const line = (x0, y0, x1, y1) => { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); segs.push([x0, y0, x1, y1]); };
+    if (d.type === 'trend') line(xa, ya, xb, yb);
+    else if (d.type === 'ray') {
+      const dx = xb - xa; let xe, ye;
+      if (Math.abs(dx) < .01) { xe = xb; ye = yb >= ya ? bot + 50 : top - 50; } else { xe = dx > 0 ? R : PL; ye = ya + (yb - ya) / dx * (xe - xa); }
+      line(xa, ya, xe, ye);
+    } else if (d.type === 'hline') { line(PL, ya, R, ya); ctx.textAlign = 'right'; ctx.fillText(fmt(d.a.p, decOf(d.a.p)), R - 4, ya - 8); }
+    else if (d.type === 'vline') line(xa, top, xa, bot);
+    else if (d.type === 'rect') {
+      const x0 = Math.min(xa, xb), x1 = Math.max(xa, xb), y0 = Math.min(ya, yb), y1 = Math.max(ya, yb);
+      ctx.globalAlpha = .12; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); ctx.globalAlpha = 1;
+      line(x0, y0, x1, y0); line(x1, y0, x1, y1); line(x1, y1, x0, y1); line(x0, y1, x0, y0);
+    } else if (d.type === 'fib') {
+      const x0 = Math.min(xa, xb); ctx.save(); ctx.setLineDash([3, 4]); ctx.globalAlpha = .55; line(xa, ya, xb, yb); ctx.restore(); ctx.lineWidth = 1;
+      DW_FIB.forEach(lv => { const pr = d.b.p + (d.a.p - d.b.p) * lv, y = Y(pr); ctx.globalAlpha = .85; line(x0, y, R, y); ctx.globalAlpha = 1; ctx.textAlign = 'left'; ctx.fillText(`${lv} (${fmt(pr, decOf(pr))})`, x0 + 4, y - 7); });
+    }
+    if (sel && !pending) { ctx.setLineDash([]); ctx.fillStyle = d.color; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; [[xa, ya], two ? [xb, yb] : null].forEach(pt => { if (!pt) return; ctx.beginPath(); ctx.arc(pt[0], pt[1], 4.5, 0, 7); ctx.fill(); ctx.stroke(); }); }
+    ctx.restore();
+    if (!pending) V.dgeo.push({ id: d.id, segs });
+  });
 }
 
 // ===== 板块 =====
@@ -1324,5 +1435,7 @@ document.addEventListener('keydown', e => {
   const t = e.target, typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
   if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === '/') { e.preventDefault(); if (state.tab !== 'watch') switchTab('watch'); $('#addInput').focus(); return; }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && draw.sel && V && $('#cv')) { e.preventDefault(); dwDelSel(); dwTools(); paint(); return; }
+  if (e.key === 'Escape' && (draw.pend || draw.tool !== 'cur' || draw.sel) && V && $('#cv')) { draw.pend = null; draw.tool = 'cur'; draw.sel = null; dwTools(); paint(); }
 });
 init();
