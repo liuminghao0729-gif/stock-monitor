@@ -258,6 +258,21 @@ async function fillSigs(s) {      // 趋势需要日K:没缓存就取一次,取�
   if (!(Data.bars && Data.bars(s, 'D') && Data.bars(s, 'D').bars)) { try { await Data.loadBars(s, 'D'); } catch { return; } }
   if (state.sel === s && state.tab === 'watch' && $('#sigs')) { $('#sigs').innerHTML = sigChips(s); if ($('#brief')) $('#brief').innerHTML = briefHTML(s); }
 }
+// 「这张图在说什么」:基于日K线的大白话解读(规则和测试见 chartread.js、tools/test_chartread.js)
+function usOpenNow() {
+  const p = Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date()).map(x => [x.type, x.value]));
+  const m = (+p.hour % 24) * 60 + +p.minute; return !['Sat', 'Sun'].includes(p.weekday) && m >= 570 && m < 960;
+}
+async function fillChartRead(s) {
+  if (!$('#chartread')) return;
+  if (!(Data.bars && Data.bars(s, 'D') && Data.bars(s, 'D').bars)) { try { await Data.loadBars(s, 'D'); } catch { if ($('#chartread') && state.sel === s) $('#chartread').innerHTML = ''; return; } }
+  const el = $('#chartread'); if (!el || state.sel !== s || state.tab !== 'watch') return;
+  const B = Data.bars(s, 'D'), bars = B && B.bars; if (!bars) return;
+  const q = Data.quote(s), d = (Data.detail && Data.detail(s)) || {}, wasOpen = !!(el.querySelector('.crmore') || {}).open;
+  let sr = null; try { sr = srCalc(bars, bars.length - 1); } catch { }
+  el.innerHTML = chartReadHTML(chartRead({ bars, price: q.price, pct: q.pct, volRatio: d.volRatio, sr, marketOpen: usOpenNow(), isIdx: isIdx(s) }));
+  if (wasOpen && el.querySelector('.crmore')) el.querySelector('.crmore').open = true;
+}
 function headHTML(s) {
   const q = Data.quote(s), d = (Data.detail && Data.detail(s)) || {}, dec = Number.isFinite(q.price) ? decOf(q.price) : 2, P = v => Number.isFinite(v) ? fmt(v, dec) : '--';
   const pct = v => Number.isFinite(v) ? fmt(v) + '%' : '--', num = v => Number.isFinite(v) ? fmt(v) : '--';
@@ -287,11 +302,12 @@ async function renderDetail() {
     <div class="dtools" id="dtools"></div>
     <div class="legend" id="legend"></div>
     <div class="chartwrap" id="cw"><canvas id="cv"></canvas><div id="cload" class="cload">图表加载中…</div></div>
+    <div class="crd" id="chartread"></div>
     <h3>${isIdx(s) ? '市场新闻' : s + ' 相关新闻'}</h3>
     <ul class="news" id="stockNews"><li class="muted">加载中…</li></ul>
   </div>
   <div id="dcompany" class="hidden"></div>`;
-  bindChart(); renderToolbar(); loadChart(true); loadStats(s); fillSigs(s); showDT(state.dt);
+  bindChart(); renderToolbar(); loadChart(true); loadStats(s); fillSigs(s); fillChartRead(s); showDT(state.dt);
   { const q = Data.quote(s); countUp($('.px-big .big'), q.price, Number.isFinite(q.price) ? decOf(q.price) : 2); }
   const stale = () => state.sel !== s || state.tab !== 'watch';
   Data.loadNews(isIdx(s) ? '' : s).then(l => { if (!stale()) $('#stockNews').innerHTML = newsHTML(l); })
@@ -599,7 +615,7 @@ async function renderCompany() {
   let c; try { c = await Data.loadCompany(s); } catch { c = { error: 'fail' }; }
   if (state.sel === s && state.dt === 'company' && $('#dcompany')) { $('#dcompany').innerHTML = companyHTML(s, c); fillFin(s); fillHealth(s); fillAbout(s, c); }
 }
-function loadStats(s) { if (Data.loadDetail) Data.loadDetail(s).then(() => { if (state.sel === s && state.tab === 'watch' && $('#dhead')) $('#dhead').innerHTML = headHTML(s); }).catch(() => { }); }
+function loadStats(s) { if (Data.loadDetail) Data.loadDetail(s).then(() => { if (state.sel === s && state.tab === 'watch' && $('#dhead')) $('#dhead').innerHTML = headHTML(s); fillChartRead(s); }).catch(() => { }); }
 function newsHTML(list) {
   if (!Array.isArray(list)) return `<li class="muted">${list.error}</li>`;
   if (!list.length) return '<li class="muted">暂无新闻</li>';

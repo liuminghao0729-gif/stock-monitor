@@ -455,3 +455,12 @@ kbd{font:500 11px "SF Mono",Menlo,monospace;border:1px solid var(--line);border-
 .dspanel table{width:100%;border-collapse:collapse;font-size:12.5px}.dspanel th,.dspanel td{padding:7px 8px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
 .dspanel .dsx{position:absolute;top:12px;right:14px}
 .dsold{color:var(--accent)}
+
+/* 这张图在说什么 */
+.crd{margin:14px 0 6px;padding:2px 0}.crd h3{margin:0 0 6px}
+.crsum{list-style:none;padding:0;margin:8px 0}.crsum li{margin:6px 0;line-height:1.85}.crsum li b{margin-right:6px}
+.crsum .cr-ok b{color:var(--up)}.crsum .cr-bad b{color:var(--down)}.crsum .cr-w b{color:var(--accent)}
+.term{border-bottom:1px dotted var(--faint);cursor:help;text-decoration:none}
+.crmore summary,.crw summary{cursor:pointer;padding:4px 0}
+.cri{padding:10px 0;border-top:1px solid var(--line);line-height:1.85}.cri>b{margin-right:6px}
+.crt{border-collapse:collapse;margin-top:4px}.crt td{padding:3px 16px 3px 0;font-size:12.5px;vertical-align:top}
