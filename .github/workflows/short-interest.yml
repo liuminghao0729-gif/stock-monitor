@@ -1,0 +1,48 @@
+name: 做空趋势快照更新
+on:
+  schedule:
+    # FINRA 每半月(月中、月底)申报一次,约一周后公布。每周二、周五 UTC 23:00 检查一次,没变化就不提交。
+    - cron: "0 23 * * 2,5"
+  workflow_dispatch:      # 允许在网页上手动运行
+
+# 只给这一个任务"写入仓库"的权限,用来把快照文件提交回仓库;提交后 Vercel 会自动重新部署
+permissions:
+  contents: write
+
+concurrency:
+  group: short-interest
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 安装 OpenBB(只在这个临时环境里,不影响网站)
+        run: pip install -q openbb
+      - name: 生成做空趋势快照
+        run: python3 tools/short_interest_snapshot.py
+      - name: 检查结果文件
+        run: |
+          python3 - <<'PY'
+          import json
+          d = json.load(open("public/short_interest.json"))
+          assert d["version"] == 1 and len(d["symbols"]) >= 3, "快照股票太少,数据源可能异常,不提交"
+          print("最新申报日", d["latest"], "| 股票数", len(d["symbols"]))
+          PY
+      - name: 有变化才提交
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/short_interest.json
+          if git diff --cached --quiet; then
+            echo "没有变化,不提交"
+          else
+            git commit -m "做空趋势快照更新 $(date -u +%Y-%m-%d)"
+            git pull --rebase -q
+            git push
+          fi

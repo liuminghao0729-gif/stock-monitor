@@ -542,6 +542,19 @@ function pfData(s) {                      // 通俗解读里的「关键数字�
   box.innerHTML = `<div class="kv pfkv">${chip('近 12 个月营收', finFmt(t.rev, 'm'), t.rev_yoy)}${chip('净利润', finFmt(t.ni, 'm'), t.ni_yoy)}${chip('毛利率', finFmt(t.gm, 'p'))}${chip('自由现金流', finFmt(t.fcf, 'm'), t.fcf_yoy)}${Number.isFinite(bs.dr) ? chip('资产负债率', finFmt(bs.dr, 'p')) : ''}${v ? chip('最大业务', esc(v.items[0].name) + ' ' + (v.items[0].vals[n - 1] / tot * 100).toFixed(0) + '%') : ''}</div>`;
 }
 const list = a => `<ul class="clist">${(a || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`;
+let SHORTI = {}; fetch('short_interest.json').then(r => r.json()).then(j => { SHORTI = j || {}; }).catch(() => { });
+// 做空趋势(FINRA 半月申报,由后台定时生成快照;没有快照的股票不显示这一栏)
+function shortHTML(s) {
+  const rows = SHORTI.symbols && SHORTI.symbols[s]; if (!rows || rows.length < 2) return '';
+  const last = rows.slice(-6).reverse(), v = rows.map(r => r.pos), lo = Math.min(...v), hi = Math.max(...v), W = 220, H = 42;
+  const pts = v.map((x, i) => `${(i / (v.length - 1) * W).toFixed(1)},${(H - 4 - (hi > lo ? (x - lo) / (hi - lo) : 0.5) * (H - 8)).toFixed(1)}`).join(' ');
+  const spark = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" aria-label="空头持仓趋势" style="display:block;margin:6px 0 10px"><polyline fill="none" stroke="currentColor" stroke-width="1.6" opacity=".7" points="${pts}"/></svg>`;
+  const first = rows[0].pos, now = rows[rows.length - 1].pos, tr = first ? (now / first - 1) : null;
+  return `<div class="csec"><h3>做空趋势 <span class="muted small">FINRA 半月申报,最新 ${esc(rows[rows.length - 1].d)}</span></h3>
+    <div class="small">近 ${rows.length} 期空头持仓${Number.isFinite(tr) ? (tr >= 0 ? '增加 ' : '减少 ') + Math.abs(tr * 100).toFixed(1) + '%' : ''}(${bigN(first)} → ${bigN(now)} 股)</div>${spark}
+    <table><thead><tr><th>申报日</th><th class="r">空头持仓</th><th class="r">较上期</th><th class="r">回补天数</th></tr></thead><tbody>${last.map(r => `<tr><td class="muted small">${esc(r.d)}</td><td class="r">${bigN(r.pos)}</td><td class="r">${Number.isFinite(r.chg) ? (r.chg >= 0 ? '+' : '') + (r.chg * 100).toFixed(1) + '%' : '--'}</td><td class="r">${Number.isFinite(r.dtc) ? fmt(r.dtc, 1) : '--'}</td></tr>`).join('')}</tbody></table>
+    <div class="small muted" style="margin-top:6px">回补天数 = 空头持仓 ÷ 日均成交量。数据每半月更新,有约一周滞后;空头增加不等于会下跌。</div></div>`;
+}
 let ETFH = {}; fetch('etf_holdings.json').then(r => r.json()).then(j => { ETFH = j || {}; }).catch(() => { });
 function etfHTML(s, c) {                      // ETF 前 15 大持仓:优先用 SEC 季度披露的完整持仓,没有就用 Yahoo 的前 10 大
   const f = ETFH[s]; let rows, note;
@@ -568,6 +581,7 @@ function companyHTML(s, c) {
   if (peers.length) h += `<div class="csec"><h3>竞争对手</h3><div class="chips">${chips}</div></div>`;
   if (!isIdx(s)) h += '<div class="csec" id="finbox"></div><div id="hbox"></div>';
   h += extraHTML(c);
+  if (!isIdx(s)) h += shortHTML(s);
   if (!k && backlogHTML(c)) h += `<div class="csec"><h3>在手订单</h3>${backlogHTML(c)}</div>`;
   if (k) {
     h += `<div class="csec"><h3>竞争优势</h3>${list(k.adv)}</div>
