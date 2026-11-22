@@ -8,3 +8,6 @@ skills/
 *.zip
 tools/.cache/
 tools/backtest_results.json
+
+# 本地工具链(Python 3.12 + PPT 依赖),不提交
+.tools/

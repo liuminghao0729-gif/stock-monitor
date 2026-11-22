@@ -44,7 +44,8 @@ def quote(sym):
             "change": price - prev, "pct": (price / prev - 1) * 100 if prev else 0,
             "high": m.get("regularMarketDayHigh") or price, "low": m.get("regularMarketDayLow") or price,
             "open": next((x for x in reversed(r["indicators"]["quote"][0].get("open") or []) if x), price),
-            "volume": m.get("regularMarketVolume") or 0}
+            "volume": m.get("regularMarketVolume") or 0,
+            "asof": m.get("regularMarketTime")}          # 这条报价对应的交易所时间(Unix 秒),页面用它判断是不是旧数据
 
 
 def quotes(symbols):
@@ -640,6 +641,19 @@ def search(q):
     return {"items": items[:8]}
 
 
+# 数据来源清单:页面“数据来源与时间”面板读取它。只写已知事实;没核实的在 note 里标注。
+SOURCES = [
+    {"k": "行情 / K线 / 分时", "src": "Yahoo Finance(非官方接口)", "delay": "盘中,可能延迟,不保证实时", "note": "每条报价带交易所时间;条款为个人使用口径,见阶段 0 报告"},
+    {"k": "涨跌榜 / 板块 / 条件筛选", "src": "Yahoo Finance screener", "delay": "盘中,可能延迟", "note": "仅美股主要交易所"},
+    {"k": "分析师目标价 / 升降级", "src": "FMP", "delay": "日更", "note": "需要后台 Key;免费版展示条款待核实"},
+    {"k": "新闻 / 财报日历", "src": "Finnhub", "delay": "按发布时间", "note": "免费版展示条款待核实"},
+    {"k": "宏观指标", "src": "FRED(美联储圣路易斯分行)", "delay": "按各指标发布日(日/月/季)", "note": "部分序列有第三方版权"},
+    {"k": "财报 / 分部收入 / 体检 / DCF", "src": "SEC EDGAR(官方)", "delay": "按财报披露日(季报/年报)", "note": "公共领域数据,指标由代码计算"},
+    {"k": "持股结构 / 内部人 / 做空比例 / 预期", "src": "Yahoo Finance quoteSummary", "delay": "季度或半月更新,有滞后", "note": "非官方接口"},
+    {"k": "公司简介", "src": "维基百科(CC BY-SA)+ Yahoo;翻译为 Google 非官方接口", "delay": "不定期", "note": "翻译可能不准"},
+]
+
+
 # ---- 路由:本地服务器和 Vercel 共用 ----
 def route(name, q):
     """返回 (状态码, 数据, 缓存秒数)。缓存可减少对 Yahoo / Finnhub 的请求,保护免费额度。"""
@@ -675,7 +689,7 @@ def route(name, q):
         if name == "detail":
             return 200, detail(q["symbol"].upper()), 15
         if name == "status":
-            return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY")), "fmp": bool(os.environ.get("FMP_KEY")), "sec": bool(os.environ.get("SEC_CONTACT")), "fred": bool(os.environ.get("FRED_KEY")), "auth": {"url": os.environ.get("SUPABASE_URL"), "key": os.environ.get("SUPABASE_KEY")} if os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_KEY") else None, "dbg": DBG}, 0
+            return 200, {"finnhub": bool(os.environ.get("FINNHUB_KEY")), "fmp": bool(os.environ.get("FMP_KEY")), "sec": bool(os.environ.get("SEC_CONTACT")), "fred": bool(os.environ.get("FRED_KEY")), "auth": {"url": os.environ.get("SUPABASE_URL"), "key": os.environ.get("SUPABASE_KEY")} if os.environ.get("SUPABASE_URL") and os.environ.get("SUPABASE_KEY") else None, "dbg": DBG, "sources": SOURCES}, 0
         return 404, {"error": "not found"}, 0
     except Exception as e:
         # 只返回错误类型和简短说明(urllib 的错误信息不含网址和密钥),方便排查
