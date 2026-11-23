@@ -101,6 +101,14 @@ def test_bank_revenue_tag():
     c = {"facts": {"us-gaap": {"RevenuesNetOfInterestExpense": {"units": {"USD": rev}}}}}
     assert _fin._facts(c, _fin.FLOW["rev"], "USD"), "银行总收入标签没被认出"
 
+def test_tag_switch_gap_filled():
+    """季度数据在一个标签、全年数据在另一个标签(uniQure、Cerebras 这类):合并后才能推算出第四季度。"""
+    q = [fact("2025-01-01", "2025-03-31", 10, "2025-05-01"), fact("2025-04-01", "2025-06-30", 11, "2025-08-01"), fact("2025-07-01", "2025-09-30", 12, "2025-11-01"),
+         fact("2026-01-01", "2026-03-31", 13, "2026-05-01"), fact("2026-04-01", "2026-06-30", 14, "2026-08-01"), fact("2026-07-01", "2026-09-30", 15, "2026-11-01")]
+    a = [fact("2025-01-01", "2025-12-31", 50, "2026-02-01")]
+    c = {"facts": {"us-gaap": {"RevenueFromContractWithCustomerExcludingAssessedTax": {"units": {"USD": q}}, "RevenueFromContractWithCustomerIncludingAssessedTax": {"units": {"USD": a}}}}}
+    assert _fin.quarters_flow(_fin._facts(c, _fin.FLOW["rev"], "USD"))["2025-12-31"][0] == 17   # 50 - 33
+
 if __name__ == "__main__":
     n = 0
     for k, v in list(globals().items()):

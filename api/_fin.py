@@ -43,14 +43,27 @@ def _days(a, b):
 
 
 def _facts(cf, tags, unit):
-    """按标签优先级取第一个有数据的标签;返回该标签下的原始记录。"""
+    """取最新一期最晚的标签作主体;同一指标在不同时期换过标签时,用其他「仍在使用」的标签补上主体缺的时期。
+    (例如 uniQure:季度数据在一个标签、全年数据在另一个标签,不合并就推算不出第四季度。)"""
     g = cf.get("facts", {}).get("us-gaap", {})
-    best = []
+    cands = []
     for t in tags:
         rows = g.get(t, {}).get("units", {}).get(unit)
-        if rows and (not best or max(r["end"] for r in rows) > max(r["end"] for r in best)):
-            best = rows                                         # 同一指标可能换标签:最新一期更晚的优先,并列时按顺序
-    return best
+        if rows:
+            cands.append((max(r["end"] for r in rows), rows))
+    if not cands:
+        return []
+    best_end, best = max(cands, key=lambda c: c[0])             # 并列时 max 取先出现的,即按优先顺序
+    have = {(r.get("start"), r["end"]) for r in best}
+    out = list(best)
+    for end, rows in cands:
+        if rows is best or _days(end, best_end) > 400:          # 已经停用的老标签不掺进来
+            continue
+        for r in rows:
+            k = (r.get("start"), r["end"])
+            if k not in have and _days(r["end"], best_end) <= 1100:   # 只补最近约三年的缺口
+                out.append(r); have.add(k)
+    return out
 
 
 def _dedupe(rows):
