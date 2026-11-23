@@ -9,7 +9,7 @@ import _core as C
 
 # 指标 -> 候选 us-gaap 标签(按优先顺序;不同公司/年份用的标签不同)
 FLOW = {
-    "rev": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax", "RevenueFromContractWithCustomerIncludingAssessedTax", "SalesRevenueNet"],
+    "rev": ["Revenues", "RevenuesNetOfInterestExpense", "RevenueFromContractWithCustomerExcludingAssessedTax", "RevenueFromContractWithCustomerIncludingAssessedTax", "SalesRevenueNet"],
     "gp": ["GrossProfit"],
     "oi": ["OperatingIncomeLoss"],
     "ni": ["NetIncomeLoss", "ProfitLoss"],

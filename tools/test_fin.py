@@ -94,6 +94,13 @@ def test_cik_lookup_and_404():
     finally:
         C._get = real
 
+def test_bank_revenue_tag():
+    """银行(摩根士丹利、富国、摩根大通)用 RevenuesNetOfInterestExpense 当总收入,不能漏掉。"""
+    rev = [fact(f"2026-{a}", f"2026-{b}", v, "2026-11-01") for a, b, v in (("01-01", "03-31", 100), ("04-01", "06-30", 110), ("07-01", "09-30", 120))]
+    rev += [fact(f"2025-{a}", f"2025-{b}", 90, "2025-11-01") for a, b in (("01-01", "03-31"), ("04-01", "06-30"), ("07-01", "09-30"), ("10-01", "12-31"))]
+    c = {"facts": {"us-gaap": {"RevenuesNetOfInterestExpense": {"units": {"USD": rev}}}}}
+    assert _fin._facts(c, _fin.FLOW["rev"], "USD"), "银行总收入标签没被认出"
+
 if __name__ == "__main__":
     n = 0
     for k, v in list(globals().items()):
