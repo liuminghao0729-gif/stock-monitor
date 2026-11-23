@@ -43,7 +43,7 @@ const base = mk(ramp(100, 100.5, 120));
 r = chartRead({ bars: base, price: 100, sr: { all: [{ p: 110, s: 1.9, src: '筹码+高点', kind: 'res' }, { p: 90, s: 1.3, src: '低点', kind: 'sup' }, { p: 120, s: 0.3, src: '高点', kind: 'res' }], tl: [] } });
 let sr = get(r, 'sr');
 assert(sr.text.includes('110.00(比现价高 10.0%,强度强)') && sr.text.includes('90.00(比现价低 10.0%,强度中)'), sr.text);
-assert(sr.basis[0][1].includes('成交量特别大') && sr.basis[1][1].includes('反弹过'), JSON.stringify(sr.basis));
+assert(sr.basis[0][1].includes('成交密集区') && sr.basis[1][1].includes('前低'), JSON.stringify(sr.basis));
 assert(!sr.text.includes('120.00'), '太弱的位置(强度<0.45)不该出现');
 // 离压力位/支撑位很近的提醒
 r = chartRead({ bars: base, price: 100, sr: { all: [{ p: 101, s: 1.5, src: '高点', kind: 'res' }, { p: 99, s: 1.5, src: '低点', kind: 'sup' }], tl: [] } });

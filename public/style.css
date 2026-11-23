@@ -494,3 +494,5 @@ kbd{font:500 11px "SF Mono",Menlo,monospace;border:1px solid var(--line);border-
 @media (max-width:600px){.egrp{flex-direction:column;gap:4px}.edate{flex:none}}
 
 .chartwrap,.chartwrap canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+
+.crbs{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}.crb{display:inline-flex;gap:6px;align-items:baseline;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.06);font-size:12px}.crb i{font-style:normal;color:var(--muted,#8b98a5)}.crb b{font-weight:600}.crhow{line-height:1.6}

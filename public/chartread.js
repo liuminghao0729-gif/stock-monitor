@@ -27,11 +27,11 @@
   const sgnPct = (v, d = 1) => (v >= 0 ? '+' : '') + (v * 100).toFixed(d) + '%';
   const STR = s => s >= 1.8 ? '强' : s >= 1.2 ? '中' : '弱';
   const WHY = {
-    '筹码': '这个价位附近过去成交量特别大,很多人在这里买过东西',
-    '高点': '过去价格涨到这里附近就回落过',
-    '低点': '过去价格跌到这里附近就反弹过'
+    '筹码': '成交密集区',
+    '高点': '前高',
+    '低点': '前低'
   };
-  const whyOf = src => String(src).split('+').map(x => WHY[x]).filter(Boolean).join(';');
+  const whyOf = src => String(src).split('+').map(x => WHY[x]).filter(Boolean).join('+');
 
   // o: { bars:[{t,o,h,l,c,v}], price, pct(今日涨跌%), volRatio, sr(srCalc 的结果), marketOpen, isIdx }
   function chartRead(o) {
@@ -52,8 +52,8 @@
         : (px < m200 ? ' 价格也在 200 日线下方,长期趋势同样偏弱。' : ' 不过价格还在 200 日线上方,长期趋势还没走坏。');
       items.push({
         key: 'trend', title: '趋势', text: t, short: t.split('。')[0] + '。', tone: up ? 'ok' : down ? 'bad' : '',
-        basis: [['现价', f(px)], ['20 日均线', f(m20)], ['50 日均线', f(m50)], ['200 日均线', m200 != null ? f(m200) : '数据不足(上市不满 200 个交易日)'], ['近 20 个交易日涨跌', sgnPct(chg20)]],
-        how: '均线 = 最近 N 个交易日收盘价的平均值。价格 > 20 日线 > 50 日线叫多头排列,反过来叫空头排列,其他算震荡。'
+        basis: [['现价', f(px)], ['20 日均线', f(m20)], ['50 日均线', f(m50)], ['200 日均线', m200 != null ? f(m200) : '数据不足'], ['近 20 日涨跌', sgnPct(chg20)]],
+        how: '价格 > 20 日线 > 50 日线 = 多头排列,反过来 = 空头排列,其他算震荡。'
       });
     }
 
@@ -66,8 +66,8 @@
           : `在过去一年价格区间的 ${(pos * 100).toFixed(0)}% 位置(0% 是一年内最低点,100% 是最高点)。`;
       items.push({
         key: 'pos', title: '位置', text: t, tone: fromHigh <= 0.05 ? 'ok' : fromHigh >= 0.30 ? 'w' : '',
-        basis: [['一年内最高价', f(hi)], ['一年内最低价', f(lo)], ['离最高点', (fromHigh * 100).toFixed(1) + '%'], ['区间位置', (pos * 100).toFixed(0) + '%'], ['统计范围', seg.length < 252 ? `上市以来 ${seg.length} 个交易日` : '最近 252 个交易日']],
-        how: '最高价、最低价取日K线里的最高点和最低点(含影线);区间位置 = (现价 − 最低) ÷ (最高 − 最低)。'
+        basis: [['一年内最高价', f(hi)], ['一年内最低价', f(lo)], ['离最高点', (fromHigh * 100).toFixed(1) + '%'], ['区间位置', (pos * 100).toFixed(0) + '%']],
+        how: `区间位置 = (现价 − 最低) ÷ (最高 − 最低),统计${seg.length < 252 ? '上市以来 ' + seg.length : '最近 252'}个交易日。`
       });
     }
 
@@ -84,11 +84,11 @@
       if (res && res.p / px - 1 <= 0.02) t += ` 现价离压力位很近(只差 ${((res.p / px - 1) * 100).toFixed(1)}%),能不能突破是关键。`;
       if (sup && 1 - sup.p / px <= 0.02) t += ` 现价离支撑位很近(只差 ${((1 - sup.p / px) * 100).toFixed(1)}%),如果跌破,说明这个价位没守住。`;
       const basis = [];
-      if (res) basis.push(['压力位 ' + f(res.p), `强度${STR(res.s)} · 为什么:${whyOf(res.src) || '历史价格推算'}`]);
-      if (sup) basis.push(['支撑位 ' + f(sup.p), `强度${STR(sup.s)} · 为什么:${whyOf(sup.src) || '历史价格推算'}`]);
+      if (res) basis.push(['压力位 ' + f(res.p), `强度${STR(res.s)} · ${whyOf(res.src) || '历史推算'}`]);
+      if (sup) basis.push(['支撑位 ' + f(sup.p), `强度${STR(sup.s)} · ${whyOf(sup.src) || '历史推算'}`]);
       items.push({
         key: 'sr', title: '支撑与压力', text: t, short: parts.join(';') + '。', tone: '', basis,
-        how: '由程序推算:一是过去一年成交量最密集的价位(筹码分布估算),二是过去的波段高点和低点;多个来源重合的价位更强。这只是参考位置,不是预测,价格也可能直接穿过去。'
+        how: '来自过去一年成交密集区和前高前低,多个来源重合更强。只是参考位置,价格也可能直接穿过。'
       });
     }
 
@@ -103,7 +103,7 @@
       if (lines.length) items.push({
         key: 'tl', title: '趋势线', text: lines.map(x => x.txt).join(' '), tone: '',
         basis: lines.map(x => [x.t.low ? '上升趋势线' : '下降趋势线', `现值 ${f(x.val)} · 触碰 ${x.t.touches} 次`]),
-        how: '程序在最近一年里找两个明显的低点(或高点)连线,要求这条线之后收盘价没有被明显穿破,碰到的次数越多越可靠。只作参考。'
+        how: '连接一年内两个明显的低点(或高点),收盘价没有明显穿破,碰到越多次越可靠。'
       });
     }
 
@@ -117,7 +117,7 @@
       items.push({
         key: 'vol', title: '成交量', text: t, tone: v >= 1.3 ? 'ok' : v <= 0.8 ? 'w' : '',
         basis: [['量比', v.toFixed(2)], ['今日涨跌', Number.isFinite(o.pct) ? (p >= 0 ? '+' : '') + p.toFixed(2) + '%' : '--']],
-        how: '量比 = 今天的成交量 ÷ 近 10 日平均每天的成交量(数据来自 Finnhub)。≥ 1.3 算放量,≤ 0.8 算缩量。'
+        how: '量比 = 今天成交量 ÷ 近 10 日平均。≥ 1.3 放量,≤ 0.8 缩量。'
       });
     }
 
@@ -129,7 +129,7 @@
       items.push({
         key: 'vola', title: '波动', text: `平时一天大约上下波动 ${(p * 100).toFixed(1)}%,属于波动${cls}${cls === '高' ? ',涨跌都会很快,拿的时候要有心理准备' : ''}。`, tone: cls === '高' ? 'w' : '',
         basis: [['ATR(14 日)', f(atr)], ['占现价', (p * 100).toFixed(1) + '%']],
-        how: 'ATR = 最近 14 个交易日每天「最高价与最低价之差(考虑跳空)」的平均。占现价 ≥ 3% 算高,1.5% 到 3% 算中等,低于 1.5% 算低。'
+        how: 'ATR = 近 14 天每天最高最低价差的平均。占现价 ≥ 3% 高,1.5%–3% 中等,更低为低。'
       });
     }
 
@@ -139,9 +139,9 @@
 
   // 每一项:标题 + 一句话;点「看依据」才展开完整说明、用到的数字和算法
   function itemHTML(i, cls) {
-    const full = i.short && i.short !== i.text ? `<div style="margin-bottom:6px">${termify(i.text)}</div>` : '';
+    const more = i.short && i.text.startsWith(i.short) ? i.text.slice(i.short.length).trim() : '', full = more ? `<div style="margin-bottom:6px">${termify(more)}</div>` : '';   // 只补充一句话里没有的内容,不重复
     return `<${cls === 'li' ? 'li' : 'div'} class="${cls === 'li' ? 'cr-' + (i.tone || 'n') : 'cri'}"><b>${esc(i.title)}</b> ${termify(i.short || i.text)}
-      <details class="crw"><summary class="muted small">看依据</summary>${full}<table class="crt">${i.basis.map(([k, v]) => `<tr><td class="muted">${esc(k)}</td><td>${esc(v)}</td></tr>`).join('')}</table><div class="muted small" style="margin-top:4px;line-height:1.7">${termify(i.how)}</div></details></${cls === 'li' ? 'li' : 'div'}>`;
+      <details class="crw"><summary class="muted small">看依据</summary>${full}<div class="crbs">${i.basis.map(([k, v]) => `<span class="crb"><i>${esc(k)}</i><b>${esc(v)}</b></span>`).join('')}</div><div class="muted small crhow">${termify(i.how)}</div></details></${cls === 'li' ? 'li' : 'div'}>`;
   }
   function chartReadHTML(r) {
     if (!r) return '<div class="muted small">日K线数据不足(至少需要 50 个交易日),暂时无法解读。</div>';
