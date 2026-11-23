@@ -74,6 +74,26 @@ def test_stale_data_is_not_shown():
     finally:
         _fin.C._get = real
 
+def test_cik_lookup_and_404():
+    """BRK-B 以前永远查不到(代码先把 - 换成 . 再去对 SEC 的 BRK-B);SPY 这类有代码但没财报的,不能 500。"""
+    import urllib.error, _health
+    tk = {"0": {"cik_str": 1067983, "ticker": "BRK-B"}, "1": {"cik_str": 320193, "ticker": "AAPL"}, "2": {"cik_str": 884394, "ticker": "SPY"}, "3": {"cik_str": 9, "ticker": "BF-B"}}
+    C = _fin.C
+    assert C.sec_cik(tk, "BRK-B") == 1067983 and C.sec_cik(tk, "BRK.B") == 1067983      # 两种写法都认
+    assert C.sec_cik(tk, "BF.B") == 9 and C.sec_cik(tk, "AAPL") == 320193 and C.sec_cik(tk, "NOPE") is None
+    real = C._get
+    def fake(url, ttl=10, headers=None):
+        if "company_tickers" in url: return tk
+        raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+    C._get = fake
+    os.environ["SEC_CONTACT"] = "a@b.com"
+    try:
+        assert _fin.fin("SPY") == {"error": "no_facts"}
+        assert _health.health("SPY") == {"error": "no_facts"}
+        assert _fin.fin("BRK.B") == {"error": "no_facts"}                                 # 找到了公司,只是没有财报数据 → 不再是 no_cik
+    finally:
+        C._get = real
+
 if __name__ == "__main__":
     n = 0
     for k, v in list(globals().items()):

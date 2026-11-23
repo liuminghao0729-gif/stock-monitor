@@ -3,6 +3,7 @@
 只说明「相对常见水平」,不是买卖结论。需要环境变量 SEC_CONTACT。
 """
 import os, time
+import urllib.error
 import _core as C
 import _fin as F
 
@@ -21,10 +22,15 @@ def _cf(sym):
         return None, "not_stock"
     h = {"User-Agent": "StocksMonitor " + contact}
     tk = C._get("https://www.sec.gov/files/company_tickers.json", 86400, h)
-    cik = next((v["cik_str"] for v in tk.values() if v["ticker"] == sym.replace("-", ".")), None)
+    cik = C.sec_cik(tk, sym)
     if cik is None:
         return None, "no_cik"
-    cf = C._get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{int(cik):010d}.json", 21600, h)
+    try:
+        cf = C._get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{int(cik):010d}.json", 21600, h)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return None, "no_facts"
+        raise
     if "us-gaap" not in cf.get("facts", {}):
         return None, "no_us_gaap"
     return cf, None

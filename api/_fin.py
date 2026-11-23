@@ -4,7 +4,7 @@
 - 交叉验证:最近几季的营收/净利润/经营现金流与 Yahoo 对比,误差 ≤1% ✅,1~5% ⚠️,>5% ❌(规则取自 ai-berkshire 的数据规范)。
 需要环境变量 SEC_CONTACT(联系邮箱,SEC 要求访问者表明身份)。
 """
-import datetime, os, re, time
+import datetime, os, re, time, urllib.error
 import _core as C
 
 # 指标 -> 候选 us-gaap 标签(按优先顺序;不同公司/年份用的标签不同)
@@ -250,10 +250,15 @@ def fin(sym):
         return {"error": "not_stock"}
     h = {"User-Agent": "StocksMonitor " + contact}
     tk = C._get("https://www.sec.gov/files/company_tickers.json", 86400, h)
-    cik = next((v["cik_str"] for v in tk.values() if v["ticker"] == sym.replace("-", ".")), None)
+    cik = C.sec_cik(tk, sym)
     if cik is None:
         return {"error": "no_cik"}                              # ETF、指数等没有公司财报
-    cf = C._get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{int(cik):010d}.json", 21600, h)
+    try:
+        cf = C._get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{int(cik):010d}.json", 21600, h)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return {"error": "no_facts"}                         # 有代码但 SEC 没有财报数据(例如 SPY 这类信托型 ETF)
+        raise
     if "us-gaap" not in cf.get("facts", {}):
         return {"error": "no_us_gaap"}                          # 外国公司(20-F)用国际会计准则,先不支持
     rows, ttm, years = build(cf)
@@ -381,7 +386,7 @@ def segments(sym):
         return {"error": "no_contact"}
     h = {"User-Agent": "StocksMonitor " + contact}
     tk = C._get("https://www.sec.gov/files/company_tickers.json", 86400, h)
-    cik = next((v["cik_str"] for v in tk.values() if v["ticker"] == sym.replace("-", ".")), None)
+    cik = C.sec_cik(tk, sym)
     if cik is None:
         return {"error": "no_cik"}
     k = _latest_10k(h, cik)

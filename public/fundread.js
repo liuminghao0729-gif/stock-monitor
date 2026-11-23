@@ -113,7 +113,7 @@
         else if (eps != null && eps <= 0) parts.push('最近 12 个月每股盈利不是正数,市盈率没有意义,不能用它判断贵不贵。');
         if (fpe != null) parts.push(`按分析师预期的下一年盈利算,预期市盈率是 ${fpe.toFixed(1)} 倍。`);
         if (peg != null) parts.push(`PEG 是 ${peg.toFixed(2)}(市盈率 ÷ 预期盈利增速;常见经验:1 左右算合理,2 以上偏高,低于 1 偏低)。`);
-        if (mid) parts.push(`按我们的简化现金流折现模型,保守 / 中性 / 乐观三种情景估算每股约 ${lo ? lo.value : '--'} / ${mid.value} / ${hi ? hi.value : '--'} 美元,现价是中性情景的 ${ratio.toFixed(1)} 倍。这个模型对假设很敏感,只作参考。`);
+        if (mid) parts.push(`按我们的简化现金流折现模型,保守 / 中性 / 乐观三种情景估算每股约 ${lo ? lo.value : '--'} / ${mid.value} / ${hi ? hi.value : '--'} 美元` + (ratio != null ? `,现价是中性情景的 ${ratio.toFixed(1)} 倍` : '(现价暂时取不到,没法比较)') + '。这个模型对假设很敏感,只作参考。');
         if (sigs.length) parts.push(`按 PEG 和现金流折现这两个角度:${verdict === '看法不一致' ? '结论不一致,不好下结论' : '综合看估值' + verdict}。`);
         const gapLine = gap ? `每股盈利 SEC ${eps.toFixed(2)} / Yahoo ${yEps.toFixed(2)},相差较大,仅作参考` : null;
         items.push({
@@ -125,14 +125,31 @@
         });
       }
     }
-    return items.length ? { items, asof: t.end } : null;
+    if (!items.length) return null;
+    // 四个问题始终都列出来:缺数据的写「数据不足」和原因,而不是悄悄少一行
+    const Q = { profit: '赚不赚钱', growth: '成长快不快', safety: '财务安不安全', value: '贵不贵' };
+    const WHY = { profit: '缺少收入或净利润数据', growth: '缺少同比增速数据(财报期数不够)', safety: '缺少自由现金流和破产风险指标的数据', value: '缺少每股盈利、PEG 和折现估值数据,判断不了' };
+    const full = ['profit', 'growth', 'safety', 'value'].map(k => items.find(i => i.key === k) || { key: k, q: Q[k], verdict: '数据不足', tone: 'n', short: WHY[k] + '。', text: WHY[k] + '。', missing: true });
+    return { items: full, asof: t.end };
+  }
+
+  // 没有解读卡片时,说明原因(ETF、指数和后台没配置的情况不显示)
+  function fundReason(f, r) {
+    if (!f) return '';
+    const e = f.error;
+    if (e === 'no_us_gaap') return '这是外国公司(用国际会计准则申报,例如 TSM、NVO、SAP),暂时没法自动解读。';
+    if (e === 'too_short') return '上市时间太短,或者只披露年报(没有足够的季度数据),暂时没法自动解读。';
+    if (e) return '';
+    if (!r) return '财报里缺少收入或利润数据(这类公司的报表格式特殊,例如部分能源、生物科技、金融公司),暂时没法自动解读。';
+    return '';
   }
 
   function fundReadHTML(r) {
     if (!r) return '';
+    if (r.note) return `<h3>这家公司怎么样</h3><div class="muted small" style="line-height:1.8">${esc(r.note)}</div>`;
     if (r.stale) return `<h3>这家公司怎么样</h3><div class="muted small" style="line-height:1.8">这家公司在 SEC 的财报数据最新只到 ${esc(r.asof)},已经太旧,所以这里不做解读,避免用过时的数字误导你。</div>`;
     const chip = (c, k) => `<div class="fchip${k ? ' fk' : ''}"><span class="muted small">${termify(c[0])}</span><b>${esc(c[1])}</b>${c[2] ? `<span class="fsub small">${esc(c[2])}</span>` : ''}</div>`;
-    const row = i => `<li><b>${esc(i.q)}</b> <span class="vtag vt-${i.tone || 'n'}">${esc(i.verdict)}</span> ${termify(i.short)}
+    const row = i => i.missing ? `<li><b>${esc(i.q)}</b> <span class="vtag vt-n">数据不足</span> <span class="muted">${esc(i.short)}</span></li>` : `<li><b>${esc(i.q)}</b> <span class="vtag vt-${i.tone || 'n'}">${esc(i.verdict)}</span> ${termify(i.short)}
       <details class="crw"><summary class="muted small">看依据</summary><div class="frd">
         <div class="fchips">${i.chips.map((c, k) => chip(c, k === 0)).join('')}</div>
         ${i.lines.map(l => `<div class="fline small">${termify(l)}</div>`).join('')}
@@ -142,6 +159,6 @@
     return `<h3>这家公司怎么样 <span class="muted small">按最近财报计算,报告期 ${esc(r.asof)};只描述现状,不是预测</span></h3><ul class="frsum">${r.items.map(row).join('')}</ul>`;
   }
 
-  const api = { fundRead, fundReadHTML, termify, TERMS };
+  const api = { fundRead, fundReadHTML, fundReason, termify, TERMS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else Object.assign(root, api);
 })(typeof window !== 'undefined' ? window : globalThis);

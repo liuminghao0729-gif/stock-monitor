@@ -1,6 +1,6 @@
 // 「这家公司怎么样」的离线测试:用构造的财报数据检查每句话里的数字和结论。运行:node tools/test_fundread.js
 const assert = require('assert');
-const { fundRead, fundReadHTML, termify } = require('../public/fundread.js');
+const { fundRead, fundReadHTML, fundReason, termify } = require('../public/fundread.js');
 const noBad = r => assert(!/NaN|undefined|Infinity|null/.test(JSON.stringify(r)), '输出里有 NaN/undefined/null:' + JSON.stringify(r).match(/.{20}(NaN|undefined|Infinity|null).{20}/));
 const get = (r, k) => r.items.find(i => i.key === k);
 
@@ -49,7 +49,7 @@ assert.deepStrictEqual(r.items.map(i => i.key), ['profit', 'growth', 'safety', '
 assert(get(r, 'value').verdict === '数据不足' && get(r, 'value').text.includes('市盈率 20.0 倍'));
 assert(get(r, 'safety').chips.find(c => c[0] === 'Z 分数')[1] === '数据不足');
 const noFcf = Object.assign({}, ttm); delete noFcf.fcf;
-r = fundRead({ fin: { ttm: noFcf, rows, years: [] }, health: null, stats: null, price: null }); assert(!r.items.find(i => i.key === 'safety'), '完全没有安全相关数据就不写这一项');
+r = fundRead({ fin: { ttm: noFcf, rows, years: [] }, health: null, stats: null, price: null }); assert(r.items.length === 4 && get(r, 'safety').missing === true && get(r, 'safety').verdict === '数据不足', '没有安全相关数据:仍列出这一行,写数据不足');
 // 增速:下滑 / 放缓
 r = fundRead({ fin: { ttm: Object.assign({}, ttm, { rev_yoy: -5 }), rows: [{ end: 'a', rev_yoy: 5 }, { end: 'b', rev_yoy: -2 }], years: [] }, price: 100 });
 g = get(r, 'growth'); assert(g.verdict === '收入下滑' && g.short.includes('下降 5.0%') && g.text.includes('增速在放缓') && g.tone === 'bad', g.text);
@@ -80,6 +80,24 @@ assert.strictEqual(detailText.length, 4);
 detailText.forEach(n => assert(n < 290, '展开后的文字太多:' + n));
 // 关键数字直接可见:市盈率、PEG、折现倍数
 const vh = fundReadHTML(r); assert(vh.includes('<b>20.0 倍</b>') && vh.includes('<b>1.20</b>') && vh.includes('<b>1.3 倍</b>'), '估值的三个关键数字');
+
+// 拿不到现价、但有折现估值:不能报错(以前会 TypeError 把整张卡片弄没)
+r = fundRead({ fin, health: Object.assign({}, health, { price: null }), stats: { pegRatio: 1.2 }, price: null }); noBad(r);
+v = get(r, 'value'); assert(v.text.includes('60 / 80 / 100') && v.text.includes('现价暂时取不到'), v.text);
+assert(v.chips[2][1] === '数据不足', '没有现价就没有折现倍数');
+r = fundRead({ fin, health: Object.assign({}, health, { price: null }), stats: null, price: null }); noBad(r);      // 什么价格都没有,也只是少几项
+
+// 缺项不能悄悄消失:四个问题始终都在,缺的写「数据不足」和原因,并且没有「看依据」
+const sparse = fundRead({ fin: { ttm: { end: '2026-09-26', rev: 100e6, nm: -10, ni: -10e6 }, rows: [], years: [] }, health: null, stats: null, price: null, now: Date.parse('2026-11-22') });
+assert.deepStrictEqual(sparse.items.map(i => i.key), ['profit', 'growth', 'safety', 'value']);
+assert.deepStrictEqual(sparse.items.filter(i => i.missing).map(i => i.key), ['growth', 'safety', 'value']);
+const sh = fundReadHTML(sparse); assert(sh.includes('缺少同比增速数据') && (sh.match(/数据不足/g) || []).length >= 3 && (sh.match(/看依据/g) || []).length === 1, '只有真正有内容的那一项才有「看依据」');
+
+// 没有卡片时要说明原因;ETF、指数和后台没配置的不显示
+assert(fundReason({ error: 'no_us_gaap' }).includes('外国公司') && fundReason({ error: 'too_short' }).includes('上市时间太短'));
+['no_cik', 'no_facts', 'not_stock', 'no_contact', 'mock'].forEach(e => assert.strictEqual(fundReason({ error: e }), '', e + ' 不该显示解释'));
+assert(fundReason({ ttm: {} }, null).includes('缺少收入或利润数据') && fundReason({ ttm: ttm }, {}) === '');
+assert(fundReadHTML({ note: '测试说明' }).includes('测试说明') && !fundReadHTML({ note: '<b>x</b>' }).includes('<b>x</b>'));
 
 // 财报数据太旧(例如停在 2014 年):不解读,并说明原因
 const old = fundRead({ fin: { ttm: Object.assign({}, ttm, { end: '2014-12-31' }), rows, years: [] }, price: 300, now: Date.parse('2026-11-22') });

@@ -35,6 +35,12 @@ def _chart(sym, rng, interval, ttl):
     return res[0]
 
 
+def sec_cik(tk, sym):
+    """SEC 代码表里 BRK-B 写作 BRK-B,而别处有时写 BRK.B:两种写法都认。"""
+    names = {sym, sym.replace("-", "."), sym.replace(".", "-")}
+    return next((v["cik_str"] for v in tk.values() if v["ticker"] in names), None)
+
+
 def quote(sym):
     r = _chart(sym, "1d", "1d", 8)
     m = r["meta"]
@@ -549,7 +555,7 @@ def _sec_backlog(sym):
     h = {"User-Agent": "StocksMonitor " + contact}
     try:
         tk = _get("https://www.sec.gov/files/company_tickers.json", 86400, h)
-        cik = next((v["cik_str"] for v in tk.values() if v["ticker"] == sym.replace("-", ".")), None)
+        cik = sec_cik(tk, sym)
         if cik is None:
             DBG["sec"] = f"{sym}: 在 SEC 代码表里找不到"
             return None
