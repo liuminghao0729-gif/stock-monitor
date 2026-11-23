@@ -28,6 +28,15 @@ STOCK = {
 }
 _D = datetime.date.fromisoformat
 
+STALE_DAYS = 200      # 最新一个季度的财报日期早于这么多天,就认为数据停更(例如部分银行的 SEC 标签变了),不能当「最近」数据用
+
+
+def is_stale(end, today=None):
+    try:
+        return ((today or datetime.date.today()) - _D(end)).days > STALE_DAYS
+    except Exception:
+        return True
+
 
 def _days(a, b):
     return (_D(b) - _D(a)).days
@@ -248,6 +257,8 @@ def fin(sym):
     if "us-gaap" not in cf.get("facts", {}):
         return {"error": "no_us_gaap"}                          # 外国公司(20-F)用国际会计准则,先不支持
     rows, ttm, years = build(cf)
+    if rows and is_stale(rows[-1]["end"]):
+        return {"error": "stale", "asof": rows[-1]["end"], "name": cf.get("entityName")}      # 财报数据停在很久以前:不展示,避免把旧数字当成最新
     if len(rows) < 4:
         return {"error": "too_short"}
     return {"name": cf.get("entityName"), "rows": rows, "years": years, "ttm": ttm, "check": _yahoo_check(sym, rows),

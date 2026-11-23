@@ -50,6 +50,30 @@ def test_no_gaap_and_error_paths():
     os.environ["SEC_CONTACT"] = "a@b.com"
     assert _fin.fin("SPX") == {"error": "not_stock"}
 
+def test_stale_data_is_not_shown():
+    """部分银行(如 JPM)的 SEC 数据停在 2014 年:fin() 和 health() 都要拦住,不能把旧数字当最新。"""
+    import datetime, _health
+    today = datetime.date(2026, 11, 22)
+    assert _fin.is_stale("2014-12-31", today) and not _fin.is_stale("2026-09-26", today)
+    assert _fin.is_stale("2026-05-05", today) is True and _fin.is_stale("2026-05-06", today) is False       # 刚好 200 天不算旧,201 天算旧
+    assert _fin.is_stale("乱码", today) is True and _fin.is_stale(None, today) is True                       # 日期坏了一律当过期
+    rev = []
+    for y in (2013, 2014):
+        rev += [fact(f"{y}-01-01", f"{y}-03-31", 100, f"{y}-05-01"), fact(f"{y}-04-01", f"{y}-06-30", 110, f"{y}-08-01"),
+                fact(f"{y}-07-01", f"{y}-09-30", 120, f"{y}-11-01"), fact(f"{y}-01-01", f"{y}-12-31", 460, f"{y+1}-02-01")]
+    old = cf(rev, ni=[dict(r, val=r["val"] / 10) for r in rev])
+    tk = {"0": {"cik_str": 1, "ticker": "OLD"}}
+    real = _fin.C._get
+    _fin.C._get = lambda url, ttl=10, headers=None: tk if "company_tickers" in url else old
+    os.environ["SEC_CONTACT"] = "a@b.com"
+    try:
+        f = _fin.fin("OLD")
+        assert f["error"] == "stale" and f["asof"] == "2014-12-31" and "rows" not in f, f
+        h = _health.health("OLD")
+        assert h["error"] == "stale" and h["asof"] == "2014-12-31" and "checkup" not in h and "dcf" not in h, h
+    finally:
+        _fin.C._get = real
+
 if __name__ == "__main__":
     n = 0
     for k, v in list(globals().items()):

@@ -447,7 +447,7 @@ function segHTML(sg) {
 }
 function finHTML(f, sg) {
   if (!f) return '<div class="muted small">正在读取 SEC 财报…</div>';
-  if (f.error) return `<div class="muted small">${{ no_cik: 'ETF / 指数没有公司财报', no_us_gaap: '这是外国公司,使用国际会计准则(20-F),暂不支持', no_contact: '后台还没设置 SEC_CONTACT', not_stock: '指数没有公司财报', too_short: '上市时间太短,财报不足 4 个季度', mock: '演示模式没有财报数据' }[f.error] || '暂无财报数据'}</div>`;
+  if (f.error) return `<div class="muted small">${{ no_cik: 'ETF / 指数没有公司财报', no_us_gaap: '这是外国公司,使用国际会计准则(20-F),暂不支持', no_contact: '后台还没设置 SEC_CONTACT', stale: '财报数据最新只到 ' + f.asof + ',太旧,所以不显示(原因见上方说明)', not_stock: '指数没有公司财报', too_short: '上市时间太短,财报不足 4 个季度', mock: '演示模式没有财报数据' }[f.error] || '暂无财报数据'}</div>`;
   const last = f.rows[f.rows.length - 1], ck = f.check, lv = ck && { ok: ['✅', '与 Yahoo 一致'], warn: ['⚠️', '与 Yahoo 有小差异'], bad: ['❌', '与 Yahoo 差异大,请以 SEC 原文为准'] }[ck.level];
   const rd = finRead(f, finMode);
   let h = `<div class="fintoggle"><button data-fm="Q" class="${finMode === 'Q' ? 'on' : ''}">季报(最近 4 季)</button><button data-fm="Y" class="${finMode === 'Y' ? 'on' : ''}">年报(最近 5 年)</button></div>
@@ -463,6 +463,7 @@ const COMPX = {};
 function paintFund(s) {
   const b = $('#fundbox'); if (!b || state.sel !== s || state.dt !== 'company') return;
   const f = finCache[s], h = healthCache[s]; if (!f) return;               // 财报还在加载:先不画
+  if (f.error === 'stale') { b.innerHTML = fundReadHTML({ stale: true, asof: f.asof }); return; }
   const c = COMPX[s], q = Data.quote(s), wasOpen = [...b.querySelectorAll('details')].map(d => d.open);
   b.innerHTML = fundReadHTML(fundRead({ fin: f, health: h && !h.error ? h : null, stats: c && c.extra && c.extra.stats, price: q && q.price }));
   b.querySelectorAll('details').forEach((d, i) => { if (wasOpen[i]) d.open = true; });
@@ -499,6 +500,7 @@ async function fillAbout(s, c) {
 const healthCache = {}, emCache = {};
 const RATE = { good: ['良好', 'up'], ok: ['一般', ''], bad: ['偏弱', 'down'] };
 function healthHTML(h, em) {
+  if (h && h.error === 'stale') return `<div class="csec muted small">财务体检:财报数据最新只到 ${esc(h.asof)},太旧,所以不显示(避免用旧盈利配上今天的股价)。</div>`;
   if (!h || h.error) return '';
   let o = '';
   const cu = h.checkup, cnt = k => cu.filter(x => x.rate === k).length;

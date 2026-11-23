@@ -203,6 +203,8 @@ def health(sym):
     if err:
         return {"error": err}
     rows, ttm, years = F.build(cf)
+    if rows and F.is_stale(rows[-1]["end"]):
+        return {"error": "stale", "asof": rows[-1]["end"]}              # 财报数据停更:体检会把旧盈利配上今天的股价,必须拦住
     if len(rows) < 4 or len(years) < 2:
         return {"error": "too_short"}
     shares_now = _extra(cf, years)
