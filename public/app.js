@@ -1076,14 +1076,14 @@ function bindChart() {
 
 // ===== 画图工具(基础版):趋势线、射线、水平线、垂直线、矩形、斐波那契回撤 =====
 // 每条画线只记录「第几根K线的时间 + 价格」,所以放大缩小、数据刷新后仍然贴在原位;按「股票 + 周期」存在本浏览器里(不上传)。
-const DW_TOOLS = [['cur', '光标'], ['trend', '趋势线'], ['ray', '射线'], ['hline', '水平线'], ['vline', '垂直线'], ['rect', '矩形'], ['fib', '斐波那契']];
+const DW_TOOLS = [['cur', '光标'], ['trend', '趋势线'], ['ray', '射线'], ['hline', '水平线'], ['vline', '垂直线'], ['rect', '矩形'], ['fib', '斐波那契'], ['measure', '测量']];
 const DW_COLORS = ['#4c8dff', '#f5c542', '#b57bee', '#e6edf3'], DW_FIB = [0, .236, .382, .5, .618, .786, 1], DW_MAX = 60;
-const draw = { tool: 'cur', color: store.get('dwColor', DW_COLORS[0]), pend: null, sel: null, key: '', list: [] };
+const draw = { meas: null, tool: 'cur', color: store.get('dwColor', DW_COLORS[0]), pend: null, sel: null, key: '', list: [] };
 const dwOk = d => d && typeof d.id === 'string' && ['trend', 'ray', 'hline', 'vline', 'rect', 'fib'].includes(d.type) && d.a && typeof d.a.t === 'string' && Number.isFinite(d.a.p)
   && (['hline', 'vline'].includes(d.type) || (d.b && typeof d.b.t === 'string' && Number.isFinite(d.b.p)));
 function dwList() {
   const k = 'dw|' + state.sel + '|' + state.period;
-  if (draw.key !== k) { draw.key = k; const l = store.get(k, []); draw.list = Array.isArray(l) ? l.filter(dwOk).slice(-DW_MAX) : []; draw.pend = null; draw.sel = null; }
+  if (draw.key !== k) { draw.key = k; const l = store.get(k, []); draw.list = Array.isArray(l) ? l.filter(dwOk).slice(-DW_MAX) : []; draw.pend = null; draw.sel = null; draw.meas = null; }
   return draw.list;
 }
 const dwSave = () => store.set(draw.key, draw.list);
@@ -1104,12 +1104,13 @@ function dwAdd(o) {
 }
 function dwDelSel() { const l = dwList(), i = l.findIndex(d => d.id === draw.sel); if (i >= 0) { l.splice(i, 1); dwSave(); } draw.sel = null; }
 function dwClick(q) {   // 返回 true = 这次点击被画图工具用掉了
-  if (draw.tool === 'cur') return false;
+  if (draw.tool === 'cur') { if (draw.meas) { draw.meas = null; return true; } return false; }   // 测量结果:点一下图就清除
   const a = dwPoint(q.x, q.y); if (!a) return true;
-  const T = draw.tool;
+  const T = draw.tool; draw.meas = null;
   if (T === 'hline' || T === 'vline') { dwAdd({ type: T, a }); return true; }
   if (!draw.pend) { draw.pend = { type: T, a }; return true; }
   const A = draw.pend.a; if (A.t === a.t && A.p === a.p) return true;
+  if (T === 'measure') { draw.meas = { a: A, b: a }; draw.pend = null; draw.tool = 'cur'; draw.sel = null; return true; }   // 测量不存档,只临时显示
   dwAdd({ type: T, a: A, b: a }); return true;
 }
 function dwHit(q, kind) {   // 点中了哪条画线(离线 7 像素内;手指 14 像素)
@@ -1122,7 +1123,7 @@ function dwHit(q, kind) {   // 点中了哪条画线(离线 7 像素内;手指 1
 }
 function dwTools() {
   const one = draw.tool === 'hline' || draw.tool === 'vline', cur = DW_TOOLS.find(t => t[0] === draw.tool), on = draw.tool !== 'cur';
-  const hint = draw.pend ? '再点一下,确定第二个点' : on ? (one ? '在图上点一下' : '在图上点第一个点') : draw.sel ? '已选中这条线,按 Delete 键删除' : '';
+  const hint = draw.pend ? '再点一下,确定第二个点' : draw.meas ? '点一下图的任意位置,清除测量' : on ? (one ? '在图上点一下' : '在图上点第一个点') : draw.sel ? '已选中这条线,按 Delete 键删除' : '';
   const btn = $('#dwBtn'), pop = $('#popDraw'), el = $('#dtools');
   if (btn) { btn.className = 'tb' + (on ? ' on' : ''); btn.textContent = on ? '画图:' + cur[1] + ' ▾' : '画图 ▾'; }
   if (pop) pop.innerHTML = '<div class="pt">划线</div>' + DW_TOOLS.filter(t => t[0] !== 'cur').map(([k, n]) => `<button class="${draw.tool === k ? 'on' : ''}" data-dw="${k}">${n}</button>`).join('')
@@ -1141,12 +1142,40 @@ document.addEventListener('click', e => {
   else { draw.tool = draw.tool === k ? 'cur' : k; draw.pend = null; draw.sel = null; }
   closePops(); dwTools(); if (V) paint();
 });
+function fmtSpan(a, b, intra) {   // 两根K线之间的时间跨度(大白话)
+  const ms = Math.abs(Date.parse(b.replace(' ', 'T')) - Date.parse(a.replace(' ', 'T'))); if (!Number.isFinite(ms)) return '';
+  const m = Math.round(ms / 60000), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60), mi = m % 60;
+  if (!intra) return d + ' 天'; return (d ? d + ' 天 ' : '') + (h ? h + ' 小时 ' : '') + (mi || (!d && !h) ? mi + ' 分钟' : '');
+}
+function drawMeasure(ctx, g, A, B2) {   // 测量工具:价格差、百分比、K线根数、时间跨度、成交量(类似 TradingView)
+  const { X, Y, top, bot, W, PL, PR } = g, R = W - PR, ia = dwIdx(A.t), ib = dwIdx(B2.t);
+  const xa = X(ia), ya = Y(A.p), xb = X(ib), yb = Y(B2.p); if (![xa, ya, xb, yb].every(Number.isFinite)) return;
+  const diff = B2.p - A.p, pct = A.p ? diff / A.p * 100 : 0, col = diff >= 0 ? UP : DOWN, dec = decOf(Math.max(A.p, B2.p));
+  const x0 = Math.min(xa, xb), x1 = Math.max(xa, xb), y0 = Math.min(ya, yb), y1 = Math.max(ya, yb), mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+  ctx.save(); ctx.strokeStyle = ctx.fillStyle = col; ctx.lineWidth = 1.2; ctx.setLineDash([]);
+  ctx.globalAlpha = .14; ctx.fillRect(x0, y0, x1 - x0, y1 - y0); ctx.globalAlpha = .9;
+  const arrow = (xs, ys, xe, ye) => { ctx.beginPath(); ctx.moveTo(xs, ys); ctx.lineTo(xe, ye); ctx.stroke(); const an = Math.atan2(ye - ys, xe - xs); ctx.beginPath(); ctx.moveTo(xe, ye); ctx.lineTo(xe - 7 * Math.cos(an - .45), ye - 7 * Math.sin(an - .45)); ctx.lineTo(xe - 7 * Math.cos(an + .45), ye - 7 * Math.sin(an + .45)); ctx.closePath(); ctx.fill(); };
+  if (Math.abs(yb - ya) > 3) arrow(mx, ya, mx, yb);
+  if (Math.abs(xb - xa) > 3) arrow(xa, my, xb, my);
+  ctx.globalAlpha = 1; [[xa, ya], [xb, yb]].forEach(([x, y]) => { ctx.beginPath(); ctx.arc(x, y, 3.5, 0, 7); ctx.fill(); });
+  const lo = Math.min(ia, ib), hi = Math.max(ia, ib); let vol = 0; for (let i = lo; i <= hi; i++) vol += V.bars[i].v || 0;
+  const l1 = `${diff >= 0 ? '+' : ''}${fmt(diff, dec)} (${diff >= 0 ? '+' : ''}${fmt(pct, 2)}%)`, bars = hi - lo, span = fmtSpan(V.bars[lo].t, V.bars[hi].t, isIntra(state.period));
+  const l2 = `${bars} 根K线${span ? ' · ' + span : ''}${vol > 0 ? ' · 量 ' + big(vol) : ''}`;
+  ctx.font = 'bold 12px -apple-system,"PingFang SC",sans-serif'; const w1 = ctx.measureText(l1).width; ctx.font = '11px -apple-system,"PingFang SC",sans-serif'; const w2 = ctx.measureText(l2).width;
+  const bw2 = Math.max(w1, w2) + 16, bh = 38; let bx = mx - bw2 / 2, by = yb < ya ? y0 - bh - 8 : y1 + 8;   // 涨:标签在上方;跌:在下方
+  if (by < top) by = y0 + 6; if (by + bh > bot) by = y1 - bh - 6; bx = Math.max(PL + 2, Math.min(R - bw2 - 2, bx));
+  ctx.fillStyle = col; ctx.globalAlpha = .95; ctx.fillRect(bx, by, bw2, bh); ctx.globalAlpha = 1; ctx.fillStyle = '#10201a'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold 12px -apple-system,"PingFang SC",sans-serif'; ctx.fillText(l1, bx + bw2 / 2, by + 12); ctx.font = '11px -apple-system,"PingFang SC",sans-serif'; ctx.fillText(l2, bx + bw2 / 2, by + 27);
+  ctx.restore();
+}
 function drawUser(ctx, g) {   // 在价格图上画出所有画线(已经处于绘图区裁剪范围内)
   const { X, Y, top, bot, W, PL, PR } = g, R = W - PR, items = dwList().map(d => ({ d, pending: false }));
   V.dgeo = [];
+  if (draw.meas) drawMeasure(ctx, g, draw.meas.a, draw.meas.b);
   if (draw.pend) {   // 画到一半:虚线跟着鼠标;还没有鼠标位置(手机)就只画第一个点
     const q = ptr.mx >= 0 && ptr.my >= 0 ? dwPoint(ptr.mx, ptr.my) : null;
-    if (q) items.push({ d: { type: draw.pend.type, a: draw.pend.a, b: q, color: draw.color }, pending: true });
+    if (q && draw.pend.type === 'measure') drawMeasure(ctx, g, draw.pend.a, q);
+    else if (q) items.push({ d: { type: draw.pend.type, a: draw.pend.a, b: q, color: draw.color }, pending: true });
     else { ctx.save(); ctx.fillStyle = draw.color; ctx.beginPath(); ctx.arc(X(dwIdx(draw.pend.a.t)), Y(draw.pend.a.p), 4, 0, 7); ctx.fill(); ctx.restore(); }
   }
   items.forEach(({ d, pending }) => {
@@ -1495,6 +1524,6 @@ document.addEventListener('keydown', e => {
   if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === '/') { e.preventDefault(); if (state.tab !== 'watch') switchTab('watch'); $('#addInput').focus(); return; }
   if ((e.key === 'Delete' || e.key === 'Backspace') && draw.sel && V && $('#cv')) { e.preventDefault(); dwDelSel(); dwTools(); paint(); return; }
-  if (e.key === 'Escape' && (draw.pend || draw.tool !== 'cur' || draw.sel) && V && $('#cv')) { draw.pend = null; draw.tool = 'cur'; draw.sel = null; dwTools(); paint(); }
+  if (e.key === 'Escape' && (draw.pend || draw.meas || draw.tool !== 'cur' || draw.sel) && V && $('#cv')) { draw.pend = null; draw.meas = null; draw.tool = 'cur'; draw.sel = null; dwTools(); paint(); }
 });
 init();
