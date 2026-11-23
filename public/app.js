@@ -310,7 +310,7 @@ async function renderDetail() {
   bindChart(); renderToolbar(); loadChart(true); loadStats(s); fillSigs(s); fillChartRead(s); showDT(state.dt);
   { const q = Data.quote(s); countUp($('.px-big .big'), q.price, Number.isFinite(q.price) ? decOf(q.price) : 2); }
   const stale = () => state.sel !== s || state.tab !== 'watch';
-  Data.loadNews(isIdx(s) ? '' : s).then(l => { if (!stale()) $('#stockNews').innerHTML = newsHTML(l); })
+  Data.loadNews(isIdx(s) ? '' : s).then(l => { if (!stale()) $('#stockNews').innerHTML = newsHTML(l, isIdx(s) ? null : s); })
     .catch(() => { if (!stale()) $('#stockNews').innerHTML = '<li class="muted">新闻加载失败</li>'; });
 }
 function showDT(dt) {
@@ -630,10 +630,10 @@ async function renderCompany() {
   if (state.sel === s && state.dt === 'company' && $('#dcompany')) { $('#dcompany').innerHTML = companyHTML(s, c); fillFin(s); fillHealth(s); fillAbout(s, c); paintFund(s); }
 }
 function loadStats(s) { if (Data.loadDetail) Data.loadDetail(s).then(() => { if (state.sel === s && state.tab === 'watch' && $('#dhead')) $('#dhead').innerHTML = headHTML(s); fillChartRead(s); }).catch(() => { }); }
-function newsHTML(list) {
+function newsHTML(list, sym) {
   if (!Array.isArray(list)) return `<li class="muted">${list.error}</li>`;
   if (!list.length) return '<li class="muted">暂无新闻</li>';
-  return list.map(n => `<li><span class="tag ${n.hot ? 'hot' : ''}">${n.hot ? '重要' : n.src}</span><div>${/^https?:\/\//.test(n.url || '') ? `<a href="${n.url}" target="_blank" rel="noopener noreferrer" style="color:inherit">${esc(n.title)}</a>` : esc(n.title)}<div class="muted small">${esc(n.src)} · ${n.minsAgo < 60 ? n.minsAgo + ' 分钟前' : Math.round(n.minsAgo / 60) + ' 小时前'}</div></div></li>`).join('');
+  return list.map(n => `<li><span class="tag ${n.hot ? 'hot' : ''}">${n.hot ? '重要' : n.src}</span><div>${/^https?:\/\//.test(n.url || '') ? `<a href="${n.url}" target="_blank" rel="noopener noreferrer" style="color:inherit">${esc(n.title)}</a>` : esc(n.title)}<div class="muted small">${esc(n.src)} · ${n.minsAgo < 60 ? n.minsAgo + ' 分钟前' : Math.round(n.minsAgo / 60) + ' 小时前'}</div>${newsTagsHTML(newsRead(n.title, { sym }), sym)}</div></li>`).join('') + '<li class="muted small newsnote">标签由程序按标题里的关键词判断,粗略,可能不准,不是预测;只有标题里有明确用词时才标「利好 / 利空」。</li>';
 }
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
