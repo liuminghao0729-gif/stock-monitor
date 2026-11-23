@@ -464,3 +464,14 @@ kbd{font:500 11px "SF Mono",Menlo,monospace;border:1px solid var(--line);border-
 .crmore summary,.crw summary{cursor:pointer;padding:4px 0}
 .cri{padding:10px 0;border-top:1px solid var(--line);line-height:1.85}.cri>b{margin-right:6px}
 .crt{border-collapse:collapse;margin-top:4px}.crt td{padding:3px 16px 3px 0;font-size:12.5px;vertical-align:top}
+
+/* 这家公司怎么样 */
+.frsum{list-style:none;padding:0;margin:8px 0}.frsum>li{margin:12px 0;line-height:1.85}.frsum>li>b{margin-right:6px}
+.vtag{display:inline-block;padding:1px 9px;border-radius:99px;font-size:12px;margin-right:6px;border:1px solid var(--line);color:var(--muted)}
+.vtag.vt-ok{color:var(--up);border-color:rgba(126,211,164,.4)}.vtag.vt-bad{color:var(--down);border-color:rgba(239,138,120,.4)}.vtag.vt-w{color:var(--accent);border-color:rgba(207,167,108,.45)}
+
+/* 看依据:关键数字 + 补充行 + 判断线 */
+.frd{margin:6px 0 4px}.fchips{display:flex;flex-wrap:wrap;gap:8px}
+.fchip{flex:1 1 130px;min-width:120px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;gap:2px}
+.fchip b{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums}.fchip.fk{border-color:var(--gline,rgba(255,255,255,.2))}.fchip.fk b{color:var(--accent)}
+.fsub{color:var(--muted)}.fline{margin:8px 0 0;line-height:1.7}.fexp{margin:8px 0 0;line-height:1.7}.frule{margin:4px 0 0;line-height:1.7;color:var(--muted)}.frule .muted{margin-right:6px;color:var(--faint)}

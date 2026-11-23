@@ -458,12 +458,22 @@ function finHTML(f, sg) {
     <div class="muted small finfoot">来源:${esc(f.source)};最新一期 ${esc(f.asof)}(${esc(last.filed)} 公告)。季度里第四季或现金流数据由全年数减前三季推算。${lv ? `数据核对:${lv[0]} ${lv[1]}(核对 ${ck.n} 项,最大误差 ${ck.worst}%)。` : '数据核对:Yahoo 暂时没有可比数据。'}</div>`;
   return h;
 }
+// 「这家公司怎么样」:财报(SEC)+ 体检模型 + Yahoo 估值指标 的大白话四问(规则和测试见 fundread.js、tools/test_fundread.js)
+const COMPX = {};
+function paintFund(s) {
+  const b = $('#fundbox'); if (!b || state.sel !== s || state.dt !== 'company') return;
+  const f = finCache[s], h = healthCache[s]; if (!f) return;               // 财报还在加载:先不画
+  const c = COMPX[s], q = Data.quote(s), wasOpen = [...b.querySelectorAll('details')].map(d => d.open);
+  b.innerHTML = fundReadHTML(fundRead({ fin: f, health: h && !h.error ? h : null, stats: c && c.extra && c.extra.stats, price: q && q.price }));
+  b.querySelectorAll('details').forEach((d, i) => { if (wasOpen[i]) d.open = true; });
+}
 function paintFin(s) {
   const box = $('#finbox'); if (!box || state.sel !== s) return;
   box.innerHTML = '<h3>财报趋势</h3>' + finHTML(finCache[s], segCache[s]); pfData(s);
   box.onclick = e => { const m = e.target.closest('[data-fm]'), g = e.target.closest('[data-seg]');
     if (m) { finMode = m.dataset.fm; try { localStorage.setItem('finMode', finMode); } catch { } paintFin(s); }
     if (g) { finAxis = +g.dataset.seg; paintFin(s); } };
+  paintFund(s);
 }
 // ===== 公司简介(代码拼装:维基百科 / 年报业务描述 + 基本信息卡)=====
 const aboutCache = {};
@@ -519,7 +529,7 @@ function healthHTML(h, em) {
 }
 async function fillHealth(s) {
   const box = $('#hbox'); if (!box || !Data.loadHealth) return;
-  const paint = () => { const b = $('#hbox'); if (b && state.sel === s && state.dt === 'company') b.innerHTML = healthHTML(healthCache[s], emCache[s]); };
+  const paint = () => { const b = $('#hbox'); if (b && state.sel === s && state.dt === 'company') b.innerHTML = healthHTML(healthCache[s], emCache[s]); paintFund(s); };
   if (healthCache[s] === undefined) { box.innerHTML = '<div class="csec muted small">体检数据加载中…</div>'; try { healthCache[s] = await Data.loadHealth(s); } catch { healthCache[s] = { error: 'fail' }; } }
   paint();
   if (healthCache[s] && !healthCache[s].error && emCache[s] === undefined) { try { emCache[s] = await Data.loadEM(s); } catch { emCache[s] = { error: 'fail' }; } paint(); }
@@ -589,6 +599,7 @@ function companyHTML(s, c) {
   const note = c && c.error ? '暂无数据' : '';
   let h = `<div class="csec"><h3>${esc(k ? k.n : q.name)} <span class="muted small">${meta}${web}</span></h3>${k ? `<p class="intro">${esc(k.intro)}</p>` : c && c.about ? '' : '<p class="muted">暂无这家公司的详细分析</p>'}</div>`;
   h += profileHTML(s) + etfHTML(s, c);
+  if (!isIdx(s)) h += '<div class="csec" id="fundbox"></div>';
   if (k) h += `<div class="csec"><h3>主营业务</h3>${list(k.segs)}</div>`;
   else if (!isIdx(s)) h +='<div class="csec" id="aboutbox"><h3>公司简介</h3><div class="muted small">加载中…</div></div>';
   h += `<div class="csec"><h3>分析师评级</h3>${note && !(c && c.rec) ? `<div class="muted small">${note}</div>` : recHTML(c)}</div>`;
@@ -613,7 +624,8 @@ async function renderCompany() {
   const s = state.sel, box = $('#dcompany'); if (!box) return;
   box.innerHTML = companyHTML(s, null); fillFin(s); fillHealth(s); fillAbout(s); fillAbout(s);
   let c; try { c = await Data.loadCompany(s); } catch { c = { error: 'fail' }; }
-  if (state.sel === s && state.dt === 'company' && $('#dcompany')) { $('#dcompany').innerHTML = companyHTML(s, c); fillFin(s); fillHealth(s); fillAbout(s, c); }
+  COMPX[s] = c;
+  if (state.sel === s && state.dt === 'company' && $('#dcompany')) { $('#dcompany').innerHTML = companyHTML(s, c); fillFin(s); fillHealth(s); fillAbout(s, c); paintFund(s); }
 }
 function loadStats(s) { if (Data.loadDetail) Data.loadDetail(s).then(() => { if (state.sel === s && state.tab === 'watch' && $('#dhead')) $('#dhead').innerHTML = headHTML(s); fillChartRead(s); }).catch(() => { }); }
 function newsHTML(list) {
