@@ -793,7 +793,7 @@ function rebase(oldB, newB) {
   if (idx >= 0) view.start += idx - k;
 }
 function refreshChart() {
-  if (!V) return; const L = V.L; V = prepare(); V.L = L; clampView(); paint();
+  if (!V) return; const L = V.L; V = prepare(); V.L = L; V.hasVol = V.bars.some(b => b.v > 0); clampView(); paint();   // hasVol 必须补上,否则每次自动刷新后筹码分布会消失
 }
 function drawCharts() { if (V) { layout(); paint(); } }   // 窗口大小变化时重排
 
@@ -1032,13 +1032,16 @@ function bindChart() {
   const startDrag = q => { ptr.drag = { x: q.x, start: view.start }; };
   cv.addEventListener('pointerdown', e => {
     if (!V) return; try { cv.setPointerCapture(e.pointerId); } catch { } const q = pos(e); ptr.map.set(e.pointerId, q); ptr.moved = false;
-    if (ptr.map.size === 1) startDrag(q);
-    else if (ptr.map.size === 2) { const [a, b] = [...ptr.map.values()]; ptr.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) }; ptr.drag = null; }
+    if (ptr.map.size === 1) { const h = dwGrab(q, e.pointerType); if (h) { draw.drag = h; ptr.drag = null; } else startDrag(q); }
+    else if (ptr.map.size === 2) { draw.drag = null; const [a, b] = [...ptr.map.values()]; ptr.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) }; ptr.drag = null; }
   });
   cv.addEventListener('pointermove', e => {
     if (!V) return; const q = pos(e), had = ptr.map.has(e.pointerId); if (had) ptr.map.set(e.pointerId, q);
     if (ptr.pinch && ptr.map.size === 2) {
       const [a, b] = [...ptr.map.values()], d = Math.hypot(a.x - b.x, a.y - b.y); if (d > 5) { zoomAt(ptr.pinch.d / d, (a.x + b.x) / 2); ptr.pinch.d = d; } ptr.moved = true; state.hover = -1; paint();
+    } else if (draw.drag && had) {
+      if (Math.hypot(q.x - draw.drag.q0.x, q.y - draw.drag.q0.y) > 3) ptr.moved = true;
+      if (ptr.moved) { dwDragMove(q); state.hover = -1; paint(); }
     } else if (ptr.drag && had && (e.pointerType !== 'mouse' || (e.buttons & 1))) {
       const dx = q.x - ptr.drag.x; if (Math.abs(dx) > 3) ptr.moved = true;
       if (ptr.moved) { cv.style.cursor = 'grabbing'; state.hover = -1; view.start = ptr.drag.start - dx / (plotW() / view.count); clampView(); paint(); }
@@ -1047,8 +1050,9 @@ function bindChart() {
   const up = e => {
     if (!V) return; ptr.map.delete(e.pointerId); cv.style.cursor = 'crosshair';
     if (ptr.map.size < 2) ptr.pinch = null;
-    if (ptr.map.size === 1) { startDrag([...ptr.map.values()][0]); ptr.moved = true; return; }
+    if (ptr.map.size === 1) { draw.drag = null; startDrag([...ptr.map.values()][0]); ptr.moved = true; return; }
     if (ptr.map.size === 0) {
+      if (draw.drag) { if (ptr.moved) dwSave(); draw.drag = null; }
       const q = pos(e);
       if (e.type === 'pointerup' && !ptr.moved) {
         const hit = (V.hits || []).find(h => q.x >= h.x0 && q.x <= h.x1 && q.y >= h.y0 && q.y <= h.y1);
@@ -1063,6 +1067,7 @@ function bindChart() {
       ptr.drag = null;
     }
   };
+  cv.addEventListener('contextmenu', e => e.preventDefault()); cv.addEventListener('selectstart', e => e.preventDefault());   // 手机长按不要弹出复制/选择
   cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
   cv.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse' && !ptr.drag) { state.hover = -1; ptr.mx = -1; ptr.my = -1; if (V) paint(); } });
   cv.addEventListener('wheel', e => {
@@ -1121,9 +1126,32 @@ function dwHit(q, kind) {   // 点中了哪条画线(离线 7 像素内;手指 1
   }));
   return id;
 }
+function dwGrab(q, kind) {   // 选中一条线后:按住端点 = 调整,按住线身 = 整条移动
+  if (draw.tool !== 'cur' || !draw.sel || !V || !V.dgeo) return null;
+  const d = dwList().find(x => x.id === draw.sel), g = V.dgeo.find(x => x.id === draw.sel); if (!d || !g) return null;
+  const R = kind === 'mouse' ? 10 : 20, orig = { a: { ...d.a }, b: d.b ? { ...d.b } : null };
+  for (let k = 0; k < g.pts.length; k++) if (Math.hypot(q.x - g.pts[k][0], q.y - g.pts[k][1]) <= R) return { id: d.id, mode: k ? 'b' : 'a', q0: q, orig };
+  let near = kind === 'mouse' ? 7 : 14, hit = false;
+  g.segs.forEach(([x0, y0, x1, y1]) => { const dx = x1 - x0, dy = y1 - y0, L = dx * dx + dy * dy, t = L ? Math.max(0, Math.min(1, ((q.x - x0) * dx + (q.y - y0) * dy) / L)) : 0; if (Math.hypot(q.x - (x0 + t * dx), q.y - (y0 + t * dy)) < near) hit = true; });
+  return hit ? { id: d.id, mode: 'move', q0: q, orig } : null;
+}
+function dwDragMove(q) {
+  const g = draw.drag, d = dwList().find(x => x.id === g.id); if (!d) return;
+  if (g.mode === 'a' || g.mode === 'b') {
+    const P0 = V.L.panels.find(p => p.id === 'price'), pt = P0 && dwPoint(q.x, Math.max(P0.y + P0.head, Math.min(P0.y + P0.h - 4, q.y))); if (!pt) return;   // 拖出价格区域时贴着边缘
+    if (d.type === 'hline') d.a = { t: g.orig.a.t, p: pt.p }; else if (d.type === 'vline') d.a = { t: pt.t, p: g.orig.a.p }; else d[g.mode] = pt;
+    return;
+  }
+  const P = V.L.panels.find(p => p.id === 'price'); if (!P || !P.inv) return;
+  const n = V.bars.length, ia = dwIdx(g.orig.a.t), ib = g.orig.b ? dwIdx(g.orig.b.t) : ia, dpx = plotW() / view.count;
+  const di = Math.max(-Math.min(ia, ib), Math.min(n - 1 - Math.max(ia, ib), Math.round((q.x - g.q0.x) / dpx))), dp = P.inv(q.y) - P.inv(g.q0.y);
+  const mv = (o, i) => ({ t: V.bars[i + di].t, p: Math.max(0, o.p + dp) });
+  d.a = mv(g.orig.a, ia); if (g.orig.b) d.b = mv(g.orig.b, ib);
+}
 function dwTools() {
+  { const cv = $('#cv'); if (cv) cv.style.touchAction = draw.sel ? 'none' : 'pan-y'; }   // 选中画线时,手指拖动端点不会触发页面滚动
   const one = draw.tool === 'hline' || draw.tool === 'vline', cur = DW_TOOLS.find(t => t[0] === draw.tool), on = draw.tool !== 'cur';
-  const hint = draw.pend ? '再点一下,确定第二个点' : draw.meas ? '点一下图的任意位置,清除测量' : on ? (one ? '在图上点一下' : '在图上点第一个点') : draw.sel ? '已选中这条线,按 Delete 键删除' : '';
+  const hint = draw.pend ? '再点一下,确定第二个点' : draw.meas ? '点一下图的任意位置,清除测量' : on ? (one ? '在图上点一下' : '在图上点第一个点') : draw.sel ? '已选中:拖圆点调整形状,拖线身整体移动,按 Delete 删除' : '';
   const btn = $('#dwBtn'), pop = $('#popDraw'), el = $('#dtools');
   if (btn) { btn.className = 'tb' + (on ? ' on' : ''); btn.textContent = on ? '画图:' + cur[1] + ' ▾' : '画图 ▾'; }
   if (pop) pop.innerHTML = '<div class="pt">划线</div>' + DW_TOOLS.filter(t => t[0] !== 'cur').map(([k, n]) => `<button class="${draw.tool === k ? 'on' : ''}" data-dw="${k}">${n}</button>`).join('')
@@ -1181,6 +1209,7 @@ function drawUser(ctx, g) {   // 在价格图上画出所有画线(已经处于�
   items.forEach(({ d, pending }) => {
     const xa = X(dwIdx(d.a.t)), ya = Y(d.a.p), two = !!d.b, xb = two ? X(dwIdx(d.b.t)) : 0, yb = two ? Y(d.b.p) : 0, sel = d.id === draw.sel;
     if (![xa, ya, xb, yb].every(Number.isFinite)) return;
+    const pts = d.type === 'hline' ? [[R - 30, ya]] : d.type === 'vline' ? [[xa, (top + bot) / 2]] : two ? [[xa, ya], [xb, yb]] : [[xa, ya]];
     const segs = []; ctx.save(); ctx.strokeStyle = ctx.fillStyle = d.color; ctx.lineWidth = sel ? 2.4 : 1.5; ctx.font = '11px sans-serif'; ctx.textBaseline = 'middle'; if (pending) ctx.setLineDash([5, 4]);
     const line = (x0, y0, x1, y1) => { ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); segs.push([x0, y0, x1, y1]); };
     if (d.type === 'trend') line(xa, ya, xb, yb);
@@ -1198,9 +1227,9 @@ function drawUser(ctx, g) {   // 在价格图上画出所有画线(已经处于�
       const x0 = Math.min(xa, xb); ctx.save(); ctx.setLineDash([3, 4]); ctx.globalAlpha = .55; line(xa, ya, xb, yb); ctx.restore(); ctx.lineWidth = 1;
       DW_FIB.forEach(lv => { const pr = d.b.p + (d.a.p - d.b.p) * lv, y = Y(pr); ctx.globalAlpha = .85; line(x0, y, R, y); ctx.globalAlpha = 1; ctx.textAlign = 'left'; ctx.fillText(`${lv} (${fmt(pr, decOf(pr))})`, x0 + 4, y - 7); });
     }
-    if (sel && !pending) { ctx.setLineDash([]); ctx.fillStyle = d.color; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; [[xa, ya], two ? [xb, yb] : null].forEach(pt => { if (!pt) return; ctx.beginPath(); ctx.arc(pt[0], pt[1], 4.5, 0, 7); ctx.fill(); ctx.stroke(); }); }
+    if (sel && !pending) { ctx.setLineDash([]); ctx.fillStyle = d.color; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; pts.forEach(pt => { ctx.beginPath(); ctx.arc(pt[0], pt[1], 5.5, 0, 7); ctx.fill(); ctx.stroke(); }); }
     ctx.restore();
-    if (!pending) V.dgeo.push({ id: d.id, segs });
+    if (!pending) V.dgeo.push({ id: d.id, segs, pts });
   });
 }
 

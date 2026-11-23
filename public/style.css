@@ -492,3 +492,5 @@ kbd{font:500 11px "SF Mono",Menlo,monospace;border:1px solid var(--line);border-
 .eimp.e3{color:var(--accent);border-color:rgba(207,167,108,.55)}
 .daytabs button.has-evt{position:relative}.daytabs button.has-evt::after{content:"";position:absolute;top:6px;right:7px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
 @media (max-width:600px){.egrp{flex-direction:column;gap:4px}.edate{flex:none}}
+
+.chartwrap,.chartwrap canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
