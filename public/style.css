@@ -482,3 +482,13 @@ kbd{font:500 11px "SF Mono",Menlo,monospace;border:1px solid var(--line);border-
 .nt-type{color:var(--text)}.nt-up{color:var(--up);border-color:rgba(126,211,164,.45)}.nt-down{color:var(--down);border-color:rgba(239,138,120,.45)}.nt-mix{color:var(--accent);border-color:rgba(207,167,108,.5)}
 .nt-ind{color:var(--faint);border-style:dashed}.nt-co{cursor:pointer}.nt-co:hover{color:var(--accent);border-color:var(--accent)}
 .newsnote{list-style:none;padding:8px 0 0;line-height:1.7}
+
+/* 经济日历 */
+.ecohead{margin:18px 0 8px}
+.egrp{display:flex;gap:16px;padding:12px 0;border-top:1px solid var(--line)}.egrp:first-of-type{border-top:0}
+.edate{flex:0 0 138px;line-height:1.7}.edate b{font-size:15px}.eitems{flex:1;min-width:0}
+.eit{margin:0 0 10px;line-height:1.7}.eit:last-child{margin-bottom:0}.eit>b{margin-right:8px}
+.eimp{display:inline-block;padding:0 8px;border-radius:99px;font-size:11.5px;line-height:19px;margin-right:8px;border:1px solid var(--line);color:var(--muted)}
+.eimp.e3{color:var(--accent);border-color:rgba(207,167,108,.55)}
+.daytabs button.has-evt{position:relative}.daytabs button.has-evt::after{content:"";position:absolute;top:6px;right:7px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
+@media (max-width:600px){.egrp{flex-direction:column;gap:4px}.edate{flex:none}}

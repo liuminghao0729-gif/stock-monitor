@@ -492,6 +492,78 @@ def _fred(path, params, ttl):
     return _get("https://api.stlouisfed.org/fred/" + path + "?" + urllib.parse.urlencode(dict(params, api_key=key, file_type="json")), ttl)
 
 
+# ---- 经济日历:经济数据发布日(FRED 发布日程)+ FOMC 会议(美联储官网日程) ----
+# FOMC:(会议第一天, 公布决议的那天, 是否同时发布经济预测)。来自美联储官网 https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm
+# (页面 2026-11-18 更新)。页面写明:每次会议日期在上一次会议确认前都是暂定的;会议纪要在决议后三周公布;2027 年页面还没标出哪些会议带经济预测。
+FOMC = [("2026-01-27", "2026-01-28", False), ("2026-03-17", "2026-03-18", True), ("2026-04-28", "2026-04-29", False), ("2026-06-16", "2026-06-17", True),
+        ("2026-07-28", "2026-07-29", False), ("2026-09-15", "2026-09-16", True), ("2026-10-27", "2026-10-28", False), ("2026-12-08", "2026-12-09", True),
+        ("2027-01-26", "2027-01-27", False), ("2027-03-16", "2027-03-17", False), ("2027-04-27", "2027-04-28", False), ("2027-06-08", "2027-06-09", False),
+        ("2027-07-27", "2027-07-28", False), ("2027-09-14", "2027-09-15", False), ("2027-10-26", "2027-10-27", False), ("2027-11-16", "2027-11-17", False),
+        ("2028-01-25", "2028-01-26", False)]
+# (FRED 发布名里的关键词, 代号, 中文名, 重要程度 3 高 / 2 中, 大白话说明)
+ECON = [("Consumer Price Index", "cpi", "CPI 通胀数据", 3, "衡量物价同比涨了多少,是美联储决定加息还是降息最看重的数据之一。"),
+        ("Employment Situation", "jobs", "非农就业报告", 3, "上个月新增了多少非农就业岗位、失业率是多少,反映经济和就业市场的冷热。"),
+        ("Gross Domestic Product", "gdp", "GDP", 3, "衡量整个经济增长了多少。同一个季度会先后公布初值和修正值,数字可能被修正。"),
+        ("Personal Income and Outlays", "pce", "PCE 通胀数据", 3, "美联储真正盯的通胀指标 PCE 就在这份报告里,同时还有居民收入和消费。"),
+        ("Producer Price Index", "ppi", "PPI 生产者物价", 2, "企业买进原材料和商品的价格变化,常被看作 CPI 的先行信号。"),
+        ("Advance Monthly Sales for Retail", "retail", "零售销售", 2, "消费者花了多少钱。消费是美国经济最大的引擎,这个数据反映它的强弱。"),
+        ("Job Openings and Labor Turnover", "jolts", "JOLTS 职位空缺", 2, "企业有多少空缺职位,用来看就业市场有多紧张。")]
+ECON_SPAN_MAX = 62
+
+
+def fomc_events(frm, to):
+    out = []
+    for a, b, sep in FOMC:
+        if frm <= b <= to:
+            out.append({"date": b, "key": "fomc", "name": "FOMC 利率决议", "imp": 3, "src": "美联储官网",
+                        "desc": f"美联储开两天会议({a[5:]} 至 {b[5:]}),这天公布是否调整利率" + (";同时发布经济预测摘要(含点阵图)。" if sep else "。") + "会议日期在上一次会议确认前都是暂定的。"})
+        m = (datetime.date.fromisoformat(b) + datetime.timedelta(days=21)).isoformat()      # 美联储规则:纪要在决议后三周公布
+        if frm <= m <= to:
+            out.append({"date": m, "key": "fomc_min", "name": "FOMC 会议纪要", "imp": 2, "src": "美联储官网(按三周规则推算)",
+                        "desc": f"{b[5:]} 那次会议的详细记录,会透露官员们有哪些分歧、倾向往哪走。"})
+    return out
+
+
+def _fred_release_dates(frm, to):
+    rows = []
+    for off in range(0, 3000, 1000):
+        d = _fred("releases/dates", {"realtime_start": frm, "realtime_end": to, "include_release_dates_with_no_data": "true",
+                                     "order_by": "release_date", "sort_order": "asc", "limit": 1000, "offset": off}, 3600)
+        if d is None:
+            return None
+        got = d.get("release_dates", [])
+        rows += got
+        if len(got) < 1000:
+            break
+    return rows
+
+
+def econ(frm, to):
+    """经济日历:返回 [frm, to] 之间的经济事件。FRED 取不到时仍返回 FOMC,并用 fred 字段说明。"""
+    items = fomc_events(frm, to)
+    fred_ok = True
+    try:
+        rows = _fred_release_dates(frm, to)
+        if rows is None:
+            fred_ok = False
+        else:
+            seen = set()
+            for x in rows:
+                nm = (x.get("release_name") or "")
+                if "fomc" in nm.lower():
+                    continue                                                   # FOMC 以美联储官网日程为准
+                hit = next((e for e in ECON if e[0].lower() in nm.lower()), None)
+                d = x.get("date") or ""
+                if hit and frm <= d <= to and (d, hit[1]) not in seen:
+                    seen.add((d, hit[1]))
+                    items.append({"date": d, "key": hit[1], "name": hit[2], "imp": hit[3], "desc": hit[4], "src": "FRED(圣路易斯联储)发布日程"})
+    except Exception as e:
+        DBG["econ"] = f"{type(e).__name__}: {str(e)[:60]}"
+        fred_ok = False
+    items.sort(key=lambda i: (i["date"], -i["imp"], i["name"]))
+    return {"items": items, "fred": fred_ok, "from": frm, "to": to}
+
+
 def macro():
     if not os.environ.get("FRED_KEY"):
         return {"error": "no_key"}
@@ -652,7 +724,8 @@ SOURCES = [
     {"k": "行情 / K线 / 分时", "src": "Yahoo Finance(非官方接口)", "delay": "盘中,可能延迟,不保证实时", "note": "每条报价带交易所时间;条款为个人使用口径,见阶段 0 报告"},
     {"k": "涨跌榜 / 板块 / 条件筛选", "src": "Yahoo Finance screener", "delay": "盘中,可能延迟", "note": "仅美股主要交易所"},
     {"k": "分析师目标价 / 升降级", "src": "FMP", "delay": "日更", "note": "需要后台 Key;免费版展示条款待核实"},
-    {"k": "新闻 / 财报日历", "src": "Finnhub", "delay": "按发布时间", "note": "免费版展示条款待核实"},
+    {"k": "新闻 / 公司财报日程", "src": "Finnhub", "delay": "按发布时间", "note": "免费版展示条款待核实"},
+    {"k": "经济日历(经济数据发布、FOMC)", "src": "FRED 发布日程;FOMC 取自美联储官网", "delay": "日程提前公布,可能调整", "note": "只有日期,没有具体发布时间;FOMC 日期为暂定"},
     {"k": "宏观指标", "src": "FRED(美联储圣路易斯分行)", "delay": "按各指标发布日(日/月/季)", "note": "部分序列有第三方版权"},
     {"k": "财报 / 分部收入 / 体检 / DCF", "src": "SEC EDGAR(官方)", "delay": "按财报披露日(季报/年报)", "note": "公共领域数据,指标由代码计算"},
     {"k": "持股结构 / 内部人 / 做空比例 / 预期", "src": "Yahoo Finance quoteSummary", "delay": "季度或半月更新,有滞后", "note": "非官方接口"},
@@ -678,6 +751,17 @@ def route(name, q):
             datetime.date.fromisoformat(q["date"])      # 校验日期格式
             return 200, earnings(q["date"]), 600
         if name == "macro":
+            if q.get("part") == "econ":                       # 经济日历(复用 macro 这个接口文件,Vercel 免费版最多只能有 12 个函数)
+                today = datetime.date.today()
+                frm = q.get("from") or str(today)
+                to = q.get("to") or str(today + datetime.timedelta(days=30))
+                try:
+                    a, b = datetime.date.fromisoformat(frm), datetime.date.fromisoformat(to)
+                except ValueError:
+                    return 400, {"error": "bad date"}, 0
+                if b < a or (b - a).days > ECON_SPAN_MAX:
+                    return 400, {"error": "bad range"}, 0
+                return 200, econ(frm, to), 3600
             return 200, macro(), 600
         if name == "movers":
             return 200, (screen(q) if q.get("part") == "screen" else sectors(10) if q.get("part") == "sectors" else sectors(50, q.get("name", "")) if q.get("part") == "sector" else movers()), 120

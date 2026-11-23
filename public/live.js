@@ -39,6 +39,7 @@ const LiveData = (() => {
       r.items.forEach(x => { if (out[x.when]) out[x.when].push({ sym: x.sym, name: x.name || (M.info[x.sym] || {}).name || '', eps: x.eps == null ? '--' : x.eps.toFixed(2), rev: x.rev ? (x.rev / 1e9).toFixed(1) + 'B' + (x.cur && x.cur !== 'USD' ? ' ' + x.cur : '') : '--', cur: x.cur && x.cur !== 'USD' ? x.cur : '', cap: x.cap }); });
       return out;
     },
+    async loadEcon(from, to) { const r = await api('/api/macro?part=econ&from=' + from + '&to=' + to); if (r.error) throw new Error(r.error); return r; },
     async search(q) { return api('/api/search?q=' + encodeURIComponent(q)); },
     async validate(sym) { await this.refreshQuotes([sym]); return !!qc[sym]; }
   };
