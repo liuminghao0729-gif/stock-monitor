@@ -524,6 +524,33 @@ def fomc_events(frm, to):
     return out
 
 
+def _fred_release_dates_fast(frm, to):
+    """快路径:先取一次发布清单(缓存一天),只对我们关心的几类发布各查一次日期,并行进行。
+    原来的写法一次拉回「全部发布 × 全部日期」分页取,冷缓存时要十几秒。失败或没结果时返回 None,由慢路径兜底。"""
+    rel = _fred("releases", {"limit": 1000}, 86400)
+    if not rel:
+        return None
+    pick = []
+    for r in rel.get("releases", []):
+        nm = r.get("name") or ""
+        if "fomc" not in nm.lower() and any(e[0].lower() in nm.lower() for e in ECON):
+            pick.append((r["id"], nm))
+    if not pick:
+        return None
+
+    def one(x):
+        d = _fred("release/dates", {"release_id": x[0], "realtime_start": frm, "realtime_end": to, "include_release_dates_with_no_data": "true",
+                                    "sort_order": "asc", "limit": 1000}, 3600)
+        if d is None:
+            raise RuntimeError("fred")
+        return [{"release_name": x[1], "date": r.get("date")} for r in d.get("release_dates", [])]
+    with ThreadPoolExecutor(8) as ex:
+        out = []
+        for part in ex.map(one, pick):
+            out += part
+    return out
+
+
 def _fred_release_dates(frm, to):
     rows = []
     for off in range(0, 3000, 1000):
@@ -543,7 +570,13 @@ def econ(frm, to):
     items = fomc_events(frm, to)
     fred_ok = True
     try:
-        rows = _fred_release_dates(frm, to)
+        try:
+            rows = _fred_release_dates_fast(frm, to)
+        except Exception as e:
+            DBG["econ_fast"] = f"{type(e).__name__}: {str(e)[:60]}"
+            rows = None
+        if not rows:
+            rows = _fred_release_dates(frm, to)                              # 慢路径兜底
         if rows is None:
             fred_ok = False
         else:
@@ -761,7 +794,7 @@ def route(name, q):
                     return 400, {"error": "bad date"}, 0
                 if b < a or (b - a).days > ECON_SPAN_MAX:
                     return 400, {"error": "bad range"}, 0
-                return 200, econ(frm, to), 3600
+                return 200, econ(frm, to), 21600                       # 发布日程很少变,缓存 6 小时
             return 200, macro(), 600
         if name == "movers":
             return 200, (screen(q) if q.get("part") == "screen" else sectors(10) if q.get("part") == "sectors" else sectors(50, q.get("name", "")) if q.get("part") == "sector" else movers()), 120

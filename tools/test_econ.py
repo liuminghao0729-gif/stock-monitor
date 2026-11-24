@@ -74,7 +74,7 @@ def test_route_validation():
     real = C._fred; C._fred = lambda *a, **k: {"release_dates": []}
     try:
         ok = C.route("macro", {"part": "econ", "from": "2026-11-22", "to": "2026-12-22"})
-        assert ok[0] == 200 and ok[1]["from"] == "2026-11-22" and ok[2] == 3600 and any(i["key"] == "fomc" for i in ok[1]["items"])
+        assert ok[0] == 200 and ok[1]["from"] == "2026-11-22" and ok[2] == 21600 and any(i["key"] == "fomc" for i in ok[1]["items"])
         assert C.route("macro", {"part": "econ", "from": "2026-12-22", "to": "2026-11-22"})[:2] == (400, {"error": "bad range"})
         assert C.route("macro", {"part": "econ", "from": "2026-01-01", "to": "2026-12-31"})[:2] == (400, {"error": "bad range"})     # 超过 62 天
         assert C.route("macro", {"part": "econ", "from": "乱码", "to": "2026-12-31"})[:2] == (400, {"error": "bad date"})
@@ -82,6 +82,34 @@ def test_route_validation():
         assert d[0] == 200 and d[1]["from"] == str(datetime.date.today())
     finally:
         C._fred = real
+
+def test_fast_path_one_call_per_release_and_fallback():
+    """快路径:先取发布清单,再只对关心的发布各查一次;出错时 econ() 回到慢路径,结果一样。"""
+    calls = []
+    rels = {"releases": [{"id": 10, "name": "Consumer Price Index"}, {"id": 99, "name": "Some Other Release"}, {"id": 50, "name": "Employment Situation"},
+                         {"id": 7, "name": "FOMC Press Release"}]}
+    def fake(path, params, ttl):
+        calls.append(path)
+        if path == "releases":
+            return rels
+        if path == "release/dates":
+            return {"release_dates": [{"release_id": params["release_id"], "date": "2026-12-10" if params["release_id"] == 10 else "2026-12-04"}]}
+        return {"release_dates": [rd("2026-12-10", "Consumer Price Index")]}          # 慢路径(releases/dates)
+    old = C._fred; C._fred = fake
+    try:
+        r = C.econ("2026-11-22", "2026-12-22")
+        assert [(i["key"], i["date"]) for i in r["items"] if i["key"] in ("cpi", "jobs")] == [("jobs", "2026-12-04"), ("cpi", "2026-12-10")], r
+        assert calls.count("release/dates") == 2 and "releases/dates" not in calls, calls    # 只查了 CPI 和非农,没查无关发布和 FOMC,也没走慢路径
+        calls.clear()
+        def broken(path, params, ttl):
+            calls.append(path)
+            if path == "release/dates": raise RuntimeError("boom")
+            return fake(path, params, ttl)
+        C._fred = broken
+        r = C.econ("2026-11-22", "2026-12-22")
+        assert r["fred"] is True and any(i["key"] == "cpi" for i in r["items"]) and "releases/dates" in calls, (r, calls)   # 快路径出错 -> 慢路径兜底
+    finally:
+        C._fred = old
 
 if __name__ == "__main__":
     n = 0
